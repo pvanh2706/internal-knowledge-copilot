@@ -1,0 +1,25 @@
+# .NET
+bin/
+obj/
+TestResults/
+*.user
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Local runtime data
+data/
+storage/
+.chroma/
+logs/
+*.log
+
+# Editor
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store

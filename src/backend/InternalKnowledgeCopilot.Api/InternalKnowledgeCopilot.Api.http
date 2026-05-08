@@ -1,0 +1,6 @@
+@InternalKnowledgeCopilot.Api_HostAddress = http://localhost:5291
+
+GET {{InternalKnowledgeCopilot.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
