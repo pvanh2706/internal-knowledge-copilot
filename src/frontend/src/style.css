@@ -129,14 +129,17 @@ input {
   font-weight: 600;
 }
 
-.login-form input {
+.login-form input,
+.management-form input,
+.management-form select {
   width: 100%;
   border: 1px solid #cfd6e0;
   border-radius: 8px;
   padding: 10px 12px;
 }
 
-.login-form button {
+.login-form button,
+.management-form button {
   border: 0;
   border-radius: 8px;
   background: #1f6feb;
@@ -144,6 +147,58 @@ input {
   cursor: pointer;
   font-weight: 700;
   padding: 11px 14px;
+}
+
+.login-form button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.login-link {
+  border: 1px solid #cfd6e0;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.form-error {
+  color: #b42318;
+  font-weight: 600;
+  margin: 0;
+}
+
+.form-success {
+  color: #027a48;
+  font-weight: 600;
+  margin: 0;
+}
+
+.management-page {
+  display: grid;
+  gap: 20px;
+}
+
+.management-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+}
+
+.data-table th,
+.data-table td {
+  border-bottom: 1px solid #d7dce5;
+  padding: 10px;
+  text-align: left;
+}
+
+.data-table th {
+  color: #475467;
+  font-size: 14px;
 }
 
 @media (max-width: 760px) {
@@ -162,5 +217,9 @@ input {
 
   .topbar {
     display: grid;
+  }
+
+  .management-form {
+    grid-template-columns: 1fr;
   }
 }

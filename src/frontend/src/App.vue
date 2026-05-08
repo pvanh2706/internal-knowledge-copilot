@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
+import { useAuthStore } from './stores/auth'
+
+const authStore = useAuthStore()
 </script>
 
 <template>
@@ -18,8 +21,9 @@ import { RouterLink, RouterView } from 'vue-router'
         <RouterLink to="/documents">Tài liệu</RouterLink>
         <RouterLink to="/ai">Hỏi AI</RouterLink>
         <RouterLink to="/wiki">Wiki</RouterLink>
-        <RouterLink to="/review">Review</RouterLink>
-        <RouterLink to="/admin/users">Quản trị</RouterLink>
+        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/review">Review</RouterLink>
+        <RouterLink v-if="authStore.isAdmin" to="/admin/users">Người dùng</RouterLink>
+        <RouterLink v-if="authStore.isAdmin" to="/admin/teams">Team</RouterLink>
       </nav>
     </aside>
 
@@ -29,7 +33,10 @@ import { RouterLink, RouterView } from 'vue-router'
           <h1>Internal Knowledge Copilot</h1>
           <p>Quản lý tri thức, hỏi đáp AI và chuẩn hóa wiki nội bộ.</p>
         </div>
-        <RouterLink class="login-link" to="/login">Đăng nhập</RouterLink>
+        <button v-if="authStore.isAuthenticated" class="login-link" type="button" @click="authStore.logout()">
+          Đăng xuất
+        </button>
+        <RouterLink v-else class="login-link" to="/login">Đăng nhập</RouterLink>
       </header>
 
       <RouterView />
