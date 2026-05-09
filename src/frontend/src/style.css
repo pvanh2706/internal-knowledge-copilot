@@ -201,6 +201,23 @@ input {
   font-size: 14px;
 }
 
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: #f2f6fc;
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #1457b8;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
 .split-layout {
   display: grid;
   grid-template-columns: minmax(240px, 0.9fr) minmax(280px, 1.1fr);
@@ -277,6 +294,22 @@ input {
 .danger-button {
   background: #b42318;
   color: #ffffff;
+}
+
+.review-item {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d7dce5;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.review-item textarea {
+  min-height: 84px;
+  border: 1px solid #cfd6e0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  resize: vertical;
 }
 
 @media (max-width: 760px) {

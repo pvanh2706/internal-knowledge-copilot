@@ -1,4 +1,5 @@
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
+using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Modules.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
@@ -23,6 +24,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IFolderPermissionService, FolderPermissionService>();
+builder.Services.AddScoped<IFileUploadValidator, FileUploadValidator>();
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 
 var sqlitePath = builder.Configuration.GetValue<string>("Database:SqlitePath")
     ?? Path.Combine(AppContext.BaseDirectory, "data", "internal-knowledge-copilot.db");

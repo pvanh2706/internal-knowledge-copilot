@@ -15,6 +15,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<UserFolderPermissionEntity> UserFolderPermissions => Set<UserFolderPermissionEntity>();
 
+    public DbSet<DocumentEntity> Documents => Set<DocumentEntity>();
+
+    public DbSet<DocumentVersionEntity> DocumentVersions => Set<DocumentVersionEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -112,6 +116,66 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany(folder => folder.UserPermissions)
                 .HasForeignKey(permission => permission.FolderId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DocumentEntity>(entity =>
+        {
+            entity.ToTable("documents");
+            entity.HasKey(document => document.Id);
+            entity.Property(document => document.FolderId).HasColumnName("folder_id");
+            entity.Property(document => document.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
+            entity.Property(document => document.Description).HasColumnName("description").HasMaxLength(2000);
+            entity.Property(document => document.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(document => document.CurrentVersionId).HasColumnName("current_version_id");
+            entity.Property(document => document.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(document => document.CreatedAt).HasColumnName("created_at");
+            entity.Property(document => document.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(document => document.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(document => new { document.FolderId, document.Title });
+            entity.HasOne(document => document.Folder)
+                .WithMany()
+                .HasForeignKey(document => document.FolderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(document => document.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(document => document.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DocumentVersionEntity>(entity =>
+        {
+            entity.ToTable("document_versions");
+            entity.HasKey(version => version.Id);
+            entity.Property(version => version.DocumentId).HasColumnName("document_id");
+            entity.Property(version => version.VersionNumber).HasColumnName("version_number");
+            entity.Property(version => version.OriginalFileName).HasColumnName("original_file_name").HasMaxLength(500).IsRequired();
+            entity.Property(version => version.StoredFilePath).HasColumnName("stored_file_path").HasMaxLength(2000).IsRequired();
+            entity.Property(version => version.FileExtension).HasColumnName("file_extension").HasMaxLength(30).IsRequired();
+            entity.Property(version => version.FileSizeBytes).HasColumnName("file_size_bytes");
+            entity.Property(version => version.ContentType).HasColumnName("content_type").HasMaxLength(200);
+            entity.Property(version => version.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(version => version.RejectReason).HasColumnName("reject_reason").HasMaxLength(2000);
+            entity.Property(version => version.ExtractedTextPath).HasColumnName("extracted_text_path").HasMaxLength(2000);
+            entity.Property(version => version.TextHash).HasColumnName("text_hash").HasMaxLength(200);
+            entity.Property(version => version.UploadedByUserId).HasColumnName("uploaded_by_user_id");
+            entity.Property(version => version.ReviewedByUserId).HasColumnName("reviewed_by_user_id");
+            entity.Property(version => version.ReviewedAt).HasColumnName("reviewed_at");
+            entity.Property(version => version.IndexedAt).HasColumnName("indexed_at");
+            entity.Property(version => version.CreatedAt).HasColumnName("created_at");
+            entity.Property(version => version.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(version => new { version.DocumentId, version.VersionNumber }).IsUnique();
+            entity.HasOne(version => version.Document)
+                .WithMany(document => document.Versions)
+                .HasForeignKey(version => version.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(version => version.UploadedByUser)
+                .WithMany()
+                .HasForeignKey(version => version.UploadedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(version => version.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(version => version.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
