@@ -20,7 +20,7 @@ const authStore = useAuthStore()
         <RouterLink to="/">Dashboard</RouterLink>
         <RouterLink to="/documents">Tài liệu</RouterLink>
         <RouterLink to="/ai">Hỏi AI</RouterLink>
-        <RouterLink to="/wiki">Wiki</RouterLink>
+        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/wiki">Wiki</RouterLink>
         <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/review">Review</RouterLink>
         <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/feedback">Feedback</RouterLink>
         <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/admin/folders">Thư mục</RouterLink>

@@ -5,6 +5,7 @@ import { downloadDocument, getDocument, getDocuments, uploadDocument, uploadDocu
 import type { FolderTreeItem } from '../../api/folders'
 import { getFolderTree } from '../../api/folders'
 import { ApiError } from '../../api/http'
+import { generateWikiDraft } from '../../api/wiki'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
@@ -19,6 +20,10 @@ const selectedVersionFile = ref<File | null>(null)
 const filters = ref({ status: '' as '' | DocumentStatus, keyword: '', folderId: '' })
 const uploadForm = ref({ folderId: '', title: '', description: '' })
 const flattenedFolders = computed(() => flattenFolders(folders.value))
+const canGenerateWiki = computed(() => {
+  if (!selectedDocument.value || (!authStore.isReviewer && !authStore.isAdmin)) return false
+  return selectedDocument.value.status === 'Approved' && selectedDocument.value.versions.some((version) => version.id === selectedDocument.value?.currentVersionId && version.status === 'Indexed')
+})
 
 async function loadData() {
   if (!authStore.accessToken) return
@@ -64,6 +69,19 @@ async function submitDownload(versionId?: string) {
   await runAction(async () => {
     await downloadDocument(selectedDocument.value!.id, authStore.accessToken!, versionId)
   }, 'Da bat dau tai file.')
+}
+
+async function submitGenerateWikiDraft() {
+  if (!authStore.accessToken || !selectedDocument.value || !selectedDocument.value.currentVersionId) return
+  await runAction(async () => {
+    await generateWikiDraft(
+      {
+        documentId: selectedDocument.value!.id,
+        documentVersionId: selectedDocument.value!.currentVersionId!,
+      },
+      authStore.accessToken!,
+    )
+  }, 'Da tao wiki draft tu tai lieu hien tai.')
 }
 
 function handleFileChange(event: Event) {
@@ -157,6 +175,8 @@ onMounted(loadData)
         <h3>{{ selectedDocument.title }}</h3>
         <p>{{ selectedDocument.folderPath }} - {{ selectedDocument.status }}</p>
         <button type="button" @click="submitDownload()">Tải bản hiện tại</button>
+
+        <button v-if="canGenerateWiki" type="button" @click="submitGenerateWikiDraft">Generate wiki draft</button>
 
         <form class="stack-form" @submit.prevent="submitUploadVersion">
           <label>

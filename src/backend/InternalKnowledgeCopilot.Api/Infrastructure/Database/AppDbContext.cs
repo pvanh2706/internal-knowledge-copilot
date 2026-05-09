@@ -27,6 +27,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<AiFeedbackEntity> AiFeedback => Set<AiFeedbackEntity>();
 
+    public DbSet<WikiDraftEntity> WikiDrafts => Set<WikiDraftEntity>();
+
+    public DbSet<WikiPageEntity> WikiPages => Set<WikiPageEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -275,6 +279,84 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasOne(feedback => feedback.ReviewedByUser)
                 .WithMany()
                 .HasForeignKey(feedback => feedback.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<WikiDraftEntity>(entity =>
+        {
+            entity.ToTable("wiki_drafts");
+            entity.HasKey(draft => draft.Id);
+            entity.Property(draft => draft.SourceDocumentId).HasColumnName("source_document_id");
+            entity.Property(draft => draft.SourceDocumentVersionId).HasColumnName("source_document_version_id");
+            entity.Property(draft => draft.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
+            entity.Property(draft => draft.Content).HasColumnName("content").IsRequired();
+            entity.Property(draft => draft.Language).HasColumnName("language").HasMaxLength(50).IsRequired();
+            entity.Property(draft => draft.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(draft => draft.RejectReason).HasColumnName("reject_reason").HasMaxLength(2000);
+            entity.Property(draft => draft.GeneratedByUserId).HasColumnName("generated_by_user_id");
+            entity.Property(draft => draft.ReviewedByUserId).HasColumnName("reviewed_by_user_id");
+            entity.Property(draft => draft.CreatedAt).HasColumnName("created_at");
+            entity.Property(draft => draft.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(draft => draft.ReviewedAt).HasColumnName("reviewed_at");
+            entity.HasIndex(draft => draft.Status);
+            entity.HasIndex(draft => draft.SourceDocumentId);
+            entity.HasOne(draft => draft.SourceDocument)
+                .WithMany()
+                .HasForeignKey(draft => draft.SourceDocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(draft => draft.SourceDocumentVersion)
+                .WithMany()
+                .HasForeignKey(draft => draft.SourceDocumentVersionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(draft => draft.GeneratedByUser)
+                .WithMany()
+                .HasForeignKey(draft => draft.GeneratedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(draft => draft.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(draft => draft.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<WikiPageEntity>(entity =>
+        {
+            entity.ToTable("wiki_pages");
+            entity.HasKey(page => page.Id);
+            entity.Property(page => page.SourceDraftId).HasColumnName("source_draft_id");
+            entity.Property(page => page.SourceDocumentId).HasColumnName("source_document_id");
+            entity.Property(page => page.SourceDocumentVersionId).HasColumnName("source_document_version_id");
+            entity.Property(page => page.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
+            entity.Property(page => page.Content).HasColumnName("content").IsRequired();
+            entity.Property(page => page.Language).HasColumnName("language").HasMaxLength(50).IsRequired();
+            entity.Property(page => page.VisibilityScope).HasColumnName("visibility_scope").HasConversion<string>().HasMaxLength(50);
+            entity.Property(page => page.FolderId).HasColumnName("folder_id");
+            entity.Property(page => page.IsCompanyPublicConfirmed).HasColumnName("is_company_public_confirmed");
+            entity.Property(page => page.PublishedByUserId).HasColumnName("published_by_user_id");
+            entity.Property(page => page.PublishedAt).HasColumnName("published_at");
+            entity.Property(page => page.ArchivedAt).HasColumnName("archived_at");
+            entity.Property(page => page.CreatedAt).HasColumnName("created_at");
+            entity.Property(page => page.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(page => page.SourceDraftId).IsUnique();
+            entity.HasIndex(page => page.VisibilityScope);
+            entity.HasOne(page => page.SourceDraft)
+                .WithMany()
+                .HasForeignKey(page => page.SourceDraftId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(page => page.SourceDocument)
+                .WithMany()
+                .HasForeignKey(page => page.SourceDocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(page => page.SourceDocumentVersion)
+                .WithMany()
+                .HasForeignKey(page => page.SourceDocumentVersionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(page => page.Folder)
+                .WithMany()
+                .HasForeignKey(page => page.FolderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(page => page.PublishedByUser)
+                .WithMany()
+                .HasForeignKey(page => page.PublishedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

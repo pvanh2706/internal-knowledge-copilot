@@ -7,9 +7,9 @@ import ChangePasswordPage from '../pages/auth/ChangePasswordPage.vue'
 import AiQuestionPage from '../pages/ai/AiQuestionPage.vue'
 import LoginPage from '../pages/auth/LoginPage.vue'
 import DocumentListPage from '../pages/documents/DocumentListPage.vue'
-import PlaceholderPage from '../pages/PlaceholderPage.vue'
 import DocumentReviewPage from '../pages/review/DocumentReviewPage.vue'
 import FeedbackReviewPage from '../pages/review/FeedbackReviewPage.vue'
+import WikiDraftPage from '../pages/wiki/WikiDraftPage.vue'
 import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
@@ -20,7 +20,7 @@ const router = createRouter({
     { path: '/change-password', name: 'change-password', component: ChangePasswordPage, meta: { requiresAuth: true } },
     { path: '/documents', name: 'documents', component: DocumentListPage, meta: { requiresAuth: true } },
     { path: '/ai', name: 'ai', component: AiQuestionPage, meta: { requiresAuth: true } },
-    { path: '/wiki', name: 'wiki', component: PlaceholderPage, meta: { title: 'Wiki', requiresAuth: true } },
+    { path: '/wiki', name: 'wiki', component: WikiDraftPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/review', name: 'review', component: DocumentReviewPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/feedback', name: 'feedback', component: FeedbackReviewPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/admin/users', name: 'admin-users', component: UserManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },

@@ -9,7 +9,7 @@ Last updated: 2026-05-09
 - [x] Milestone 4 - Document processing va vector indexing
 - [x] Milestone 5 - AI Q&A co nguon
 - [x] Milestone 6 - Feedback va reviewer queue
-- [ ] Milestone 7 - Wiki draft va publish
+- [x] Milestone 7 - Wiki draft va publish
 - [ ] Milestone 8 - Dashboard KPI va audit log
 - [ ] Milestone 9 - Hardening MVP
 
@@ -84,3 +84,16 @@ Last updated: 2026-05-09
 - Added backend tests for incorrect feedback creation and reviewer resolution.
 - Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone6.ps1`.
 - Verified backend build/test, frontend build/test, and a Chroma-backed ask/feedback/reviewer-update smoke flow pass.
+
+### Milestone 7
+
+- Added wiki draft and wiki page schema with EF migration.
+- Added mock wiki draft generation from indexed approved document text.
+- Added reviewer APIs to generate, list, view, publish, and reject wiki drafts.
+- Added wiki publish validation for folder/company visibility and company public confirmation.
+- Indexed published wiki pages into ChromaDB with wiki metadata for Q&A retrieval.
+- Added frontend wiki draft review page and a generate wiki draft action on indexed approved documents.
+- Updated Q&A flow verification so published wiki chunks are prioritized over document chunks.
+- Added backend tests for draft generation and wiki publish indexing.
+- Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone7.ps1`.
+- Verified backend build/test, frontend build/test, and a Chroma-backed document/index/wiki-publish/ask smoke flow pass.
