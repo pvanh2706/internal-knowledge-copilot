@@ -201,6 +201,84 @@ input {
   font-size: 14px;
 }
 
+.split-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(280px, 1.1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.folder-tree,
+.folder-detail {
+  display: grid;
+  gap: 12px;
+}
+
+.folder-tree button {
+  display: grid;
+  width: 100%;
+  border: 1px solid #d7dce5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.folder-tree button.selected {
+  border-color: #1f6feb;
+  background: #e8f1ff;
+}
+
+.folder-tree small {
+  color: #667085;
+  margin-top: 2px;
+}
+
+.stack-form,
+.permission-list {
+  display: grid;
+  gap: 12px;
+}
+
+.stack-form label,
+.permission-list label {
+  display: grid;
+  gap: 6px;
+  color: #667085;
+  font-weight: 600;
+}
+
+.stack-form input,
+.stack-form select {
+  width: 100%;
+  border: 1px solid #cfd6e0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.stack-form button,
+.permission-list button,
+.danger-button {
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 11px 14px;
+}
+
+.stack-form button,
+.permission-list button {
+  background: #1f6feb;
+  color: #ffffff;
+}
+
+.danger-button {
+  background: #b42318;
+  color: #ffffff;
+}
+
 @media (max-width: 760px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -220,6 +298,10 @@ input {
   }
 
   .management-form {
+    grid-template-columns: 1fr;
+  }
+
+  .split-layout {
     grid-template-columns: 1fr;
   }
 }

@@ -2,15 +2,15 @@
 
 Last updated: 2026-05-09
 
-- [x] Milestone 0 - Khởi tạo project
+- [x] Milestone 0 - Khoi tao project
 - [x] Milestone 1 - Auth, user, role, team
-- [ ] Milestone 2 - Folder tree và phân quyền
-- [ ] Milestone 3 - Upload, review và versioning tài liệu
-- [ ] Milestone 4 - Document processing và vector indexing
-- [ ] Milestone 5 - AI Q&A có nguồn
-- [ ] Milestone 6 - Feedback và reviewer queue
-- [ ] Milestone 7 - Wiki draft và publish
-- [ ] Milestone 8 - Dashboard KPI và audit log
+- [x] Milestone 2 - Folder tree va phan quyen
+- [ ] Milestone 3 - Upload, review va versioning tai lieu
+- [ ] Milestone 4 - Document processing va vector indexing
+- [ ] Milestone 5 - AI Q&A co nguon
+- [ ] Milestone 6 - Feedback va reviewer queue
+- [ ] Milestone 7 - Wiki draft va publish
+- [ ] Milestone 8 - Dashboard KPI va audit log
 - [ ] Milestone 9 - Hardening MVP
 
 ## Completed Notes
@@ -30,3 +30,11 @@ Last updated: 2026-05-09
 - Added password hashing, JWT login, password change, Admin user management, and team APIs.
 - Added Vue login, password change, user management, and team management screens.
 - Verified backend build/test, frontend build/test, and a backend smoke login pass.
+
+### Milestone 2
+
+- Added folders, folder permissions, and user folder permissions schema with EF migration.
+- Added folder permission service for Admin/Reviewer full visibility and User team/user-scoped visibility.
+- Added folder tree, folder detail, CRUD, soft delete, and team permission APIs.
+- Added Vue folder management screen for Admin/Reviewer with create, edit, delete, and team permission controls.
+- Verified backend build/test, frontend build/test, and a backend folder permission smoke flow pass.

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardPage from '../pages/DashboardPage.vue'
+import FolderManagementPage from '../pages/admin/FolderManagementPage.vue'
 import TeamManagementPage from '../pages/admin/TeamManagementPage.vue'
 import UserManagementPage from '../pages/admin/UserManagementPage.vue'
 import ChangePasswordPage from '../pages/auth/ChangePasswordPage.vue'
@@ -49,6 +50,12 @@ const router = createRouter({
       component: TeamManagementPage,
       meta: { requiresAuth: true, requiresAdmin: true },
     },
+    {
+      path: '/admin/folders',
+      name: 'admin-folders',
+      component: FolderManagementPage,
+      meta: { requiresAuth: true, requiresReviewer: true },
+    },
   ],
 })
 
@@ -59,6 +66,10 @@ router.beforeEach((to) => {
   }
 
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    return { name: 'dashboard' }
+  }
+
+  if (to.meta.requiresReviewer && !authStore.isAdmin && !authStore.isReviewer) {
     return { name: 'dashboard' }
   }
 

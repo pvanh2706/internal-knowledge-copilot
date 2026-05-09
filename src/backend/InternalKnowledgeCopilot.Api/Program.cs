@@ -1,6 +1,7 @@
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Modules.Auth;
+using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -21,6 +22,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IFolderPermissionService, FolderPermissionService>();
 
 var sqlitePath = builder.Configuration.GetValue<string>("Database:SqlitePath")
     ?? Path.Combine(AppContext.BaseDirectory, "data", "internal-knowledge-copilot.db");
