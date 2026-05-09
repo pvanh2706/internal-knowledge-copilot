@@ -10,7 +10,7 @@ Last updated: 2026-05-09
 - [x] Milestone 5 - AI Q&A co nguon
 - [x] Milestone 6 - Feedback va reviewer queue
 - [x] Milestone 7 - Wiki draft va publish
-- [ ] Milestone 8 - Dashboard KPI va audit log
+- [x] Milestone 8 - Dashboard KPI va audit log
 - [ ] Milestone 9 - Hardening MVP
 
 ## Completed Notes
@@ -97,3 +97,13 @@ Last updated: 2026-05-09
 - Added backend tests for draft generation and wiki publish indexing.
 - Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone7.ps1`.
 - Verified backend build/test, frontend build/test, and a Chroma-backed document/index/wiki-publish/ask smoke flow pass.
+
+### Milestone 8
+
+- Added audit log schema with EF migration and an audit log service.
+- Recorded audit events for folder, permission, document, wiki, AI feedback, team, and user management actions.
+- Added Admin audit log API with date, action, and entity type filters.
+- Added Reviewer/Admin dashboard summary API with document counts, wiki counts, AI question counts, feedback KPIs, pending incorrect feedback count, and top cited sources.
+- Added Vue dashboard KPI page and Admin audit log page.
+- Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone8.ps1`.
+- Verified backend build/test, frontend build/test, and a Chroma-backed dashboard/audit smoke flow pass.

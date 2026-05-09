@@ -31,6 +31,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<WikiPageEntity> WikiPages => Set<WikiPageEntity>();
 
+    public DbSet<AuditLogEntity> AuditLogs => Set<AuditLogEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -358,6 +360,25 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(page => page.PublishedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AuditLogEntity>(entity =>
+        {
+            entity.ToTable("audit_logs");
+            entity.HasKey(log => log.Id);
+            entity.Property(log => log.ActorUserId).HasColumnName("actor_user_id");
+            entity.Property(log => log.Action).HasColumnName("action").HasMaxLength(100).IsRequired();
+            entity.Property(log => log.EntityType).HasColumnName("entity_type").HasMaxLength(100).IsRequired();
+            entity.Property(log => log.EntityId).HasColumnName("entity_id");
+            entity.Property(log => log.MetadataJson).HasColumnName("metadata_json");
+            entity.Property(log => log.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(log => log.CreatedAt);
+            entity.HasIndex(log => log.Action);
+            entity.HasIndex(log => log.EntityType);
+            entity.HasOne(log => log.ActorUser)
+                .WithMany()
+                .HasForeignKey(log => log.ActorUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

@@ -1,5 +1,6 @@
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
+using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
@@ -60,7 +61,8 @@ public sealed class WikiServiceTests
             new MockWikiDraftGenerationService(),
             new TextChunker(),
             new MockEmbeddingService(),
-            vectorStore);
+            vectorStore,
+            new NoopAuditLogService());
     }
 
     private static async Task<SeededDocument> SeedIndexedDocumentAsync(AppDbContext dbContext)
@@ -152,6 +154,14 @@ public sealed class WikiServiceTests
         public Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(float[] embedding, int limit, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<KnowledgeVectorSearchResult>>([]);
+        }
+    }
+
+    private sealed class NoopAuditLogService : IAuditLogService
+    {
+        public Task RecordAsync(Guid? actorUserId, string action, string entityType, Guid? entityId, object? metadata = null, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 }

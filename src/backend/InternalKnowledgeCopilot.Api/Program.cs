@@ -1,6 +1,7 @@
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.BackgroundJobs;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
+using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
@@ -31,6 +32,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IFolderPermissionService, FolderPermissionService>();
 builder.Services.AddScoped<IFileUploadValidator, FileUploadValidator>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();

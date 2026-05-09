@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +11,7 @@ namespace InternalKnowledgeCopilot.Api.Modules.Teams;
 
 [ApiController]
 [Route("api/teams")]
-public sealed class TeamsController(AppDbContext dbContext) : ControllerBase
+public sealed class TeamsController(AppDbContext dbContext, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
@@ -48,8 +50,15 @@ public sealed class TeamsController(AppDbContext dbContext) : ControllerBase
 
         dbContext.Teams.Add(team);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(GetCurrentUserId(), "TeamCreated", "Team", team.Id, new { team.Name }, cancellationToken);
 
         var response = new TeamResponse(team.Id, team.Name, team.Description);
         return CreatedAtAction(nameof(GetTeams), response);
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var rawUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(rawUserId, out var userId) ? userId : null;
     }
 }

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +12,7 @@ namespace InternalKnowledgeCopilot.Api.Modules.Folders;
 [ApiController]
 [Route("api/folders")]
 [Authorize]
-public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionService permissionService) : ControllerBase
+public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionService permissionService, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet("tree")]
     public async Task<ActionResult<IReadOnlyList<FolderTreeItemResponse>>> GetTree(CancellationToken cancellationToken)
@@ -103,6 +104,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
 
         dbContext.Folders.Add(folderEntity);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(currentUserId.Value, "FolderCreated", "Folder", folderEntity.Id, new { folderEntity.Path }, cancellationToken);
 
         return CreatedAtAction(
             nameof(GetDetail),
@@ -169,6 +171,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(GetCurrentUserId(), "FolderUpdated", "Folder", folder.Id, new { folder.Path }, cancellationToken);
         return NoContent();
     }
 
@@ -194,6 +197,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(GetCurrentUserId(), "FolderDeleted", "Folder", id, new { folder.Path }, cancellationToken);
         return NoContent();
     }
 
@@ -246,6 +250,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(GetCurrentUserId(), "PermissionChanged", "Folder", id, new { Count = request.TeamPermissions.Count }, cancellationToken);
         return NoContent();
     }
 

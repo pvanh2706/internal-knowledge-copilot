@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
@@ -17,7 +18,8 @@ public sealed class DocumentsController(
     AppDbContext dbContext,
     IFolderPermissionService folderPermissionService,
     IFileUploadValidator fileUploadValidator,
-    IFileStorageService fileStorageService) : ControllerBase
+    IFileStorageService fileStorageService,
+    IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<DocumentListItemResponse>>> GetDocuments(
@@ -124,6 +126,7 @@ public sealed class DocumentsController(
         dbContext.Documents.Add(document);
         dbContext.DocumentVersions.Add(version);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(userId.Value, "DocumentUploaded", "Document", document.Id, new { document.Title, document.FolderId }, cancellationToken);
 
         return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, await BuildDetailResponseAsync(document.Id, cancellationToken));
     }
@@ -169,6 +172,7 @@ public sealed class DocumentsController(
 
         document.UpdatedAt = now;
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(userId.Value, "DocumentVersionUploaded", "Document", document.Id, new { VersionId = version.Id, version.VersionNumber }, cancellationToken);
 
         return Ok(await BuildDetailResponseAsync(document.Id, cancellationToken));
     }
@@ -290,6 +294,7 @@ public sealed class DocumentsController(
             CreatedAt = now,
         });
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(reviewerId.Value, "DocumentApproved", "Document", document.Id, new { VersionId = version.Id }, cancellationToken);
 
         return NoContent();
     }
@@ -338,6 +343,7 @@ public sealed class DocumentsController(
 
         document.UpdatedAt = now;
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(reviewerId.Value, "DocumentRejected", "Document", document.Id, new { VersionId = version.Id, Reason = version.RejectReason }, cancellationToken);
 
         return NoContent();
     }

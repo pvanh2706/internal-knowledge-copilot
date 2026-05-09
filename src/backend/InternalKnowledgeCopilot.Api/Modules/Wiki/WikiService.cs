@@ -1,5 +1,6 @@
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
+using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
@@ -28,7 +29,8 @@ public sealed class WikiService(
     IWikiDraftGenerationService draftGenerationService,
     ITextChunker chunker,
     IEmbeddingService embeddingService,
-    IKnowledgeVectorStore vectorStore) : IWikiService
+    IKnowledgeVectorStore vectorStore,
+    IAuditLogService auditLogService) : IWikiService
 {
     public async Task<WikiDraftDetailResponse> GenerateDraftAsync(Guid reviewerId, GenerateWikiDraftRequest request, CancellationToken cancellationToken = default)
     {
@@ -81,6 +83,7 @@ public sealed class WikiService(
 
         dbContext.WikiDrafts.Add(draft);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(reviewerId, "WikiDraftGenerated", "WikiDraft", draft.Id, new { draft.SourceDocumentId, draft.SourceDocumentVersionId }, cancellationToken);
         draft.SourceDocument = version.Document;
         draft.SourceDocumentVersion = version;
         return ToDetailResponse(draft);
@@ -187,6 +190,7 @@ public sealed class WikiService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await IndexWikiPageAsync(page, folderPath ?? string.Empty, cancellationToken);
+        await auditLogService.RecordAsync(reviewerId, "WikiPublished", "WikiPage", page.Id, new { DraftId = draft.Id, page.VisibilityScope, page.FolderId }, cancellationToken);
         return new WikiPageResponse(page.Id, page.SourceDraftId, page.Title, page.Content, page.Language, page.VisibilityScope, page.FolderId, folderPath, page.PublishedAt);
     }
 
@@ -219,6 +223,7 @@ public sealed class WikiService(
         draft.ReviewedAt = now;
         draft.UpdatedAt = now;
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(reviewerId, "WikiRejected", "WikiDraft", draft.Id, new { Reason = draft.RejectReason }, cancellationToken);
 
         return ToDetailResponse(draft);
     }

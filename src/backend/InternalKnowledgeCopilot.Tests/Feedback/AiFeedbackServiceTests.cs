@@ -1,4 +1,5 @@
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
@@ -16,7 +17,7 @@ public sealed class AiFeedbackServiceTests
         var userId = Guid.NewGuid();
         var interactionId = Guid.NewGuid();
         await SeedInteractionAsync(dbContext, userId, interactionId);
-        var service = new AiFeedbackService(dbContext);
+        var service = new AiFeedbackService(dbContext, new NoopAuditLogService());
 
         var response = await service.SubmitAsync(
             interactionId,
@@ -37,7 +38,7 @@ public sealed class AiFeedbackServiceTests
         var reviewerId = Guid.NewGuid();
         var interactionId = Guid.NewGuid();
         await SeedInteractionAsync(dbContext, userId, interactionId);
-        var service = new AiFeedbackService(dbContext);
+        var service = new AiFeedbackService(dbContext, new NoopAuditLogService());
         var feedback = await service.SubmitAsync(
             interactionId,
             userId,
@@ -88,5 +89,13 @@ public sealed class AiFeedbackServiceTests
             .Options;
 
         return new AppDbContext(options);
+    }
+
+    private sealed class NoopAuditLogService : IAuditLogService
+    {
+        public Task RecordAsync(Guid? actorUserId, string action, string entityType, Guid? entityId, object? metadata = null, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

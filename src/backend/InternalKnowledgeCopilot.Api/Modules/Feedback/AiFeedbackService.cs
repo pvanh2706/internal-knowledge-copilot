@@ -1,4 +1,5 @@
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,7 @@ public interface IAiFeedbackService
     Task<FeedbackResponse> UpdateReviewStatusAsync(Guid feedbackId, Guid reviewerId, UpdateFeedbackReviewStatusRequest request, CancellationToken cancellationToken = default);
 }
 
-public sealed class AiFeedbackService(AppDbContext dbContext) : IAiFeedbackService
+public sealed class AiFeedbackService(AppDbContext dbContext, IAuditLogService auditLogService) : IAiFeedbackService
 {
     public async Task<FeedbackResponse> SubmitAsync(Guid interactionId, Guid userId, SubmitFeedbackRequest request, CancellationToken cancellationToken = default)
     {
@@ -53,6 +54,7 @@ public sealed class AiFeedbackService(AppDbContext dbContext) : IAiFeedbackServi
         feedback.UpdatedAt = now;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(userId, "AiFeedbackSubmitted", "AiInteraction", interactionId, new { request.Value }, cancellationToken);
         return ToResponse(feedback);
     }
 
@@ -108,6 +110,7 @@ public sealed class AiFeedbackService(AppDbContext dbContext) : IAiFeedbackServi
         feedback.UpdatedAt = now;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(reviewerId, "AiFeedbackReviewed", "AiFeedback", feedback.Id, new { request.Status }, cancellationToken);
         return ToResponse(feedback);
     }
 

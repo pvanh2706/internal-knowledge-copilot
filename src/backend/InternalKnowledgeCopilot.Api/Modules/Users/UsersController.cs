@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Modules.Auth;
@@ -11,7 +13,7 @@ namespace InternalKnowledgeCopilot.Api.Modules.Users;
 [ApiController]
 [Route("api/users")]
 [Authorize(Roles = nameof(UserRole.Admin))]
-public sealed class UsersController(AppDbContext dbContext, IPasswordHasher passwordHasher) : ControllerBase
+public sealed class UsersController(AppDbContext dbContext, IPasswordHasher passwordHasher, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<UserListItemResponse>>> GetUsers(CancellationToken cancellationToken)
@@ -71,6 +73,7 @@ public sealed class UsersController(AppDbContext dbContext, IPasswordHasher pass
 
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(GetCurrentUserId(), "UserCreated", "User", user.Id, new { user.Email, user.Role }, cancellationToken);
 
         var response = new UserListItemResponse(user.Id, user.Email, user.DisplayName, user.Role, user.PrimaryTeamId, null, user.MustChangePassword, user.IsActive);
         return CreatedAtAction(nameof(GetUsers), response);
@@ -108,7 +111,14 @@ public sealed class UsersController(AppDbContext dbContext, IPasswordHasher pass
         user.IsActive = request.IsActive ?? user.IsActive;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(GetCurrentUserId(), "UserUpdated", "User", user.Id, new { user.Email, user.Role, user.IsActive }, cancellationToken);
 
         return NoContent();
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var rawUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(rawUserId, out var userId) ? userId : null;
     }
 }
