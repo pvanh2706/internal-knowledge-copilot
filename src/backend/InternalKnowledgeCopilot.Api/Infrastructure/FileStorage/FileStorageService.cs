@@ -7,6 +7,8 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
 public interface IFileStorageService
 {
     Task<string> SaveDocumentVersionAsync(Guid documentId, Guid versionId, IFormFile file, CancellationToken cancellationToken = default);
+
+    bool TryResolveStoredPath(string storedPath, out string resolvedPath);
 }
 
 public sealed class FileStorageService(IOptions<AppStorageOptions> options) : IFileStorageService
@@ -25,6 +27,26 @@ public sealed class FileStorageService(IOptions<AppStorageOptions> options) : IF
         return storedPath;
     }
 
+    public bool TryResolveStoredPath(string storedPath, out string resolvedPath)
+    {
+        resolvedPath = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(storedPath))
+        {
+            return false;
+        }
+
+        var rootPath = EnsureTrailingSeparator(Path.GetFullPath(options.Value.RootPath));
+        var candidatePath = Path.GetFullPath(storedPath);
+        if (!candidatePath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        resolvedPath = candidatePath;
+        return true;
+    }
+
     private static string BuildSafeFileName(string fileName)
     {
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
@@ -37,6 +59,18 @@ public sealed class FileStorageService(IOptions<AppStorageOptions> options) : IF
             safeName = "document";
         }
 
+        if (safeName.Length > 120)
+        {
+            safeName = safeName[..120];
+        }
+
         return $"{Guid.NewGuid():N}-{safeName}{extension}";
+    }
+
+    private static string EnsureTrailingSeparator(string path)
+    {
+        return path.EndsWith(Path.DirectorySeparatorChar)
+            ? path
+            : path + Path.DirectorySeparatorChar;
     }
 }

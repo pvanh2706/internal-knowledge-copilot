@@ -87,6 +87,7 @@ dotnet test src/backend/InternalKnowledgeCopilot.sln
 cd src/frontend
 npm run build
 npm test
+powershell -ExecutionPolicy Bypass -File ../../scripts/smoke-mvp.ps1
 ```
 
 If some command is not available yet because the project has not been scaffolded, the AI agent should create the missing project/script as part of milestone 0.
@@ -103,3 +104,13 @@ Verify these manually during hardening:
 - Vector search cannot return unauthorized chunks.
 - AI cannot invent citations that were not retrieved by backend.
 - Secrets and passwords are not logged.
+
+## MVP Smoke Script
+
+The final local MVP smoke script is:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\smoke-mvp.ps1
+```
+
+It starts temporary ChromaDB and API instances, uses a temporary SQLite database and storage folder, then verifies Admin setup, folder permission, User upload, Reviewer approval, indexing, AI Q&A, feedback queue, wiki publish, dashboard metrics, and audit logs.

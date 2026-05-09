@@ -241,12 +241,17 @@ public sealed class DocumentsController(
             return NotFound(new ApiError("version_not_found", "Không tìm thấy phiên bản tài liệu."));
         }
 
-        if (!System.IO.File.Exists(version.StoredFilePath))
+        if (!fileStorageService.TryResolveStoredPath(version.StoredFilePath, out var resolvedStoredPath))
         {
             return NotFound(new ApiError("file_not_found", "Không tìm thấy file gốc."));
         }
 
-        return PhysicalFile(version.StoredFilePath, version.ContentType ?? "application/octet-stream", version.OriginalFileName);
+        if (!System.IO.File.Exists(resolvedStoredPath))
+        {
+            return NotFound(new ApiError("file_not_found", "Không tìm thấy file gốc."));
+        }
+
+        return PhysicalFile(resolvedStoredPath, version.ContentType ?? "application/octet-stream", version.OriginalFileName);
     }
 
     [HttpPost("{id:guid}/approve")]

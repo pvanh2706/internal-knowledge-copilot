@@ -100,6 +100,69 @@ public sealed class AiQuestionServiceTests
         Assert.Equal(1, await dbContext.AiInteractionSources.CountAsync());
     }
 
+    [Fact]
+    public async Task AskAsync_DoesNotUseWikiChunk_WhenSqliteDoesNotConfirmPublishedPage()
+    {
+        await using var dbContext = CreateDbContext();
+        var now = DateTimeOffset.UtcNow;
+        var teamId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        var fakeWikiPageId = Guid.NewGuid();
+        var sourceDocumentId = Guid.NewGuid();
+
+        dbContext.Teams.Add(new TeamEntity { Id = teamId, Name = "Team", CreatedAt = now, UpdatedAt = now });
+        dbContext.Users.Add(new UserEntity
+        {
+            Id = userId,
+            Email = "user@example.local",
+            DisplayName = "User",
+            PasswordHash = "hash",
+            Role = UserRole.User,
+            PrimaryTeamId = teamId,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.Folders.Add(new FolderEntity
+        {
+            Id = folderId,
+            Name = "Allowed",
+            Path = "/Allowed",
+            CreatedByUserId = userId,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.FolderPermissions.Add(new FolderPermissionEntity
+        {
+            Id = Guid.NewGuid(),
+            FolderId = folderId,
+            TeamId = teamId,
+            CanView = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var vectorStore = new FakeKnowledgeVectorStore([
+            CreateWikiVectorResult(fakeWikiPageId, folderId, sourceDocumentId, "Fake wiki", "/Allowed", "secret wiki answer from vector only"),
+        ]);
+        var service = new AiQuestionService(
+            dbContext,
+            new FolderPermissionService(dbContext),
+            new MockEmbeddingService(),
+            vectorStore,
+            new MockAnswerGenerationService());
+
+        var response = await service.AskAsync(userId, new AskQuestionRequest("secret wiki", AiScopeType.All, null, null));
+
+        Assert.True(response.NeedsClarification);
+        Assert.Empty(response.Citations);
+        Assert.DoesNotContain("secret wiki answer", response.Answer, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, await dbContext.AiInteractions.CountAsync());
+        Assert.Equal(0, await dbContext.AiInteractionSources.CountAsync());
+    }
+
     private static DocumentVersionEntity CreateIndexedVersion(Guid id, Guid documentId, Guid userId, DateTimeOffset now)
     {
         return new DocumentVersionEntity
@@ -130,6 +193,25 @@ public sealed class AiQuestionServiceTests
                 ["document_id"] = documentId.ToString(),
                 ["document_version_id"] = versionId.ToString(),
                 ["folder_id"] = folderId.ToString(),
+                ["title"] = title,
+                ["folder_path"] = folderPath,
+            },
+            0.1);
+    }
+
+    private static KnowledgeVectorSearchResult CreateWikiVectorResult(Guid wikiPageId, Guid folderId, Guid documentId, string title, string folderPath, string text)
+    {
+        return new KnowledgeVectorSearchResult(
+            wikiPageId.ToString(),
+            text,
+            new Dictionary<string, object?>
+            {
+                ["source_type"] = "wiki",
+                ["source_id"] = wikiPageId.ToString(),
+                ["wiki_page_id"] = wikiPageId.ToString(),
+                ["document_id"] = documentId.ToString(),
+                ["folder_id"] = folderId.ToString(),
+                ["visibility_scope"] = "folder",
                 ["title"] = title,
                 ["folder_path"] = folderPath,
             },

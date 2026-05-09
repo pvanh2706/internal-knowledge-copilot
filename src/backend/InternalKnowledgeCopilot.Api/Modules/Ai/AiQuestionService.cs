@@ -152,6 +152,10 @@ public sealed class AiQuestionService(
             .Where(chunk => chunk.SourceType == KnowledgeSourceType.Document && chunk.DocumentVersionId is not null)
             .Select(chunk => chunk.DocumentVersionId!.Value)
             .ToHashSet();
+        var wikiPageIds = candidates
+            .Where(chunk => chunk.SourceType == KnowledgeSourceType.Wiki && chunk.WikiPageId is not null)
+            .Select(chunk => chunk.WikiPageId!.Value)
+            .ToHashSet();
 
         var currentIndexedVersionIds = await dbContext.DocumentVersions
             .AsNoTracking()
@@ -167,9 +171,54 @@ public sealed class AiQuestionService(
             .ToListAsync(cancellationToken);
 
         var currentVersionIdSet = currentIndexedVersionIds.ToHashSet();
+        var visibleWikiPages = await dbContext.WikiPages
+            .AsNoTracking()
+            .Where(page =>
+                wikiPageIds.Contains(page.Id) &&
+                page.ArchivedAt == null &&
+                (
+                    (page.VisibilityScope == VisibilityScope.Company && page.IsCompanyPublicConfirmed) ||
+                    (page.VisibilityScope == VisibilityScope.Folder && page.FolderId != null && visibleFolderIds.Contains(page.FolderId.Value))
+                ))
+            .Select(page => new WikiPageVisibility(page.Id, page.SourceDocumentId, page.VisibilityScope, page.FolderId))
+            .ToDictionaryAsync(page => page.Id, cancellationToken);
+
         return candidates
-            .Where(chunk => chunk.SourceType == KnowledgeSourceType.Wiki || (chunk.DocumentVersionId is not null && currentVersionIdSet.Contains(chunk.DocumentVersionId.Value)))
+            .Where(chunk => chunk.SourceType switch
+            {
+                KnowledgeSourceType.Wiki => IsAllowedWikiChunk(chunk, visibleWikiPages, request),
+                KnowledgeSourceType.Document => chunk.DocumentVersionId is not null && currentVersionIdSet.Contains(chunk.DocumentVersionId.Value),
+                _ => false,
+            })
             .ToList();
+    }
+
+    private static bool IsAllowedWikiChunk(
+        RetrievedKnowledgeChunk chunk,
+        IReadOnlyDictionary<Guid, WikiPageVisibility> visibleWikiPages,
+        AskQuestionRequest request)
+    {
+        if (chunk.WikiPageId is null || !visibleWikiPages.TryGetValue(chunk.WikiPageId.Value, out var page))
+        {
+            return false;
+        }
+
+        if (request.ScopeType == AiScopeType.Folder && page.FolderId != request.FolderId)
+        {
+            return false;
+        }
+
+        if (request.ScopeType == AiScopeType.Document && page.SourceDocumentId != request.DocumentId)
+        {
+            return false;
+        }
+
+        if (page.VisibilityScope == VisibilityScope.Folder && chunk.FolderId != page.FolderId)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static RetrievedKnowledgeChunk? ToRetrievedChunk(KnowledgeVectorSearchResult result)
@@ -237,4 +286,6 @@ public sealed class AiQuestionService(
         var normalized = string.Join(' ', text.Split([' ', '\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries));
         return normalized.Length <= 320 ? normalized : normalized[..320].TrimEnd() + "...";
     }
+
+    private sealed record WikiPageVisibility(Guid Id, Guid SourceDocumentId, VisibilityScope VisibilityScope, Guid? FolderId);
 }

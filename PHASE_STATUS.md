@@ -1,6 +1,6 @@
 # Phase Status
 
-Last updated: 2026-05-09
+Last updated: 2026-05-10
 
 - [x] Milestone 0 - Khoi tao project
 - [x] Milestone 1 - Auth, user, role, team
@@ -11,7 +11,7 @@ Last updated: 2026-05-09
 - [x] Milestone 6 - Feedback va reviewer queue
 - [x] Milestone 7 - Wiki draft va publish
 - [x] Milestone 8 - Dashboard KPI va audit log
-- [ ] Milestone 9 - Hardening MVP
+- [x] Milestone 9 - Hardening MVP
 
 ## Completed Notes
 
@@ -107,3 +107,13 @@ Last updated: 2026-05-09
 - Added Vue dashboard KPI page and Admin audit log page.
 - Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone8.ps1`.
 - Verified backend build/test, frontend build/test, and a Chroma-backed dashboard/audit smoke flow pass.
+
+### Milestone 9
+
+- Hardened file download so stored paths must resolve under the configured storage root.
+- Hardened RAG retrieval so wiki chunks from ChromaDB are rechecked against SQLite before being used as AI context.
+- Added backend tests for path traversal-safe storage and SQLite-confirmed wiki retrieval.
+- Added final MVP smoke script at `scripts/smoke-mvp.ps1`.
+- Added local backup script at `scripts/backup-local.ps1`.
+- Added `SECURITY_CHECKLIST.md` and `DEPLOYMENT_IIS.md` for MVP security, backup, local smoke, and IIS deployment readiness.
+- Verified backend build/test, frontend build/test, and the final Chroma-backed MVP smoke flow pass.
