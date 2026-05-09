@@ -13,6 +13,7 @@ public sealed record DocumentListItemResponse(
     Guid? CurrentVersionId,
     int? CurrentVersionNumber,
     int LatestVersionNumber,
+    DocumentVersionStatus LatestVersionStatus,
     int PendingVersionCount,
     string CreatedBy,
     DateTimeOffset CreatedAt,

@@ -139,6 +139,7 @@ onMounted(loadData)
             <th>Folder</th>
             <th>Status</th>
             <th>Version</th>
+            <th>Indexing</th>
           </tr>
         </thead>
         <tbody>
@@ -147,6 +148,7 @@ onMounted(loadData)
             <td>{{ document.folderPath }}</td>
             <td>{{ document.status }}</td>
             <td>{{ document.currentVersionNumber ?? '-' }} / {{ document.latestVersionNumber }}</td>
+            <td>{{ document.latestVersionStatus }}</td>
           </tr>
         </tbody>
       </table>

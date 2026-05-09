@@ -70,6 +70,7 @@ public sealed class DocumentsController(
                 document.CurrentVersionId,
                 document.CurrentVersionId == null ? null : document.Versions.Where(version => version.Id == document.CurrentVersionId).Select(version => (int?)version.VersionNumber).FirstOrDefault(),
                 document.Versions.Max(version => version.VersionNumber),
+                document.Versions.OrderByDescending(version => version.VersionNumber).Select(version => version.Status).First(),
                 document.Versions.Count(version => version.Status == DocumentVersionStatus.PendingReview),
                 document.CreatedByUser!.DisplayName,
                 document.CreatedAt,
@@ -278,6 +279,16 @@ public sealed class DocumentsController(
         document.CurrentVersionId = version.Id;
         document.Status = DocumentStatus.Approved;
         document.UpdatedAt = now;
+        dbContext.ProcessingJobs.Add(new ProcessingJobEntity
+        {
+            Id = Guid.NewGuid(),
+            JobType = "ExtractAndEmbedDocument",
+            TargetType = "DocumentVersion",
+            TargetId = version.Id,
+            Status = ProcessingJobStatus.Pending,
+            Attempts = 0,
+            CreatedAt = now,
+        });
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return NoContent();

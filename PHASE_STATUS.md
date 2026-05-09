@@ -6,7 +6,7 @@ Last updated: 2026-05-09
 - [x] Milestone 1 - Auth, user, role, team
 - [x] Milestone 2 - Folder tree va phan quyen
 - [x] Milestone 3 - Upload, review va versioning tai lieu
-- [ ] Milestone 4 - Document processing va vector indexing
+- [x] Milestone 4 - Document processing va vector indexing
 - [ ] Milestone 5 - AI Q&A co nguon
 - [ ] Milestone 6 - Feedback va reviewer queue
 - [ ] Milestone 7 - Wiki draft va publish
@@ -48,3 +48,15 @@ Last updated: 2026-05-09
 - Added versioning behavior where pending/rejected new versions do not replace the current approved version.
 - Added Vue document upload/list/detail/download page and reviewer approval queue.
 - Verified backend build/test, frontend build/test, and a document upload/review/versioning/download smoke flow pass.
+
+### Milestone 4
+
+- Added processing job schema with EF migration and hosted worker.
+- Added TXT, Markdown, DOCX, and PDF text extraction.
+- Added deterministic mock embeddings for local testing without a real AI provider.
+- Added text chunking and ChromaDB vector upsert with document/folder/version metadata.
+- Enqueued document processing when a reviewer approves a document version.
+- Added extracted text path, text hash, indexed timestamp, and processing failure status handling.
+- Exposed latest version indexing status in the document list UI.
+- Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone4.ps1`.
+- Verified backend build/test, frontend build/test, and a Chroma-backed upload/approve/index smoke flow pass.

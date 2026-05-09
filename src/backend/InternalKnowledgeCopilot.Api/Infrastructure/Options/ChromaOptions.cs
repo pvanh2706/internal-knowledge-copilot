@@ -7,4 +7,8 @@ public sealed class ChromaOptions
     public string BaseUrl { get; init; } = "http://localhost:8000";
 
     public string Collection { get; init; } = "knowledge_chunks";
+
+    public string Tenant { get; init; } = "default_tenant";
+
+    public string Database { get; init; } = "default_database";
 }

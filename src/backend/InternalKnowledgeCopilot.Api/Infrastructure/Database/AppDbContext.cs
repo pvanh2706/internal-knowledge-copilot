@@ -19,6 +19,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<DocumentVersionEntity> DocumentVersions => Set<DocumentVersionEntity>();
 
+    public DbSet<ProcessingJobEntity> ProcessingJobs => Set<ProcessingJobEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -176,6 +178,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(version => version.ReviewedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProcessingJobEntity>(entity =>
+        {
+            entity.ToTable("processing_jobs");
+            entity.HasKey(job => job.Id);
+            entity.Property(job => job.JobType).HasColumnName("job_type").HasMaxLength(100).IsRequired();
+            entity.Property(job => job.TargetType).HasColumnName("target_type").HasMaxLength(100).IsRequired();
+            entity.Property(job => job.TargetId).HasColumnName("target_id");
+            entity.Property(job => job.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(job => job.Attempts).HasColumnName("attempts");
+            entity.Property(job => job.ErrorMessage).HasColumnName("error_message").HasMaxLength(4000);
+            entity.Property(job => job.CreatedAt).HasColumnName("created_at");
+            entity.Property(job => job.StartedAt).HasColumnName("started_at");
+            entity.Property(job => job.FinishedAt).HasColumnName("finished_at");
+            entity.HasIndex(job => new { job.Status, job.CreatedAt });
+            entity.HasIndex(job => new { job.TargetType, job.TargetId });
         });
     }
 }

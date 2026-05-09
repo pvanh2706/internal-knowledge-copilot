@@ -13,6 +13,7 @@ export interface DocumentListItem {
   currentVersionId?: string
   currentVersionNumber?: number
   latestVersionNumber: number
+  latestVersionStatus: DocumentVersionStatus
   pendingVersionCount: number
   createdBy: string
   createdAt: string

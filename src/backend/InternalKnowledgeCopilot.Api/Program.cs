@@ -1,6 +1,10 @@
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
+using InternalKnowledgeCopilot.Api.Infrastructure.BackgroundJobs;
+using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
+using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
+using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -14,6 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<AppStorageOptions>(builder.Configuration.GetSection(AppStorageOptions.SectionName));
 builder.Services.Configure<ChromaOptions>(builder.Configuration.GetSection(ChromaOptions.SectionName));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<BackgroundJobOptions>(builder.Configuration.GetSection(BackgroundJobOptions.SectionName));
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -26,6 +31,16 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IFolderPermissionService, FolderPermissionService>();
 builder.Services.AddScoped<IFileUploadValidator, FileUploadValidator>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+builder.Services.AddScoped<IDocumentTextExtractor, DocumentTextExtractor>();
+builder.Services.AddScoped<ITextChunker, TextChunker>();
+builder.Services.AddScoped<IEmbeddingService, MockEmbeddingService>();
+builder.Services.AddScoped<IDocumentProcessingService, DocumentProcessingService>();
+builder.Services.AddHttpClient<IKnowledgeVectorStore, ChromaKnowledgeVectorStore>((serviceProvider, client) =>
+{
+    var chromaOptions = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ChromaOptions>>().Value;
+    client.BaseAddress = new Uri(chromaOptions.BaseUrl);
+});
+builder.Services.AddHostedService<ProcessingJobWorker>();
 
 var sqlitePath = builder.Configuration.GetValue<string>("Database:SqlitePath")
     ?? Path.Combine(AppContext.BaseDirectory, "data", "internal-knowledge-copilot.db");
