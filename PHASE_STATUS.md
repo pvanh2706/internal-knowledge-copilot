@@ -8,7 +8,7 @@ Last updated: 2026-05-09
 - [x] Milestone 3 - Upload, review va versioning tai lieu
 - [x] Milestone 4 - Document processing va vector indexing
 - [x] Milestone 5 - AI Q&A co nguon
-- [ ] Milestone 6 - Feedback va reviewer queue
+- [x] Milestone 6 - Feedback va reviewer queue
 - [ ] Milestone 7 - Wiki draft va publish
 - [ ] Milestone 8 - Dashboard KPI va audit log
 - [ ] Milestone 9 - Hardening MVP
@@ -72,3 +72,15 @@ Last updated: 2026-05-09
 - Added backend tests for clarification behavior and permission-filtered retrieval.
 - Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone5.ps1`.
 - Verified backend build/test, frontend build/test, and a Chroma-backed upload/approve/index/ask smoke flow pass.
+
+### Milestone 6
+
+- Added AI feedback schema with EF migration.
+- Added feedback submission for AI interactions with Correct and Incorrect values.
+- Added reviewer queue API for incorrect feedback and review status updates.
+- Added review statuses New, InReview, and Resolved.
+- Added feedback controls under AI answers in the Vue Q&A page.
+- Added a reviewer feedback queue page with sources, user note, AI answer, and status update form.
+- Added backend tests for incorrect feedback creation and reviewer resolution.
+- Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone6.ps1`.
+- Verified backend build/test, frontend build/test, and a Chroma-backed ask/feedback/reviewer-update smoke flow pass.

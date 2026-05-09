@@ -25,6 +25,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<AiInteractionSourceEntity> AiInteractionSources => Set<AiInteractionSourceEntity>();
 
+    public DbSet<AiFeedbackEntity> AiFeedback => Set<AiFeedbackEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -244,6 +246,36 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany(interaction => interaction.Sources)
                 .HasForeignKey(source => source.AiInteractionId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AiFeedbackEntity>(entity =>
+        {
+            entity.ToTable("ai_feedback");
+            entity.HasKey(feedback => feedback.Id);
+            entity.Property(feedback => feedback.AiInteractionId).HasColumnName("ai_interaction_id");
+            entity.Property(feedback => feedback.UserId).HasColumnName("user_id");
+            entity.Property(feedback => feedback.Value).HasColumnName("value").HasConversion<string>().HasMaxLength(50);
+            entity.Property(feedback => feedback.Note).HasColumnName("note").HasMaxLength(2000);
+            entity.Property(feedback => feedback.ReviewStatus).HasColumnName("review_status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(feedback => feedback.ReviewedByUserId).HasColumnName("reviewed_by_user_id");
+            entity.Property(feedback => feedback.ReviewerNote).HasColumnName("reviewer_note").HasMaxLength(2000);
+            entity.Property(feedback => feedback.CreatedAt).HasColumnName("created_at");
+            entity.Property(feedback => feedback.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(feedback => feedback.ResolvedAt).HasColumnName("resolved_at");
+            entity.HasIndex(feedback => new { feedback.AiInteractionId, feedback.UserId }).IsUnique();
+            entity.HasIndex(feedback => new { feedback.Value, feedback.ReviewStatus });
+            entity.HasOne(feedback => feedback.AiInteraction)
+                .WithMany()
+                .HasForeignKey(feedback => feedback.AiInteractionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(feedback => feedback.User)
+                .WithMany()
+                .HasForeignKey(feedback => feedback.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(feedback => feedback.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(feedback => feedback.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

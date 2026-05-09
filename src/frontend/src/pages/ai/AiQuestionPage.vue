@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { askQuestion, type AiScopeType, type AskQuestionResponse } from '../../api/ai'
 import type { DocumentListItem } from '../../api/documents'
 import { getDocuments } from '../../api/documents'
+import { submitAiFeedback, type AiFeedbackValue } from '../../api/feedback'
 import type { FolderTreeItem } from '../../api/folders'
 import { getFolderTree } from '../../api/folders'
 import { ApiError } from '../../api/http'
@@ -14,6 +15,8 @@ const documents = ref<DocumentListItem[]>([])
 const answer = ref<AskQuestionResponse | null>(null)
 const isLoading = ref(false)
 const errorMessage = ref('')
+const feedbackMessage = ref('')
+const feedbackNote = ref('')
 const form = ref({
   question: '',
   scopeType: 'All' as AiScopeType,
@@ -43,6 +46,8 @@ async function loadScopeData() {
 async function submitQuestion() {
   if (!authStore.accessToken || !canSubmit.value) return
   errorMessage.value = ''
+  feedbackMessage.value = ''
+  feedbackNote.value = ''
   answer.value = null
   isLoading.value = true
 
@@ -60,6 +65,26 @@ async function submitQuestion() {
     errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the hoi AI.'
   } finally {
     isLoading.value = false
+  }
+}
+
+async function submitFeedback(value: AiFeedbackValue) {
+  if (!authStore.accessToken || !answer.value) return
+  errorMessage.value = ''
+  feedbackMessage.value = ''
+
+  try {
+    await submitAiFeedback(
+      answer.value.interactionId,
+      {
+        value,
+        note: feedbackNote.value,
+      },
+      authStore.accessToken,
+    )
+    feedbackMessage.value = value === 'Correct' ? 'Da ghi nhan cau tra loi dung.' : 'Da gui feedback sai cho reviewer.'
+  } catch (error) {
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the gui feedback.'
   }
 }
 
@@ -110,12 +135,20 @@ onMounted(loadScopeData)
     </form>
 
     <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+    <p v-if="feedbackMessage" class="form-success">{{ feedbackMessage }}</p>
 
     <div v-if="answer" class="answer-layout">
       <section class="answer-panel">
         <h3>Câu trả lời</h3>
         <p v-if="answer.needsClarification" class="form-error">AI cần thêm ngữ cảnh để trả lời chắc chắn.</p>
         <pre>{{ answer.answer }}</pre>
+        <div class="feedback-box">
+          <textarea v-model="feedbackNote" rows="3" placeholder="Ghi chú feedback nếu cần..." />
+          <div class="button-row">
+            <button type="button" @click="submitFeedback('Correct')">Đúng</button>
+            <button type="button" class="danger-button" @click="submitFeedback('Incorrect')">Sai</button>
+          </div>
+        </div>
       </section>
 
       <section class="answer-panel">

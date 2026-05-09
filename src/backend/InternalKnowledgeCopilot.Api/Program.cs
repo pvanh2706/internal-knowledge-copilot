@@ -7,6 +7,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Ai;
 using InternalKnowledgeCopilot.Api.Modules.Auth;
+using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +39,7 @@ builder.Services.AddScoped<IEmbeddingService, MockEmbeddingService>();
 builder.Services.AddScoped<IAnswerGenerationService, MockAnswerGenerationService>();
 builder.Services.AddScoped<IDocumentProcessingService, DocumentProcessingService>();
 builder.Services.AddScoped<IAiQuestionService, AiQuestionService>();
+builder.Services.AddScoped<IAiFeedbackService, AiFeedbackService>();
 builder.Services.AddHttpClient<IKnowledgeVectorStore, ChromaKnowledgeVectorStore>((serviceProvider, client) =>
 {
     var chromaOptions = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ChromaOptions>>().Value;

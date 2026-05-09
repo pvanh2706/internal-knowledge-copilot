@@ -270,11 +270,16 @@ textarea {
 }
 
 .stack-form input,
-.stack-form select {
+.stack-form select,
+.stack-form textarea {
   width: 100%;
   border: 1px solid #cfd6e0;
   border-radius: 8px;
   padding: 10px 12px;
+}
+
+.stack-form textarea {
+  resize: vertical;
 }
 
 .stack-form button,
@@ -369,6 +374,35 @@ textarea {
 
 .citation-item small {
   color: #667085;
+}
+
+.feedback-box {
+  display: grid;
+  gap: 10px;
+}
+
+.feedback-box textarea {
+  width: 100%;
+  border: 1px solid #cfd6e0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.button-row button {
+  border: 0;
+  border-radius: 8px;
+  background: #1f6feb;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 10px 14px;
 }
 
 @media (max-width: 760px) {

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,7 +9,7 @@ namespace InternalKnowledgeCopilot.Api.Modules.Ai;
 [ApiController]
 [Route("api/ai")]
 [Authorize]
-public sealed class AiController(IAiQuestionService aiQuestionService) : ControllerBase
+public sealed class AiController(IAiQuestionService aiQuestionService, IAiFeedbackService feedbackService) : ControllerBase
 {
     [HttpPost("ask")]
     public async Task<ActionResult<AskQuestionResponse>> Ask(AskQuestionRequest request, CancellationToken cancellationToken)
@@ -42,6 +43,25 @@ public sealed class AiController(IAiQuestionService aiQuestionService) : Control
         catch (UnauthorizedAccessException)
         {
             return Forbid();
+        }
+    }
+
+    [HttpPost("interactions/{id:guid}/feedback")]
+    public async Task<ActionResult<FeedbackResponse>> SubmitFeedback(Guid id, SubmitFeedbackRequest request, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(new ApiError("invalid_token", "Token không hợp lệ."));
+        }
+
+        try
+        {
+            return Ok(await feedbackService.SubmitAsync(id, userId.Value, request, cancellationToken));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new ApiError("interaction_not_found", "Không tìm thấy lượt hỏi AI."));
         }
     }
 
