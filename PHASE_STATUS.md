@@ -7,7 +7,7 @@ Last updated: 2026-05-09
 - [x] Milestone 2 - Folder tree va phan quyen
 - [x] Milestone 3 - Upload, review va versioning tai lieu
 - [x] Milestone 4 - Document processing va vector indexing
-- [ ] Milestone 5 - AI Q&A co nguon
+- [x] Milestone 5 - AI Q&A co nguon
 - [ ] Milestone 6 - Feedback va reviewer queue
 - [ ] Milestone 7 - Wiki draft va publish
 - [ ] Milestone 8 - Dashboard KPI va audit log
@@ -60,3 +60,15 @@ Last updated: 2026-05-09
 - Exposed latest version indexing status in the document list UI.
 - Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone4.ps1`.
 - Verified backend build/test, frontend build/test, and a Chroma-backed upload/approve/index smoke flow pass.
+
+### Milestone 5
+
+- Added AI interaction and interaction source schema with EF migration.
+- Added `/api/ai/ask` with All, Folder, and Document scopes.
+- Added Chroma vector query support and backend permission filtering against SQLite folder/document access.
+- Added mock Vietnamese answer generation with clarification fallback when retrieved context is insufficient.
+- Stored each AI interaction with used source records for later feedback and dashboard milestones.
+- Added a Vue AI Q&A page with scope selection, answer display, and citations.
+- Added backend tests for clarification behavior and permission-filtered retrieval.
+- Added a repeatable Chroma/API smoke script at `scripts/smoke-milestone5.ps1`.
+- Verified backend build/test, frontend build/test, and a Chroma-backed upload/approve/index/ask smoke flow pass.

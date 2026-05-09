@@ -21,6 +21,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<ProcessingJobEntity> ProcessingJobs => Set<ProcessingJobEntity>();
 
+    public DbSet<AiInteractionEntity> AiInteractions => Set<AiInteractionEntity>();
+
+    public DbSet<AiInteractionSourceEntity> AiInteractionSources => Set<AiInteractionSourceEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -195,6 +199,51 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(job => job.FinishedAt).HasColumnName("finished_at");
             entity.HasIndex(job => new { job.Status, job.CreatedAt });
             entity.HasIndex(job => new { job.TargetType, job.TargetId });
+        });
+
+        modelBuilder.Entity<AiInteractionEntity>(entity =>
+        {
+            entity.ToTable("ai_interactions");
+            entity.HasKey(interaction => interaction.Id);
+            entity.Property(interaction => interaction.UserId).HasColumnName("user_id");
+            entity.Property(interaction => interaction.Question).HasColumnName("question").HasMaxLength(4000).IsRequired();
+            entity.Property(interaction => interaction.Answer).HasColumnName("answer").IsRequired();
+            entity.Property(interaction => interaction.ScopeType).HasColumnName("scope_type").HasConversion<string>().HasMaxLength(50);
+            entity.Property(interaction => interaction.ScopeFolderId).HasColumnName("scope_folder_id");
+            entity.Property(interaction => interaction.ScopeDocumentId).HasColumnName("scope_document_id");
+            entity.Property(interaction => interaction.NeedsClarification).HasColumnName("needs_clarification");
+            entity.Property(interaction => interaction.LatencyMs).HasColumnName("latency_ms");
+            entity.Property(interaction => interaction.UsedWikiCount).HasColumnName("used_wiki_count");
+            entity.Property(interaction => interaction.UsedDocumentCount).HasColumnName("used_document_count");
+            entity.Property(interaction => interaction.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(interaction => interaction.CreatedAt);
+            entity.HasIndex(interaction => interaction.UserId);
+            entity.HasOne(interaction => interaction.User)
+                .WithMany()
+                .HasForeignKey(interaction => interaction.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AiInteractionSourceEntity>(entity =>
+        {
+            entity.ToTable("ai_interaction_sources");
+            entity.HasKey(source => source.Id);
+            entity.Property(source => source.AiInteractionId).HasColumnName("ai_interaction_id");
+            entity.Property(source => source.SourceType).HasColumnName("source_type").HasConversion<string>().HasMaxLength(50);
+            entity.Property(source => source.SourceId).HasColumnName("source_id").HasMaxLength(100).IsRequired();
+            entity.Property(source => source.DocumentId).HasColumnName("document_id");
+            entity.Property(source => source.DocumentVersionId).HasColumnName("document_version_id");
+            entity.Property(source => source.WikiPageId).HasColumnName("wiki_page_id");
+            entity.Property(source => source.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
+            entity.Property(source => source.FolderPath).HasColumnName("folder_path").HasMaxLength(1000).IsRequired();
+            entity.Property(source => source.Excerpt).HasColumnName("excerpt").HasMaxLength(2000).IsRequired();
+            entity.Property(source => source.Rank).HasColumnName("rank");
+            entity.Property(source => source.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(source => source.AiInteractionId);
+            entity.HasOne(source => source.AiInteraction)
+                .WithMany(interaction => interaction.Sources)
+                .HasForeignKey(source => source.AiInteractionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

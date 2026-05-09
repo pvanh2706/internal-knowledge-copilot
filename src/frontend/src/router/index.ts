@@ -4,6 +4,7 @@ import FolderManagementPage from '../pages/admin/FolderManagementPage.vue'
 import TeamManagementPage from '../pages/admin/TeamManagementPage.vue'
 import UserManagementPage from '../pages/admin/UserManagementPage.vue'
 import ChangePasswordPage from '../pages/auth/ChangePasswordPage.vue'
+import AiQuestionPage from '../pages/ai/AiQuestionPage.vue'
 import LoginPage from '../pages/auth/LoginPage.vue'
 import DocumentListPage from '../pages/documents/DocumentListPage.vue'
 import PlaceholderPage from '../pages/PlaceholderPage.vue'
@@ -17,7 +18,7 @@ const router = createRouter({
     { path: '/login', name: 'login', component: LoginPage },
     { path: '/change-password', name: 'change-password', component: ChangePasswordPage, meta: { requiresAuth: true } },
     { path: '/documents', name: 'documents', component: DocumentListPage, meta: { requiresAuth: true } },
-    { path: '/ai', name: 'ai', component: PlaceholderPage, meta: { title: 'Hoi AI', requiresAuth: true } },
+    { path: '/ai', name: 'ai', component: AiQuestionPage, meta: { requiresAuth: true } },
     { path: '/wiki', name: 'wiki', component: PlaceholderPage, meta: { title: 'Wiki', requiresAuth: true } },
     { path: '/review', name: 'review', component: DocumentReviewPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/admin/users', name: 'admin-users', component: UserManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
