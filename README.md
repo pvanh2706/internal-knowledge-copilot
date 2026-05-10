@@ -96,3 +96,7 @@ Use ChromaDB for development and test runs because it is available in this envir
 ## Deployment And Backup
 
 Use [DEPLOYMENT_IIS.md](DEPLOYMENT_IIS.md) for Windows Server / IIS deployment notes and backup guidance. Use [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) as the MVP pilot readiness checklist.
+
+## Presentation Materials
+
+Use [docs/presentation](docs/presentation) for boss-facing presentation notes, slide outline, demo script, pilot plan, and demo checklist.
