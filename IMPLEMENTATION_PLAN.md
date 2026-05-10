@@ -1,5 +1,9 @@
 # Internal Knowledge Copilot - Kế hoạch triển khai MVP
 
+## Current implementation note
+
+The MVP milestones in this plan have been implemented. Use `PHASE_STATUS.md` for completion history and `AI_HANDOFF.md` for future AI coding sessions. The plan may still mention Qdrant from the original target architecture; the current development/test implementation uses ChromaDB through the vector-store adapter boundary.
+
 Ngày lập: 2026-05-09
 
 ## 1. Nguyên tắc triển khai
@@ -347,4 +351,3 @@ Không nên lùi khỏi MVP nếu mục tiêu vẫn là chuẩn hóa tri thức:
 - Generate wiki draft.
 - Publish wiki.
 - Q&A ưu tiên wiki published.
-

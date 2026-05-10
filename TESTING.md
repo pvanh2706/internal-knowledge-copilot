@@ -24,7 +24,7 @@ Backend tests should cover at minimum:
 - Dashboard metric calculations
 - Audit log creation for major business actions
 
-Expected command after scaffold:
+Backend command:
 
 ```powershell
 dotnet test src/backend/InternalKnowledgeCopilot.sln
@@ -43,7 +43,7 @@ Frontend tests should cover at minimum:
 - Reviewer approve/reject form behavior
 - Wiki publish confirmation behavior
 
-Expected commands after scaffold:
+Frontend commands:
 
 ```powershell
 cd src/frontend

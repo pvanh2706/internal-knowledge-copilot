@@ -1,5 +1,9 @@
 # Internal Knowledge Copilot - RAG và Wiki Flow
 
+## Current implementation note
+
+The original MVP planning docs used Qdrant terminology for the vector database. The implemented development/test runtime currently uses ChromaDB through `Infrastructure/VectorStore`. Keep vector operations behind that adapter boundary so Qdrant can replace ChromaDB later without changing document processing, permission checks, or AI Q&A business flow.
+
 Ngày lập: 2026-05-09
 
 ## 1. Mục tiêu
@@ -249,4 +253,3 @@ Ví dụ phản hồi:
 ```text
 Mình chưa tìm thấy thông tin đủ rõ trong tài liệu hiện có. Bạn muốn hỏi trong phạm vi sản phẩm, module hoặc quy trình nào?
 ```
-

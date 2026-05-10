@@ -6,6 +6,7 @@ This document gives an AI coding agent enough operational context to scaffold, r
 
 Use these files as the product and engineering source of truth:
 
+- `AI_HANDOFF.md`: fastest current-state briefing for future AI coding sessions
 - `REQUIREMENTS_DISCOVERY.md`: business context and confirmed MVP scope
 - `ARCHITECTURE_MVP.md`: stack, modules, deployment direction
 - `IMPLEMENTATION_PLAN.md`: milestone order and acceptance criteria
@@ -14,6 +15,9 @@ Use these files as the product and engineering source of truth:
 - `UI_FLOW.md`: pages and role-based flows
 - `RAG_AND_WIKI_FLOW.md`: indexing, retrieval, prompt behavior
 - `CODING_RULES.md`: implementation rules and definition of done for tasks
+- `PHASE_STATUS.md`: completed milestone history
+- `KNOWN_LIMITATIONS.md`: intentionally deferred or incomplete areas
+- `ROADMAP.md`: recommended post-MVP improvements
 
 If documents conflict, prefer the more specific implementation document. For example, API behavior in `API_SPEC.md` takes precedence over a higher-level mention in `REQUIREMENTS_DISCOVERY.md`.
 
@@ -22,8 +26,8 @@ If documents conflict, prefer the more specific implementation document. For exa
 - Backend should be ASP.NET Core.
 - Frontend should be Vue.
 - SQLite is the metadata database for MVP.
-- ChromaDB is the current development vector database.
-- Qdrant remains the original target option and should stay behind a vector-store adapter boundary.
+- ChromaDB is the implemented development/test vector database.
+- Qdrant remains a future replacement option and should stay behind the vector-store adapter boundary.
 - File uploads must be stored outside public web root.
 - Authentication should use local username/password with JWT for MVP.
 - Roles are `Admin`, `Reviewer`, and `User`.
@@ -138,18 +142,18 @@ If the UI displays team names, use Vietnamese text with accents in the UI layer.
 
 ## Development Loop For AI Agents
 
-Work milestone by milestone:
+For new feature work or bug fixes:
 
-1. Scaffold the minimal backend/frontend structure.
-2. Add the smallest slice that satisfies the current milestone.
+1. Read `AI_HANDOFF.md`, `PHASE_STATUS.md`, `KNOWN_LIMITATIONS.md`, and the relevant spec files.
+2. Add the smallest slice that satisfies the requested change.
 3. Add or update tests for the risky logic in that slice.
 4. Run the relevant test/build commands.
-5. Fix failures before starting the next milestone.
+5. Fix failures before starting unrelated work.
 6. Keep README, `.env.example`, and this file current when commands or setup change.
 
-Do not broaden scope beyond `IMPLEMENTATION_PLAN.md` unless required to make an accepted MVP flow work.
+Do not broaden scope beyond the requested change unless required to keep an accepted MVP flow working.
 
-## Expected Commands After Scaffold
+## Local Commands
 
 Backend:
 
@@ -176,15 +180,18 @@ Infrastructure:
 chroma run --host localhost --port 8000 --path ./.chroma
 ```
 
-## Known Setup Gaps Before Scaffold
+## Current Implementation Notes
 
-At the time this handoff file was created, the repository contains documentation only. The implementation still needs:
+The repository now contains the implemented MVP, not documentation only.
 
-- Backend solution and API project
-- Backend test project
-- Frontend Vue project
-- Chroma vector-store adapter
-- Real runnable scripts
-- Database migrations
-- Seed data
-- Smoke tests
+Key implemented paths:
+
+- Backend solution: `src/backend/InternalKnowledgeCopilot.sln`
+- Backend API: `src/backend/InternalKnowledgeCopilot.Api`
+- Backend tests: `src/backend/InternalKnowledgeCopilot.Tests`
+- Frontend app: `src/frontend`
+- Vector-store adapter boundary: `src/backend/InternalKnowledgeCopilot.Api/Infrastructure/VectorStore`
+- Database migrations: `src/backend/InternalKnowledgeCopilot.Api/Infrastructure/Database/Migrations`
+- Smoke scripts: `scripts/smoke-mvp.ps1` and milestone-specific smoke scripts
+
+Generated local runtime folders such as `.chroma`, `.run`, `data`, `logs`, and `storage` are not source-of-truth documentation.

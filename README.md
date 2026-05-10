@@ -4,6 +4,7 @@ Internal Knowledge Copilot is an internal knowledge management MVP with document
 
 The product and implementation scope are defined in:
 
+- [AI_HANDOFF.md](AI_HANDOFF.md)
 - [REQUIREMENTS_DISCOVERY.md](REQUIREMENTS_DISCOVERY.md)
 - [ARCHITECTURE_MVP.md](ARCHITECTURE_MVP.md)
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
@@ -13,6 +14,8 @@ The product and implementation scope are defined in:
 - [RAG_AND_WIKI_FLOW.md](RAG_AND_WIKI_FLOW.md)
 - [CODING_RULES.md](CODING_RULES.md)
 - [PHASE_STATUS.md](PHASE_STATUS.md)
+- [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)
+- [ROADMAP.md](ROADMAP.md)
 - [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)
 - [DEPLOYMENT_IIS.md](DEPLOYMENT_IIS.md)
 
@@ -26,9 +29,9 @@ The product and implementation scope are defined in:
 - File storage: local filesystem outside public web root
 - Deployment target: Windows Server / IIS
 
-## Expected Project Structure
+## Project Structure
 
-The implementation should be scaffolded toward this structure:
+The current implementation uses this structure:
 
 ```text
 src/
@@ -36,7 +39,6 @@ src/
     InternalKnowledgeCopilot.Api/
     InternalKnowledgeCopilot.Tests/
   frontend/
-docker-compose.yml
 .env.example
 ```
 
@@ -44,7 +46,7 @@ docker-compose.yml
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for setup, configuration, and development workflow.
 
-Expected commands after scaffold:
+Local commands:
 
 ```powershell
 chroma run --host localhost --port 8000 --path ./.chroma
@@ -59,7 +61,7 @@ npm run dev
 
 See [TESTING.md](TESTING.md) for the test strategy.
 
-Expected commands after scaffold:
+Local verification commands:
 
 ```powershell
 dotnet test src/backend/InternalKnowledgeCopilot.sln
@@ -71,18 +73,19 @@ powershell -ExecutionPolicy Bypass -File ../../scripts/smoke-mvp.ps1
 
 ## Done Criteria
 
-The MVP is not considered complete until the checklist in [DONE_CRITERIA.md](DONE_CRITERIA.md) passes.
+The MVP completion status is tracked in [PHASE_STATUS.md](PHASE_STATUS.md). The acceptance checklist is kept in [DONE_CRITERIA.md](DONE_CRITERIA.md).
 
 ## AI Working Instructions
 
 An AI coding agent should:
 
-1. Read this README first.
-2. Read the spec files listed above.
-3. Follow [CODING_RULES.md](CODING_RULES.md).
-4. Implement milestone by milestone from [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
-5. After each implementation slice, run the relevant build/test commands from [TESTING.md](TESTING.md).
-6. Continue fixing failures until the done criteria pass or a real blocker is found.
+1. Read [AI_HANDOFF.md](AI_HANDOFF.md) first.
+2. Read this README.
+3. Read the relevant spec files listed above.
+4. Follow [CODING_RULES.md](CODING_RULES.md).
+5. Check [PHASE_STATUS.md](PHASE_STATUS.md), [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md), and [ROADMAP.md](ROADMAP.md) before changing scope.
+6. After each implementation slice, run the relevant build/test commands from [TESTING.md](TESTING.md).
+7. Continue fixing failures until the requested change is complete or a real blocker is found.
 
 Ask the user only when blocked by missing credentials, missing product decisions, unavailable infrastructure, or contradictory requirements.
 

@@ -1,5 +1,9 @@
 # Internal Knowledge Copilot - Kiến trúc MVP
 
+## Current implementation note
+
+The original architecture target listed Qdrant as the vector database. The current implemented development/test runtime uses ChromaDB. Qdrant remains a future replacement option and must stay behind the vector-store adapter boundary at `src/backend/InternalKnowledgeCopilot.Api/Infrastructure/VectorStore`.
+
 Ngày lập: 2026-05-09
 
 ## 1. Mục tiêu kiến trúc
