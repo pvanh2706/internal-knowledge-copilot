@@ -44,7 +44,7 @@ src/
 
 ## Local Development
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for setup, configuration, and development workflow.
+For a fresh machine, start with [docs/technical/LOCAL_SETUP_GUIDE.md](docs/technical/LOCAL_SETUP_GUIDE.md). See [DEVELOPMENT.md](DEVELOPMENT.md) for deeper development notes and source structure.
 
 Local commands:
 
@@ -96,6 +96,10 @@ Use ChromaDB for development and test runs because it is available in this envir
 ## Deployment And Backup
 
 Use [DEPLOYMENT_IIS.md](DEPLOYMENT_IIS.md) for Windows Server / IIS deployment notes and backup guidance. Use [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) as the MVP pilot readiness checklist.
+
+## Technical Setup Materials
+
+Use [docs/technical](docs/technical) for local clone/run setup and troubleshooting.
 
 ## Presentation Materials
 

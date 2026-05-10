@@ -6,6 +6,8 @@ This document gives an AI coding agent enough operational context to scaffold, r
 
 Use these files as the product and engineering source of truth:
 
+- `docs/technical/LOCAL_SETUP_GUIDE.md`: fresh-machine clone, install, run, and smoke-test guide
+- `docs/technical/TROUBLESHOOTING.md`: local setup and runtime troubleshooting
 - `AI_HANDOFF.md`: fastest current-state briefing for future AI coding sessions
 - `REQUIREMENTS_DISCOVERY.md`: business context and confirmed MVP scope
 - `ARCHITECTURE_MVP.md`: stack, modules, deployment direction
