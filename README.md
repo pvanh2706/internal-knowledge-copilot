@@ -100,3 +100,7 @@ Use [DEPLOYMENT_IIS.md](DEPLOYMENT_IIS.md) for Windows Server / IIS deployment n
 ## Presentation Materials
 
 Use [docs/presentation](docs/presentation) for boss-facing presentation notes, slide outline, demo script, pilot plan, and demo checklist.
+
+## Pilot Materials
+
+Use [docs/pilot](docs/pilot) for team onboarding, user/reviewer/admin guides, content preparation, pilot operations, FAQ, support templates, data rules, and success report templates.
