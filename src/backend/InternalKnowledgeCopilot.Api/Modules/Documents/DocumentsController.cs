@@ -61,7 +61,6 @@ public sealed class DocumentsController(
         }
 
         var documents = await query
-            .OrderByDescending(document => document.UpdatedAt)
             .Select(document => new DocumentListItemResponse(
                 document.Id,
                 document.FolderId,
@@ -79,7 +78,7 @@ public sealed class DocumentsController(
                 document.UpdatedAt))
             .ToListAsync(cancellationToken);
 
-        return Ok(documents);
+        return Ok(documents.OrderByDescending(document => document.UpdatedAt).ToList());
     }
 
     [HttpPost]
@@ -255,7 +254,7 @@ public sealed class DocumentsController(
     }
 
     [HttpPost("{id:guid}/approve")]
-    [Authorize(Roles = nameof(UserRole.Reviewer))]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
     public async Task<IActionResult> Approve(Guid id, ReviewDocumentRequest request, CancellationToken cancellationToken)
     {
         var reviewerId = GetCurrentUserId();
@@ -305,7 +304,7 @@ public sealed class DocumentsController(
     }
 
     [HttpPost("{id:guid}/reject")]
-    [Authorize(Roles = nameof(UserRole.Reviewer))]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
     public async Task<IActionResult> Reject(Guid id, RejectDocumentRequest request, CancellationToken cancellationToken)
     {
         var reviewerId = GetCurrentUserId();
