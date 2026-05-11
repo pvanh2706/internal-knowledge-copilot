@@ -65,7 +65,7 @@ public sealed class WikiService(
             throw new InvalidOperationException("extracted_text_empty");
         }
 
-        var generated = draftGenerationService.Generate(version.Document.Title, sourceText);
+        var generated = await draftGenerationService.GenerateAsync(version.Document.Title, sourceText, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var draft = new WikiDraftEntity
         {
@@ -231,25 +231,30 @@ public sealed class WikiService(
     private async Task IndexWikiPageAsync(WikiPageEntity page, string folderPath, CancellationToken cancellationToken)
     {
         var chunks = chunker.Chunk(page.Content);
-        var vectorChunks = chunks.Select(chunk => new KnowledgeChunkRecord(
-            $"{page.Id:N}-{chunk.Index}",
-            embeddingService.CreateEmbedding(chunk.Text),
-            chunk.Text,
-            new Dictionary<string, object>
-            {
-                ["chunk_id"] = $"{page.Id:N}-{chunk.Index}",
-                ["source_type"] = "wiki",
-                ["source_id"] = page.Id.ToString(),
-                ["wiki_page_id"] = page.Id.ToString(),
-                ["document_id"] = page.SourceDocumentId.ToString(),
-                ["document_version_id"] = page.SourceDocumentVersionId.ToString(),
-                ["folder_id"] = page.FolderId?.ToString() ?? string.Empty,
-                ["title"] = page.Title,
-                ["folder_path"] = folderPath,
-                ["status"] = "published",
-                ["visibility_scope"] = page.VisibilityScope == VisibilityScope.Company ? "company" : "folder",
-                ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
-            })).ToList();
+        var vectorChunks = new List<KnowledgeChunkRecord>(chunks.Count);
+        foreach (var chunk in chunks)
+        {
+            var chunkId = $"{page.Id:N}-{chunk.Index}";
+            vectorChunks.Add(new KnowledgeChunkRecord(
+                chunkId,
+                await embeddingService.CreateEmbeddingAsync(chunk.Text, cancellationToken),
+                chunk.Text,
+                new Dictionary<string, object>
+                {
+                    ["chunk_id"] = chunkId,
+                    ["source_type"] = "wiki",
+                    ["source_id"] = page.Id.ToString(),
+                    ["wiki_page_id"] = page.Id.ToString(),
+                    ["document_id"] = page.SourceDocumentId.ToString(),
+                    ["document_version_id"] = page.SourceDocumentVersionId.ToString(),
+                    ["folder_id"] = page.FolderId?.ToString() ?? string.Empty,
+                    ["title"] = page.Title,
+                    ["folder_path"] = folderPath,
+                    ["status"] = "published",
+                    ["visibility_scope"] = page.VisibilityScope == VisibilityScope.Company ? "company" : "folder",
+                    ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
+                }));
+        }
 
         await vectorStore.UpsertChunksAsync(vectorChunks, cancellationToken);
     }

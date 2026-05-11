@@ -93,6 +93,10 @@ public sealed class AiQuestionServiceTests
         var response = await service.AskAsync(userId, new AskQuestionRequest("payment error", AiScopeType.All, null, null));
 
         Assert.False(response.NeedsClarification);
+        Assert.NotNull(vectorStore.LastFilter);
+        Assert.Contains(allowedFolderId, vectorStore.LastFilter.FolderIds);
+        Assert.DoesNotContain(deniedFolderId, vectorStore.LastFilter.FolderIds);
+        Assert.True(vectorStore.LastFilter.IncludeCompanyVisible);
         var citation = Assert.Single(response.Citations);
         Assert.Equal("Allowed payment", citation.Title);
         Assert.DoesNotContain("secret denied", response.Answer, StringComparison.OrdinalIgnoreCase);
@@ -229,6 +233,8 @@ public sealed class AiQuestionServiceTests
 
     private sealed class FakeKnowledgeVectorStore(IReadOnlyList<KnowledgeVectorSearchResult> results) : IKnowledgeVectorStore
     {
+        public KnowledgeQueryFilter? LastFilter { get; private set; }
+
         public Task EnsureCollectionAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -239,8 +245,13 @@ public sealed class AiQuestionServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(float[] embedding, int limit, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(
+            float[] embedding,
+            int limit,
+            KnowledgeQueryFilter? filter = null,
+            CancellationToken cancellationToken = default)
         {
+            LastFilter = filter;
             return Task.FromResult(results);
         }
     }

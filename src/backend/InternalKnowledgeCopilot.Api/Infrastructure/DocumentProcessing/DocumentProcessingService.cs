@@ -46,25 +46,30 @@ public sealed class DocumentProcessingService(
         var textHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(extractedText))).ToLowerInvariant();
 
         var chunks = chunker.Chunk(extractedText);
-        var vectorChunks = chunks.Select(chunk => new KnowledgeChunkRecord(
-            $"{version.Id:N}-{chunk.Index}",
-            embeddingService.CreateEmbedding(chunk.Text),
-            chunk.Text,
-            new Dictionary<string, object>
-            {
-                ["chunk_id"] = $"{version.Id:N}-{chunk.Index}",
-                ["source_type"] = "document",
-                ["source_id"] = version.Id.ToString(),
-                ["document_id"] = version.DocumentId.ToString(),
-                ["document_version_id"] = version.Id.ToString(),
-                ["folder_id"] = version.Document.FolderId.ToString(),
-                ["title"] = version.Document.Title,
-                ["folder_path"] = version.Document.Folder?.Path ?? string.Empty,
-                ["version_number"] = version.VersionNumber,
-                ["status"] = "approved",
-                ["visibility_scope"] = "folder",
-                ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
-            })).ToList();
+        var vectorChunks = new List<KnowledgeChunkRecord>(chunks.Count);
+        foreach (var chunk in chunks)
+        {
+            var chunkId = $"{version.Id:N}-{chunk.Index}";
+            vectorChunks.Add(new KnowledgeChunkRecord(
+                chunkId,
+                await embeddingService.CreateEmbeddingAsync(chunk.Text, cancellationToken),
+                chunk.Text,
+                new Dictionary<string, object>
+                {
+                    ["chunk_id"] = chunkId,
+                    ["source_type"] = "document",
+                    ["source_id"] = version.Id.ToString(),
+                    ["document_id"] = version.DocumentId.ToString(),
+                    ["document_version_id"] = version.Id.ToString(),
+                    ["folder_id"] = version.Document.FolderId.ToString(),
+                    ["title"] = version.Document.Title,
+                    ["folder_path"] = version.Document.Folder?.Path ?? string.Empty,
+                    ["version_number"] = version.VersionNumber,
+                    ["status"] = "approved",
+                    ["visibility_scope"] = "folder",
+                    ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
+                }));
+        }
 
         await vectorStore.UpsertChunksAsync(vectorChunks, cancellationToken);
 

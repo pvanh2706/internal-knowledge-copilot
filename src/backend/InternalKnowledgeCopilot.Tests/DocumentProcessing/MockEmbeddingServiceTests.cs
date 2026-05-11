@@ -6,12 +6,12 @@ namespace InternalKnowledgeCopilot.Tests.DocumentProcessing;
 public sealed class MockEmbeddingServiceTests
 {
     [Fact]
-    public void CreateEmbedding_ReturnsStableNormalizedVector()
+    public async Task CreateEmbeddingAsync_ReturnsStableNormalizedVector()
     {
         var service = new MockEmbeddingService();
 
-        var first = service.CreateEmbedding("payment error workflow");
-        var second = service.CreateEmbedding("payment error workflow");
+        var first = await service.CreateEmbeddingAsync("payment error workflow");
+        var second = await service.CreateEmbeddingAsync("payment error workflow");
         var norm = MathF.Sqrt(first.Sum(value => value * value));
 
         Assert.Equal(service.Dimension, first.Length);

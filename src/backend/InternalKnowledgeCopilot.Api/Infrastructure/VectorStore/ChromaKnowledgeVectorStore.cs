@@ -47,14 +47,19 @@ public sealed class ChromaKnowledgeVectorStore(HttpClient httpClient, IOptions<C
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(float[] embedding, int limit, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(
+        float[] embedding,
+        int limit,
+        KnowledgeQueryFilter? filter = null,
+        CancellationToken cancellationToken = default)
     {
         await EnsureCollectionAsync(cancellationToken);
 
         var payload = new QueryRecordsRequest(
             [embedding],
             Math.Max(1, limit),
-            ["documents", "metadatas", "distances"]);
+            ["documents", "metadatas", "distances"],
+            BuildWhere(filter));
 
         var response = await httpClient.PostAsJsonAsync($"{BuildCollectionPath(collectionId!)}/query", payload, cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -113,7 +118,79 @@ public sealed class ChromaKnowledgeVectorStore(HttpClient httpClient, IOptions<C
     private sealed record QueryRecordsRequest(
         [property: JsonPropertyName("query_embeddings")] float[][] QueryEmbeddings,
         [property: JsonPropertyName("n_results")] int NResults,
-        [property: JsonPropertyName("include")] string[] Include);
+        [property: JsonPropertyName("include")] string[] Include,
+        [property: JsonPropertyName("where"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] object? Where);
+
+    private static object? BuildWhere(KnowledgeQueryFilter? filter)
+    {
+        if (filter is null)
+        {
+            return null;
+        }
+
+        var conditions = new List<object>();
+        AddStringSetCondition(conditions, "source_type", filter.SourceTypes);
+        AddStringSetCondition(conditions, "status", filter.Statuses);
+
+        if (filter.DocumentId is not null)
+        {
+            conditions.Add(new Dictionary<string, object> { ["document_id"] = filter.DocumentId.Value.ToString() });
+        }
+
+        var folderIds = filter.FolderIds.Select(folderId => folderId.ToString()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (filter.IncludeCompanyVisible)
+        {
+            if (folderIds.Length == 0)
+            {
+                conditions.Add(new Dictionary<string, object> { ["visibility_scope"] = "company" });
+            }
+            else
+            {
+                conditions.Add(new Dictionary<string, object>
+                {
+                    ["$or"] = new object[]
+                    {
+                        new Dictionary<string, object> { ["visibility_scope"] = "company" },
+                        BuildFieldCondition("folder_id", folderIds),
+                    },
+                });
+            }
+        }
+        else
+        {
+            conditions.Add(folderIds.Length == 0
+                ? new Dictionary<string, object> { ["folder_id"] = "00000000-0000-0000-0000-000000000000" }
+                : BuildFieldCondition("folder_id", folderIds));
+        }
+
+        return conditions.Count switch
+        {
+            0 => null,
+            1 => conditions[0],
+            _ => new Dictionary<string, object> { ["$and"] = conditions.ToArray() },
+        };
+    }
+
+    private static void AddStringSetCondition(List<object> conditions, string fieldName, IReadOnlyCollection<string> values)
+    {
+        var normalized = values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (normalized.Length > 0)
+        {
+            conditions.Add(BuildFieldCondition(fieldName, normalized));
+        }
+    }
+
+    private static Dictionary<string, object> BuildFieldCondition(string fieldName, string[] values)
+    {
+        return values.Length == 1
+            ? new Dictionary<string, object> { [fieldName] = values[0] }
+            : new Dictionary<string, object> { [fieldName] = new Dictionary<string, object> { ["$in"] = values } };
+    }
 
     private static List<List<string>> ReadNestedStrings(JsonElement root, string propertyName)
     {

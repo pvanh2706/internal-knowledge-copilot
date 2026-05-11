@@ -14,6 +14,8 @@ using InternalKnowledgeCopilot.Api.Modules.Wiki;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Serialization;
 
@@ -23,6 +25,7 @@ builder.Services.Configure<AppStorageOptions>(builder.Configuration.GetSection(A
 builder.Services.Configure<ChromaOptions>(builder.Configuration.GetSection(ChromaOptions.SectionName));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<BackgroundJobOptions>(builder.Configuration.GetSection(BackgroundJobOptions.SectionName));
+builder.Services.Configure<AiProviderOptions>(builder.Configuration.GetSection(AiProviderOptions.SectionName));
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -38,16 +41,45 @@ builder.Services.AddScoped<IFileUploadValidator, FileUploadValidator>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IDocumentTextExtractor, DocumentTextExtractor>();
 builder.Services.AddScoped<ITextChunker, TextChunker>();
-builder.Services.AddScoped<IEmbeddingService, MockEmbeddingService>();
-builder.Services.AddScoped<IAnswerGenerationService, MockAnswerGenerationService>();
-builder.Services.AddScoped<IWikiDraftGenerationService, MockWikiDraftGenerationService>();
+var aiProviderName = builder.Configuration.GetValue<string>($"{AiProviderOptions.SectionName}:Name") ?? "mock";
+if (string.Equals(aiProviderName, "mock", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<IEmbeddingService, MockEmbeddingService>();
+    builder.Services.AddScoped<IAnswerGenerationService, MockAnswerGenerationService>();
+    builder.Services.AddScoped<IWikiDraftGenerationService, MockWikiDraftGenerationService>();
+}
+else
+{
+    builder.Services.AddHttpClient<OpenAiCompatibleClient>((serviceProvider, client) =>
+    {
+        var aiOptions = serviceProvider.GetRequiredService<IOptions<AiProviderOptions>>().Value;
+        var baseUrl = aiOptions.BaseUrl.EndsWith("/", StringComparison.Ordinal) ? aiOptions.BaseUrl : aiOptions.BaseUrl + "/";
+        client.BaseAddress = new Uri(baseUrl);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, aiOptions.TimeoutSeconds));
+
+        if (!string.IsNullOrWhiteSpace(aiOptions.ApiKey))
+        {
+            if (string.Equals(aiOptions.ApiKeyHeaderName, "api-key", StringComparison.OrdinalIgnoreCase))
+            {
+                client.DefaultRequestHeaders.Add("api-key", aiOptions.ApiKey);
+            }
+            else
+            {
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiOptions.ApiKey);
+            }
+        }
+    });
+    builder.Services.AddScoped<IEmbeddingService, OpenAiCompatibleEmbeddingService>();
+    builder.Services.AddScoped<IAnswerGenerationService, OpenAiCompatibleAnswerGenerationService>();
+    builder.Services.AddScoped<IWikiDraftGenerationService, OpenAiCompatibleWikiDraftGenerationService>();
+}
 builder.Services.AddScoped<IDocumentProcessingService, DocumentProcessingService>();
 builder.Services.AddScoped<IAiQuestionService, AiQuestionService>();
 builder.Services.AddScoped<IAiFeedbackService, AiFeedbackService>();
 builder.Services.AddScoped<IWikiService, WikiService>();
 builder.Services.AddHttpClient<IKnowledgeVectorStore, ChromaKnowledgeVectorStore>((serviceProvider, client) =>
 {
-    var chromaOptions = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ChromaOptions>>().Value;
+    var chromaOptions = serviceProvider.GetRequiredService<IOptions<ChromaOptions>>().Value;
     client.BaseAddress = new Uri(chromaOptions.BaseUrl);
 });
 builder.Services.AddHostedService<ProcessingJobWorker>();

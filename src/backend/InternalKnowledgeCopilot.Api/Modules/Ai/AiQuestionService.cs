@@ -34,10 +34,14 @@ public sealed class AiQuestionService(
 
         await ValidateScopeAsync(userId, request, cancellationToken);
 
-        var stopwatch = Stopwatch.StartNew();
-        var queryEmbedding = embeddingService.CreateEmbedding(question);
-        var vectorResults = await vectorStore.QueryAsync(queryEmbedding, SearchLimit, cancellationToken);
         var visibleFolderIds = await folderPermissionService.GetVisibleFolderIdsAsync(userId, cancellationToken);
+        var stopwatch = Stopwatch.StartNew();
+        var queryEmbedding = await embeddingService.CreateEmbeddingAsync(question, cancellationToken);
+        var vectorResults = await vectorStore.QueryAsync(
+            queryEmbedding,
+            SearchLimit,
+            BuildKnowledgeQueryFilter(visibleFolderIds, request),
+            cancellationToken);
         var chunks = await FilterAllowedChunksAsync(vectorResults, visibleFolderIds, request, cancellationToken);
 
         chunks = chunks
@@ -46,7 +50,7 @@ public sealed class AiQuestionService(
             .Take(MaxContextChunks)
             .ToList();
 
-        var answerDraft = answerGenerationService.Generate(question, chunks);
+        var answerDraft = await answerGenerationService.GenerateAsync(question, chunks, cancellationToken);
         stopwatch.Stop();
 
         var now = DateTimeOffset.UtcNow;
@@ -132,6 +136,38 @@ public sealed class AiQuestionService(
                 throw new UnauthorizedAccessException("document_forbidden");
             }
         }
+    }
+
+    private static KnowledgeQueryFilter BuildKnowledgeQueryFilter(IReadOnlySet<Guid> visibleFolderIds, AskQuestionRequest request)
+    {
+        var sourceTypes = new[] { "document", "wiki" };
+        var statuses = new[] { "approved", "published" };
+
+        return request.ScopeType switch
+        {
+            AiScopeType.Folder => new KnowledgeQueryFilter
+            {
+                FolderIds = request.FolderId is null ? [] : [request.FolderId.Value],
+                IncludeCompanyVisible = false,
+                SourceTypes = sourceTypes,
+                Statuses = statuses,
+            },
+            AiScopeType.Document => new KnowledgeQueryFilter
+            {
+                FolderIds = visibleFolderIds.ToArray(),
+                DocumentId = request.DocumentId,
+                IncludeCompanyVisible = true,
+                SourceTypes = sourceTypes,
+                Statuses = statuses,
+            },
+            _ => new KnowledgeQueryFilter
+            {
+                FolderIds = visibleFolderIds.ToArray(),
+                IncludeCompanyVisible = true,
+                SourceTypes = sourceTypes,
+                Statuses = statuses,
+            },
+        };
     }
 
     private async Task<List<RetrievedKnowledgeChunk>> FilterAllowedChunksAsync(

@@ -4,20 +4,20 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 
 public interface IAnswerGenerationService
 {
-    AiAnswerDraft Generate(string question, IReadOnlyList<RetrievedKnowledgeChunk> chunks);
+    Task<AiAnswerDraft> GenerateAsync(string question, IReadOnlyList<RetrievedKnowledgeChunk> chunks, CancellationToken cancellationToken = default);
 }
 
 public sealed class MockAnswerGenerationService : IAnswerGenerationService
 {
     private const int MaxAnswerExcerptLength = 900;
 
-    public AiAnswerDraft Generate(string question, IReadOnlyList<RetrievedKnowledgeChunk> chunks)
+    public Task<AiAnswerDraft> GenerateAsync(string question, IReadOnlyList<RetrievedKnowledgeChunk> chunks, CancellationToken cancellationToken = default)
     {
         if (chunks.Count == 0 || !HasKeywordOverlap(question, chunks))
         {
-            return new AiAnswerDraft(
+            return Task.FromResult(new AiAnswerDraft(
                 "Mình chưa tìm thấy thông tin đủ rõ trong phạm vi bạn chọn. Bạn có thể hỏi cụ thể hơn về tài liệu, folder hoặc quy trình cần tra cứu không?",
-                true);
+                true));
         }
 
         var excerpts = chunks
@@ -26,7 +26,7 @@ public sealed class MockAnswerGenerationService : IAnswerGenerationService
             .ToList();
 
         var answer = "Dựa trên các nguồn tìm được, mình tóm tắt như sau:\n" + string.Join("\n", excerpts);
-        return new AiAnswerDraft(answer, false);
+        return Task.FromResult(new AiAnswerDraft(answer, false));
     }
 
     private static bool HasKeywordOverlap(string question, IReadOnlyList<RetrievedKnowledgeChunk> chunks)
@@ -51,12 +51,66 @@ public sealed class MockAnswerGenerationService : IAnswerGenerationService
     private static string TrimExcerpt(string text, int maxLength)
     {
         var normalized = string.Join(' ', text.Split([' ', '\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries));
-        if (normalized.Length <= maxLength)
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength].TrimEnd() + "...";
+    }
+}
+
+public sealed class OpenAiCompatibleAnswerGenerationService(OpenAiCompatibleClient client) : IAnswerGenerationService
+{
+    private const int MaxChunkCharacters = 1600;
+
+    public async Task<AiAnswerDraft> GenerateAsync(string question, IReadOnlyList<RetrievedKnowledgeChunk> chunks, CancellationToken cancellationToken = default)
+    {
+        if (chunks.Count == 0)
         {
-            return normalized;
+            return new AiAnswerDraft(
+                "Mình chưa tìm thấy nguồn phù hợp trong phạm vi bạn được phép xem. Bạn có thể hỏi cụ thể hơn hoặc chọn folder/tài liệu khác.",
+                true);
         }
 
-        return normalized[..maxLength].TrimEnd() + "...";
+        var systemPrompt = """
+            You are Internal Knowledge Copilot for a Vietnamese internal knowledge base.
+            Answer in Vietnamese.
+            Use only the provided sources.
+            Do not invent facts, policies, prices, dates, or procedures.
+            If the sources are insufficient or ambiguous, say what is missing and ask a concise clarifying question.
+            Reference source labels like [S1], [S2] when making claims.
+            Never mention sources that are not included in the prompt.
+            """;
+
+        var sourceBlocks = chunks
+            .Select((chunk, index) => $"""
+                [S{index + 1}]
+                Type: {chunk.SourceType}
+                Title: {chunk.Title}
+                Folder: {chunk.FolderPath}
+                Text:
+                {Trim(chunk.Text, MaxChunkCharacters)}
+                """)
+            .ToList();
+
+        var userPrompt = $"""
+            Question:
+            {question}
+
+            Sources:
+            {string.Join("\n\n", sourceBlocks)}
+
+            Return a direct, grounded answer. If the answer cannot be determined from the sources, state that clearly.
+            """;
+
+        var answer = await client.CompleteAsync(systemPrompt, userPrompt, cancellationToken);
+        var needsClarification = answer.Contains("chưa đủ", StringComparison.OrdinalIgnoreCase)
+            || answer.Contains("không đủ", StringComparison.OrdinalIgnoreCase)
+            || answer.Contains("cần thêm", StringComparison.OrdinalIgnoreCase);
+
+        return new AiAnswerDraft(answer, needsClarification);
+    }
+
+    private static string Trim(string text, int maxLength)
+    {
+        var normalized = string.Join(' ', text.Split([' ', '\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength].TrimEnd() + "...";
     }
 }
 

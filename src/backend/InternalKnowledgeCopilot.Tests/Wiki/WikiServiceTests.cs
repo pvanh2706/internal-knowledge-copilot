@@ -151,7 +151,11 @@ public sealed class WikiServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(float[] embedding, int limit, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(
+            float[] embedding,
+            int limit,
+            KnowledgeQueryFilter? filter = null,
+            CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<KnowledgeVectorSearchResult>>([]);
         }

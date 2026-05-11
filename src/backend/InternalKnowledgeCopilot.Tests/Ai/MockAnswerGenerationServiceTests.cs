@@ -6,11 +6,11 @@ namespace InternalKnowledgeCopilot.Tests.Ai;
 public sealed class MockAnswerGenerationServiceTests
 {
     [Fact]
-    public void Generate_AsksForClarification_WhenNoChunksMatch()
+    public async Task GenerateAsync_AsksForClarification_WhenNoChunksMatch()
     {
         var service = new MockAnswerGenerationService();
 
-        var answer = service.Generate("quy trinh thanh toan", []);
+        var answer = await service.GenerateAsync("quy trinh thanh toan", []);
 
         Assert.True(answer.NeedsClarification);
         Assert.Contains("chưa tìm thấy", answer.Answer, StringComparison.OrdinalIgnoreCase);

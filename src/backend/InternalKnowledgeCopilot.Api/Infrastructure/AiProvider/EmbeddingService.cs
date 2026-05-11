@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using InternalKnowledgeCopilot.Api.Infrastructure.Options;
+using Microsoft.Extensions.Options;
 
 namespace InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 
@@ -7,14 +9,14 @@ public interface IEmbeddingService
 {
     int Dimension { get; }
 
-    float[] CreateEmbedding(string text);
+    Task<float[]> CreateEmbeddingAsync(string text, CancellationToken cancellationToken = default);
 }
 
 public sealed class MockEmbeddingService : IEmbeddingService
 {
     public int Dimension => 64;
 
-    public float[] CreateEmbedding(string text)
+    public Task<float[]> CreateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
         var vector = new float[Dimension];
         var tokens = text.Split([' ', '\r', '\n', '\t', '.', ',', ';', ':', '-', '_', '/', '\\'], StringSplitOptions.RemoveEmptyEntries);
@@ -31,7 +33,7 @@ public sealed class MockEmbeddingService : IEmbeddingService
         if (norm <= 0)
         {
             vector[0] = 1;
-            return vector;
+            return Task.FromResult(vector);
         }
 
         for (var i = 0; i < vector.Length; i++)
@@ -39,6 +41,16 @@ public sealed class MockEmbeddingService : IEmbeddingService
             vector[i] /= norm;
         }
 
-        return vector;
+        return Task.FromResult(vector);
+    }
+}
+
+public sealed class OpenAiCompatibleEmbeddingService(OpenAiCompatibleClient client, IOptions<AiProviderOptions> options) : IEmbeddingService
+{
+    public int Dimension => options.Value.EmbeddingDimension;
+
+    public Task<float[]> CreateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
+    {
+        return client.CreateEmbeddingAsync(text, cancellationToken);
     }
 }

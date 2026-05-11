@@ -6,5 +6,9 @@ public interface IKnowledgeVectorStore
 
     Task UpsertChunksAsync(IReadOnlyList<KnowledgeChunkRecord> chunks, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(float[] embedding, int limit, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(
+        float[] embedding,
+        int limit,
+        KnowledgeQueryFilter? filter = null,
+        CancellationToken cancellationToken = default);
 }
