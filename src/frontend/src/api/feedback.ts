@@ -8,6 +8,7 @@ export interface FeedbackSource {
   sourceType: KnowledgeSourceType
   title: string
   folderPath: string
+  sectionTitle?: string | null
   excerpt: string
   rank: number
 }

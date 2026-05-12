@@ -3,6 +3,7 @@ using System;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace InternalKnowledgeCopilot.Api.Infrastructure.Database.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260512044206_AddSmartIngestionMetadata")]
+    partial class AddSmartIngestionMetadata
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.11");
@@ -94,18 +97,6 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.Database.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("answer");
 
-                    b.Property<string>("Confidence")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT")
-                        .HasDefaultValue("low")
-                        .HasColumnName("confidence");
-
-                    b.Property<string>("ConflictsJson")
-                        .HasColumnType("TEXT")
-                        .HasColumnName("conflicts_json");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("TEXT")
                         .HasColumnName("created_at");
@@ -113,10 +104,6 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.Database.Migrations
                     b.Property<int>("LatencyMs")
                         .HasColumnType("INTEGER")
                         .HasColumnName("latency_ms");
-
-                    b.Property<string>("MissingInformationJson")
-                        .HasColumnType("TEXT")
-                        .HasColumnName("missing_information_json");
 
                     b.Property<bool>("NeedsClarification")
                         .HasColumnType("INTEGER")
@@ -141,10 +128,6 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.Database.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT")
                         .HasColumnName("scope_type");
-
-                    b.Property<string>("SuggestedFollowUpsJson")
-                        .HasColumnType("TEXT")
-                        .HasColumnName("suggested_follow_ups_json");
 
                     b.Property<int>("UsedDocumentCount")
                         .HasColumnType("INTEGER")

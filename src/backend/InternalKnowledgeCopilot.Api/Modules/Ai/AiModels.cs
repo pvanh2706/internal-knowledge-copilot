@@ -12,12 +12,17 @@ public sealed record AskQuestionResponse(
     Guid InteractionId,
     string Answer,
     bool NeedsClarification,
+    string Confidence,
+    IReadOnlyList<string> MissingInformation,
+    IReadOnlyList<string> Conflicts,
+    IReadOnlyList<string> SuggestedFollowUps,
     IReadOnlyList<AiCitationResponse> Citations);
 
 public sealed record AiCitationResponse(
     KnowledgeSourceType SourceType,
     string Title,
     string FolderPath,
+    string? SectionTitle,
     string Excerpt);
 
 public sealed record RetrievedKnowledgeChunk(
@@ -30,5 +35,7 @@ public sealed record RetrievedKnowledgeChunk(
     string? VisibilityScope,
     string Title,
     string FolderPath,
+    string? SectionTitle,
+    int? SectionIndex,
     string Text,
     double? Distance);

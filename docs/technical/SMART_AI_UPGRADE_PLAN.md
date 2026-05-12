@@ -20,7 +20,20 @@ Cap nhat: 2026-05-12
   - Da them Chroma `where` filter theo `source_type`, `status`, `folder_id`, `document_id`, `visibility_scope`.
   - `AiQuestionService` da lay visible folder tu SQLite truoc khi query vector store.
   - Backend van re-validate chunk bang SQLite truoc khi dua vao answer.
-- Phase 3 tro di: Pending.
+- Phase 3 `Smart ingestion`: Done.
+  - Da them normalize text va luu `normalized.txt`.
+  - Da them section detection cho Markdown/numbered/Vietnamese headings.
+  - Da chunk theo section va day metadata `section_title`, `section_index`, `char_start`, `char_end` vao Chroma.
+  - Da luu `document_summary`, `section_count`, `processing_warnings_json` vao SQLite.
+  - Citation/feedback/document detail da hien section va ingestion metadata.
+  - Document understanding bang LLM structured output de tiep tuc o phase sau.
+- Phase 4 `Better answer generation`: Done.
+  - Da them `AiAnswerDraft` co structured fields: confidence, missing information, conflicts, suggested follow-ups, cited source ids.
+  - OpenAI-compatible answer prompt yeu cau JSON schema va retry mot lan khi schema invalid.
+  - Backend validate citation source id, chi tra citation nam trong context da duoc phep.
+  - Da luu structured answer metadata vao `ai_interactions`.
+  - UI Q&A hien confidence, missing information, conflicts va suggested follow-ups.
+- Phase 5 tro di: Pending.
 
 ## 1. Muc tieu
 
@@ -1073,7 +1086,7 @@ Acceptance:
 - Khong retrieve chunk trai quyen.
 - Neu top chunks trai quyen, user van co the tim thay chunk dung trong folder duoc phep.
 
-### Phase 3: Smart ingestion
+### Phase 3: Smart ingestion - Done 2026-05-12
 
 Muc tieu:
 
@@ -1088,13 +1101,27 @@ Cong viec:
 - Chunk theo section.
 - Luu chunk metadata vao SQLite va Chroma.
 
+Da trien khai:
+
+- `DocumentTextNormalizer` normalize newline/whitespace, Unicode FormC va warning encoding issue.
+- `SectionDetector` detect Markdown heading, numbered heading va cac heading tieng Viet pho bien.
+- `TextChunker` chunk theo section va giu section metadata.
+- Document indexing ghi `normalized.txt`, summary heuristic, section count va warnings.
+- Document/wiki chunks ghi `section_title`, `section_index`, `char_start`, `char_end` vao vector metadata.
+- AI citations va feedback sources tra ve `sectionTitle`.
+- Document detail tra ve `hasNormalizedText`, `sectionCount`, `documentSummary`, `processingWarnings`.
+
+Chua lam trong Phase 3 core:
+
+- `DocumentUnderstandingService` bang LLM structured output; nen lam sau khi Phase 4 co structured output/retry/validation chung.
+
 Acceptance:
 
 - Document detail hien summary/sections/warnings.
 - Citation co section title.
 - Text tieng Viet khong bi loi encoding trong normalized output.
 
-### Phase 4: Better answer generation
+### Phase 4: Better answer generation - Done 2026-05-13
 
 Muc tieu:
 
@@ -1113,6 +1140,17 @@ Acceptance:
 - AI khong bia khi khong co context.
 - Answer co confidence.
 - Citation source id hop le.
+
+Da trien khai:
+
+- `AiAnswerDraft` gom `Answer`, `NeedsClarification`, `Confidence`, `MissingInformation`, `Conflicts`, `SuggestedFollowUps`, `CitedSourceIds`.
+- `OpenAiCompatibleAnswerGenerationService` yeu cau provider tra JSON only theo schema.
+- Neu provider tra schema sai, backend retry mot lan voi repair prompt.
+- Neu van sai schema, backend fallback confidence `low`, `needsClarification=true` va ghi missing info.
+- Backend map citation label `S1`, `S2` ve `SourceId` that cua chunk; citation ngoai context bi loai.
+- `AiQuestionService` chi tra ve va chi luu citations da duoc answer draft cite hop le.
+- `ai_interactions` luu `confidence`, `missing_information_json`, `conflicts_json`, `suggested_follow_ups_json`.
+- UI Q&A hien confidence, missing information, conflicts va suggested follow-ups.
 
 ### Phase 5: Wiki intelligence
 

@@ -15,6 +15,8 @@ public interface IDocumentProcessingService
 public sealed class DocumentProcessingService(
     AppDbContext dbContext,
     IDocumentTextExtractor textExtractor,
+    IDocumentTextNormalizer textNormalizer,
+    ISectionDetector sectionDetector,
     ITextChunker chunker,
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore) : IDocumentProcessingService
@@ -41,11 +43,17 @@ public sealed class DocumentProcessingService(
             throw new InvalidOperationException("Document has no extractable text.");
         }
 
-        var extractedTextPath = Path.Combine(Path.GetDirectoryName(version.StoredFilePath)!, "extracted.txt");
+        var storageDirectory = Path.GetDirectoryName(version.StoredFilePath)!;
+        var extractedTextPath = Path.Combine(storageDirectory, "extracted.txt");
         await File.WriteAllTextAsync(extractedTextPath, extractedText, cancellationToken);
-        var textHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(extractedText))).ToLowerInvariant();
+        var normalized = textNormalizer.Normalize(extractedText);
+        var normalizedTextPath = Path.Combine(storageDirectory, "normalized.txt");
+        await File.WriteAllTextAsync(normalizedTextPath, normalized.Text, cancellationToken);
+        var normalizedBytes = System.Text.Encoding.UTF8.GetBytes(normalized.Text);
+        var textHash = Convert.ToHexString(SHA256.HashData(normalizedBytes)).ToLowerInvariant();
 
-        var chunks = chunker.Chunk(extractedText);
+        var sections = sectionDetector.Detect(normalized.Text);
+        var chunks = chunker.Chunk(normalized.Text, sections);
         var vectorChunks = new List<KnowledgeChunkRecord>(chunks.Count);
         foreach (var chunk in chunks)
         {
@@ -67,6 +75,10 @@ public sealed class DocumentProcessingService(
                     ["version_number"] = version.VersionNumber,
                     ["status"] = "approved",
                     ["visibility_scope"] = "folder",
+                    ["section_title"] = chunk.SectionTitle ?? string.Empty,
+                    ["section_index"] = chunk.SectionIndex ?? -1,
+                    ["char_start"] = chunk.StartOffset ?? 0,
+                    ["char_end"] = chunk.EndOffset ?? 0,
                     ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
                 }));
         }
@@ -74,10 +86,24 @@ public sealed class DocumentProcessingService(
         await vectorStore.UpsertChunksAsync(vectorChunks, cancellationToken);
 
         version.ExtractedTextPath = extractedTextPath;
+        version.NormalizedTextPath = normalizedTextPath;
+        version.SectionCount = sections.Count;
+        version.ProcessingWarningsJson = normalized.WarningsJson;
+        version.DocumentSummary = BuildSummary(sections, normalized.Text);
         version.TextHash = textHash;
         version.Status = DocumentVersionStatus.Indexed;
         version.IndexedAt = DateTimeOffset.UtcNow;
         version.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string BuildSummary(IReadOnlyList<DocumentSection> sections, string normalizedText)
+    {
+        var candidate = sections.Count > 0
+            ? sections[0].Text
+            : normalizedText;
+
+        var summary = string.Join(' ', candidate.Split([' ', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries));
+        return summary.Length <= 600 ? summary : summary[..600].TrimEnd() + "...";
     }
 }

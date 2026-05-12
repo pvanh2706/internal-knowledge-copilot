@@ -87,6 +87,7 @@ public sealed class AiFeedbackService(AppDbContext dbContext, IAuditLogService a
                     source.SourceType,
                     source.Title,
                     source.FolderPath,
+                    source.SectionTitle,
                     source.Excerpt,
                     source.Rank))
                 .ToList())).ToList();

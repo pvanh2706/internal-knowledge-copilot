@@ -141,7 +141,28 @@ onMounted(loadScopeData)
       <section class="answer-panel">
         <h3>Câu trả lời</h3>
         <p v-if="answer.needsClarification" class="form-error">AI cần thêm ngữ cảnh để trả lời chắc chắn.</p>
+        <p>Confidence: {{ answer.confidence }}</p>
         <pre>{{ answer.answer }}</pre>
+        <div v-if="answer.missingInformation.length || answer.conflicts.length || answer.suggestedFollowUps.length" class="feedback-box">
+          <div v-if="answer.missingInformation.length">
+            <strong>Missing information</strong>
+            <ul>
+              <li v-for="item in answer.missingInformation" :key="item">{{ item }}</li>
+            </ul>
+          </div>
+          <div v-if="answer.conflicts.length">
+            <strong>Conflicts</strong>
+            <ul>
+              <li v-for="item in answer.conflicts" :key="item">{{ item }}</li>
+            </ul>
+          </div>
+          <div v-if="answer.suggestedFollowUps.length">
+            <strong>Suggested follow-ups</strong>
+            <ul>
+              <li v-for="item in answer.suggestedFollowUps" :key="item">{{ item }}</li>
+            </ul>
+          </div>
+        </div>
         <div class="feedback-box">
           <textarea v-model="feedbackNote" rows="3" placeholder="Ghi chú feedback nếu cần..." />
           <div class="button-row">
@@ -156,7 +177,7 @@ onMounted(loadScopeData)
         <p v-if="answer.citations.length === 0">Chưa có nguồn đủ phù hợp trong phạm vi đã chọn.</p>
         <article v-for="citation in answer.citations" :key="`${citation.sourceType}-${citation.title}-${citation.excerpt}`" class="citation-item">
           <strong>{{ citation.sourceType }} - {{ citation.title }}</strong>
-          <small>{{ citation.folderPath || '-' }}</small>
+          <small>{{ [citation.folderPath, citation.sectionTitle].filter(Boolean).join(' / ') || '-' }}</small>
           <p>{{ citation.excerpt }}</p>
         </article>
       </section>

@@ -22,6 +22,14 @@ public sealed class AiInteractionEntity
 
     public bool NeedsClarification { get; set; }
 
+    public string Confidence { get; set; } = "low";
+
+    public string? MissingInformationJson { get; set; }
+
+    public string? ConflictsJson { get; set; }
+
+    public string? SuggestedFollowUpsJson { get; set; }
+
     public int LatencyMs { get; set; }
 
     public int UsedWikiCount { get; set; }

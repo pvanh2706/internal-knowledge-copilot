@@ -24,6 +24,8 @@ public sealed class AiInteractionSourceEntity
 
     public required string FolderPath { get; set; }
 
+    public string? SectionTitle { get; set; }
+
     public required string Excerpt { get; set; }
 
     public int Rank { get; set; }

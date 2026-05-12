@@ -28,6 +28,7 @@ public sealed class WikiService(
     IFolderPermissionService folderPermissionService,
     IWikiDraftGenerationService draftGenerationService,
     ITextChunker chunker,
+    ISectionDetector sectionDetector,
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore,
     IAuditLogService auditLogService) : IWikiService
@@ -230,7 +231,8 @@ public sealed class WikiService(
 
     private async Task IndexWikiPageAsync(WikiPageEntity page, string folderPath, CancellationToken cancellationToken)
     {
-        var chunks = chunker.Chunk(page.Content);
+        var sections = sectionDetector.Detect(page.Content);
+        var chunks = chunker.Chunk(page.Content, sections);
         var vectorChunks = new List<KnowledgeChunkRecord>(chunks.Count);
         foreach (var chunk in chunks)
         {
@@ -252,6 +254,10 @@ public sealed class WikiService(
                     ["folder_path"] = folderPath,
                     ["status"] = "published",
                     ["visibility_scope"] = page.VisibilityScope == VisibilityScope.Company ? "company" : "folder",
+                    ["section_title"] = chunk.SectionTitle ?? string.Empty,
+                    ["section_index"] = chunk.SectionIndex ?? -1,
+                    ["char_start"] = chunk.StartOffset ?? 0,
+                    ["char_end"] = chunk.EndOffset ?? 0,
                     ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
                 }));
         }

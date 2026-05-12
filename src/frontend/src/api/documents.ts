@@ -28,6 +28,10 @@ export interface DocumentVersion {
   contentType?: string
   status: DocumentVersionStatus
   rejectReason?: string
+  hasNormalizedText: boolean
+  sectionCount?: number | null
+  documentSummary?: string | null
+  processingWarnings: string[]
   uploadedBy: string
   reviewedBy?: string
   reviewedAt?: string

@@ -40,6 +40,8 @@ builder.Services.AddScoped<IFolderPermissionService, FolderPermissionService>();
 builder.Services.AddScoped<IFileUploadValidator, FileUploadValidator>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IDocumentTextExtractor, DocumentTextExtractor>();
+builder.Services.AddScoped<IDocumentTextNormalizer, DocumentTextNormalizer>();
+builder.Services.AddScoped<ISectionDetector, SectionDetector>();
 builder.Services.AddScoped<ITextChunker, TextChunker>();
 var aiProviderName = builder.Configuration.GetValue<string>($"{AiProviderOptions.SectionName}:Name") ?? "mock";
 if (string.Equals(aiProviderName, "mock", StringComparison.OrdinalIgnoreCase))

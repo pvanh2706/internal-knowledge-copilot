@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
@@ -51,6 +52,10 @@ public sealed class AiQuestionService(
             .ToList();
 
         var answerDraft = await answerGenerationService.GenerateAsync(question, chunks, cancellationToken);
+        var citedSourceIdSet = answerDraft.CitedSourceIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var citedChunks = citedSourceIdSet.Count == 0
+            ? chunks
+            : chunks.Where(chunk => citedSourceIdSet.Contains(chunk.SourceId)).ToList();
         stopwatch.Stop();
 
         var now = DateTimeOffset.UtcNow;
@@ -65,14 +70,18 @@ public sealed class AiQuestionService(
             ScopeFolderId = request.FolderId,
             ScopeDocumentId = request.DocumentId,
             NeedsClarification = answerDraft.NeedsClarification,
+            Confidence = answerDraft.Confidence,
+            MissingInformationJson = JsonSerializer.Serialize(answerDraft.MissingInformation),
+            ConflictsJson = JsonSerializer.Serialize(answerDraft.Conflicts),
+            SuggestedFollowUpsJson = JsonSerializer.Serialize(answerDraft.SuggestedFollowUps),
             LatencyMs = (int)Math.Min(int.MaxValue, stopwatch.ElapsedMilliseconds),
-            UsedWikiCount = chunks.Count(chunk => chunk.SourceType == KnowledgeSourceType.Wiki),
-            UsedDocumentCount = chunks.Count(chunk => chunk.SourceType == KnowledgeSourceType.Document),
+            UsedWikiCount = citedChunks.Count(chunk => chunk.SourceType == KnowledgeSourceType.Wiki),
+            UsedDocumentCount = citedChunks.Count(chunk => chunk.SourceType == KnowledgeSourceType.Document),
             CreatedAt = now,
         };
 
         dbContext.AiInteractions.Add(interaction);
-        dbContext.AiInteractionSources.AddRange(chunks.Select((chunk, index) => new AiInteractionSourceEntity
+        dbContext.AiInteractionSources.AddRange(citedChunks.Select((chunk, index) => new AiInteractionSourceEntity
         {
             Id = Guid.NewGuid(),
             AiInteractionId = interactionId,
@@ -83,6 +92,7 @@ public sealed class AiQuestionService(
             WikiPageId = chunk.WikiPageId,
             Title = chunk.Title,
             FolderPath = chunk.FolderPath,
+            SectionTitle = chunk.SectionTitle,
             Excerpt = ToExcerpt(chunk.Text),
             Rank = index + 1,
             CreatedAt = now,
@@ -93,10 +103,15 @@ public sealed class AiQuestionService(
             interactionId,
             answerDraft.Answer,
             answerDraft.NeedsClarification,
-            chunks.Select(chunk => new AiCitationResponse(
+            answerDraft.Confidence,
+            answerDraft.MissingInformation,
+            answerDraft.Conflicts,
+            answerDraft.SuggestedFollowUps,
+            citedChunks.Select(chunk => new AiCitationResponse(
                 chunk.SourceType,
                 chunk.Title,
                 chunk.FolderPath,
+                chunk.SectionTitle,
                 ToExcerpt(chunk.Text))).ToList());
     }
 
@@ -281,6 +296,8 @@ public sealed class AiQuestionService(
             GetString(result.Metadata, "visibility_scope"),
             GetString(result.Metadata, "title") ?? "Nguồn tri thức",
             GetString(result.Metadata, "folder_path") ?? string.Empty,
+            GetString(result.Metadata, "section_title"),
+            GetInt(result.Metadata, "section_index"),
             result.Text,
             result.Distance);
     }
@@ -315,6 +332,12 @@ public sealed class AiQuestionService(
     {
         var value = GetString(metadata, key);
         return Guid.TryParse(value, out var guid) ? guid : null;
+    }
+
+    private static int? GetInt(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        var value = GetString(metadata, key);
+        return int.TryParse(value, out var number) ? number : null;
     }
 
     private static string ToExcerpt(string text)

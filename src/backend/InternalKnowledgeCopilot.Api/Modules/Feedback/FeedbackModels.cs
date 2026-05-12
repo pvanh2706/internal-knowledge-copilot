@@ -33,5 +33,6 @@ public sealed record FeedbackSourceResponse(
     KnowledgeSourceType SourceType,
     string Title,
     string FolderPath,
+    string? SectionTitle,
     string Excerpt,
     int Rank);

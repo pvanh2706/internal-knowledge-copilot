@@ -2,6 +2,7 @@ import { apiRequest } from './http'
 
 export type AiScopeType = 'All' | 'Folder' | 'Document'
 export type KnowledgeSourceType = 'Document' | 'Wiki'
+export type AiConfidence = 'high' | 'medium' | 'low'
 
 export interface AskQuestionPayload {
   question: string
@@ -14,6 +15,7 @@ export interface AiCitation {
   sourceType: KnowledgeSourceType
   title: string
   folderPath: string
+  sectionTitle?: string | null
   excerpt: string
 }
 
@@ -21,6 +23,10 @@ export interface AskQuestionResponse {
   interactionId: string
   answer: string
   needsClarification: boolean
+  confidence: AiConfidence
+  missingInformation: string[]
+  conflicts: string[]
+  suggestedFollowUps: string[]
   citations: AiCitation[]
 }
 

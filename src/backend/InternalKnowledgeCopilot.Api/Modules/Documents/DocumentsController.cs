@@ -8,6 +8,7 @@ using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace InternalKnowledgeCopilot.Api.Modules.Documents;
 
@@ -395,6 +396,10 @@ public sealed class DocumentsController(
                 version.ContentType,
                 version.Status,
                 version.RejectReason,
+                !string.IsNullOrWhiteSpace(version.NormalizedTextPath),
+                version.SectionCount,
+                version.DocumentSummary,
+                ParseProcessingWarnings(version.ProcessingWarningsJson),
                 version.UploadedByUser!.DisplayName,
                 version.ReviewedByUser?.DisplayName,
                 version.ReviewedAt,
@@ -416,5 +421,22 @@ public sealed class DocumentsController(
     {
         var rawUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(rawUserId, out var userId) ? userId : null;
+    }
+
+    private static IReadOnlyList<string> ParseProcessingWarnings(string? warningsJson)
+    {
+        if (string.IsNullOrWhiteSpace(warningsJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(warningsJson) ?? [];
+        }
+        catch (JsonException)
+        {
+            return ["invalid_processing_warnings_json"];
+        }
     }
 }

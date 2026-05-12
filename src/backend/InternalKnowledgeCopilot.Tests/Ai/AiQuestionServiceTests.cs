@@ -99,6 +99,8 @@ public sealed class AiQuestionServiceTests
         Assert.True(vectorStore.LastFilter.IncludeCompanyVisible);
         var citation = Assert.Single(response.Citations);
         Assert.Equal("Allowed payment", citation.Title);
+        Assert.Equal("Troubleshooting", citation.SectionTitle);
+        Assert.Equal("low", response.Confidence);
         Assert.DoesNotContain("secret denied", response.Answer, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, await dbContext.AiInteractions.CountAsync());
         Assert.Equal(1, await dbContext.AiInteractionSources.CountAsync());
@@ -161,10 +163,101 @@ public sealed class AiQuestionServiceTests
         var response = await service.AskAsync(userId, new AskQuestionRequest("secret wiki", AiScopeType.All, null, null));
 
         Assert.True(response.NeedsClarification);
+        Assert.Equal("low", response.Confidence);
         Assert.Empty(response.Citations);
         Assert.DoesNotContain("secret wiki answer", response.Answer, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, await dbContext.AiInteractions.CountAsync());
         Assert.Equal(0, await dbContext.AiInteractionSources.CountAsync());
+    }
+
+    [Fact]
+    public async Task AskAsync_OnlyReturnsCitationsSelectedByGroundedAnswer()
+    {
+        await using var dbContext = CreateDbContext();
+        var now = DateTimeOffset.UtcNow;
+        var teamId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        var firstDocumentId = Guid.NewGuid();
+        var firstVersionId = Guid.NewGuid();
+        var secondDocumentId = Guid.NewGuid();
+        var secondVersionId = Guid.NewGuid();
+
+        dbContext.Teams.Add(new TeamEntity { Id = teamId, Name = "Team", CreatedAt = now, UpdatedAt = now });
+        dbContext.Users.Add(new UserEntity
+        {
+            Id = userId,
+            Email = "user@example.local",
+            DisplayName = "User",
+            PasswordHash = "hash",
+            Role = UserRole.User,
+            PrimaryTeamId = teamId,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.Folders.Add(new FolderEntity { Id = folderId, Name = "Allowed", Path = "/Allowed", CreatedByUserId = userId, CreatedAt = now, UpdatedAt = now });
+        dbContext.FolderPermissions.Add(new FolderPermissionEntity
+        {
+            Id = Guid.NewGuid(),
+            FolderId = folderId,
+            TeamId = teamId,
+            CanView = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.Documents.AddRange(
+            new DocumentEntity
+            {
+                Id = firstDocumentId,
+                FolderId = folderId,
+                Title = "First source",
+                Status = DocumentStatus.Approved,
+                CurrentVersionId = firstVersionId,
+                CreatedByUserId = userId,
+                CreatedAt = now,
+                UpdatedAt = now,
+            },
+            new DocumentEntity
+            {
+                Id = secondDocumentId,
+                FolderId = folderId,
+                Title = "Second source",
+                Status = DocumentStatus.Approved,
+                CurrentVersionId = secondVersionId,
+                CreatedByUserId = userId,
+                CreatedAt = now,
+                UpdatedAt = now,
+            });
+        dbContext.DocumentVersions.AddRange(
+            CreateIndexedVersion(firstVersionId, firstDocumentId, userId, now),
+            CreateIndexedVersion(secondVersionId, secondDocumentId, userId, now));
+        await dbContext.SaveChangesAsync();
+
+        var vectorStore = new FakeKnowledgeVectorStore([
+            CreateVectorResult("first", folderId, firstDocumentId, firstVersionId, "First source", "/Allowed", "payment error first source"),
+            CreateVectorResult("second", folderId, secondDocumentId, secondVersionId, "Second source", "/Allowed", "payment error second source"),
+        ]);
+        var service = new AiQuestionService(
+            dbContext,
+            new FolderPermissionService(dbContext),
+            new MockEmbeddingService(),
+            vectorStore,
+            new FixedAnswerGenerationService(new AiAnswerDraft(
+                "Answer from selected source.",
+                false,
+                "high",
+                [],
+                [],
+                [],
+                [firstVersionId.ToString()])));
+
+        var response = await service.AskAsync(userId, new AskQuestionRequest("payment error", AiScopeType.All, null, null));
+
+        Assert.Equal("high", response.Confidence);
+        var citation = Assert.Single(response.Citations);
+        Assert.Equal("First source", citation.Title);
+        Assert.Equal(1, await dbContext.AiInteractionSources.CountAsync());
     }
 
     private static DocumentVersionEntity CreateIndexedVersion(Guid id, Guid documentId, Guid userId, DateTimeOffset now)
@@ -199,6 +292,8 @@ public sealed class AiQuestionServiceTests
                 ["folder_id"] = folderId.ToString(),
                 ["title"] = title,
                 ["folder_path"] = folderPath,
+                ["section_title"] = "Troubleshooting",
+                ["section_index"] = 1,
             },
             0.1);
     }
@@ -253,6 +348,14 @@ public sealed class AiQuestionServiceTests
         {
             LastFilter = filter;
             return Task.FromResult(results);
+        }
+    }
+
+    private sealed class FixedAnswerGenerationService(AiAnswerDraft draft) : IAnswerGenerationService
+    {
+        public Task<AiAnswerDraft> GenerateAsync(string question, IReadOnlyList<RetrievedKnowledgeChunk> chunks, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(draft);
         }
     }
 }

@@ -28,6 +28,14 @@ public sealed class DocumentVersionEntity
 
     public string? ExtractedTextPath { get; set; }
 
+    public string? NormalizedTextPath { get; set; }
+
+    public int? SectionCount { get; set; }
+
+    public string? ProcessingWarningsJson { get; set; }
+
+    public string? DocumentSummary { get; set; }
+
     public string? TextHash { get; set; }
 
     public Guid UploadedByUserId { get; set; }

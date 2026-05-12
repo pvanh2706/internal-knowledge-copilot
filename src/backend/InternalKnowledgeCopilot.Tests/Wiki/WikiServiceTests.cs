@@ -60,6 +60,7 @@ public sealed class WikiServiceTests
             new FolderPermissionService(dbContext),
             new MockWikiDraftGenerationService(),
             new TextChunker(),
+            new SectionDetector(),
             new MockEmbeddingService(),
             vectorStore,
             new NoopAuditLogService());

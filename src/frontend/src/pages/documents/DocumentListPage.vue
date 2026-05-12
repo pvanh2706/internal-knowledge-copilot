@@ -192,6 +192,7 @@ onMounted(loadData)
               <th>Version</th>
               <th>File</th>
               <th>Status</th>
+              <th>Ingestion</th>
             </tr>
           </thead>
           <tbody>
@@ -201,6 +202,12 @@ onMounted(loadData)
                 <button type="button" class="text-button" @click="submitDownload(version.id)">{{ version.originalFileName }}</button>
               </td>
               <td>{{ version.status }}</td>
+              <td>
+                <span v-if="version.hasNormalizedText">{{ version.sectionCount ?? 0 }} sections</span>
+                <span v-else>-</span>
+                <small v-if="version.documentSummary">{{ version.documentSummary }}</small>
+                <small v-if="version.processingWarnings.length">{{ version.processingWarnings.join(', ') }}</small>
+              </td>
             </tr>
           </tbody>
         </table>

@@ -170,6 +170,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(version => version.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
             entity.Property(version => version.RejectReason).HasColumnName("reject_reason").HasMaxLength(2000);
             entity.Property(version => version.ExtractedTextPath).HasColumnName("extracted_text_path").HasMaxLength(2000);
+            entity.Property(version => version.NormalizedTextPath).HasColumnName("normalized_text_path").HasMaxLength(2000);
+            entity.Property(version => version.SectionCount).HasColumnName("section_count");
+            entity.Property(version => version.ProcessingWarningsJson).HasColumnName("processing_warnings_json");
+            entity.Property(version => version.DocumentSummary).HasColumnName("document_summary").HasMaxLength(2000);
             entity.Property(version => version.TextHash).HasColumnName("text_hash").HasMaxLength(200);
             entity.Property(version => version.UploadedByUserId).HasColumnName("uploaded_by_user_id");
             entity.Property(version => version.ReviewedByUserId).HasColumnName("reviewed_by_user_id");
@@ -220,6 +224,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(interaction => interaction.ScopeFolderId).HasColumnName("scope_folder_id");
             entity.Property(interaction => interaction.ScopeDocumentId).HasColumnName("scope_document_id");
             entity.Property(interaction => interaction.NeedsClarification).HasColumnName("needs_clarification");
+            entity.Property(interaction => interaction.Confidence).HasColumnName("confidence").HasMaxLength(20).HasDefaultValue("low");
+            entity.Property(interaction => interaction.MissingInformationJson).HasColumnName("missing_information_json");
+            entity.Property(interaction => interaction.ConflictsJson).HasColumnName("conflicts_json");
+            entity.Property(interaction => interaction.SuggestedFollowUpsJson).HasColumnName("suggested_follow_ups_json");
             entity.Property(interaction => interaction.LatencyMs).HasColumnName("latency_ms");
             entity.Property(interaction => interaction.UsedWikiCount).HasColumnName("used_wiki_count");
             entity.Property(interaction => interaction.UsedDocumentCount).HasColumnName("used_document_count");
@@ -244,6 +252,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(source => source.WikiPageId).HasColumnName("wiki_page_id");
             entity.Property(source => source.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
             entity.Property(source => source.FolderPath).HasColumnName("folder_path").HasMaxLength(1000).IsRequired();
+            entity.Property(source => source.SectionTitle).HasColumnName("section_title").HasMaxLength(300);
             entity.Property(source => source.Excerpt).HasColumnName("excerpt").HasMaxLength(2000).IsRequired();
             entity.Property(source => source.Rank).HasColumnName("rank");
             entity.Property(source => source.CreatedAt).HasColumnName("created_at");

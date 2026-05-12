@@ -96,7 +96,7 @@ onMounted(loadData)
           <h4>Nguồn đã dùng</h4>
           <article v-for="source in selectedFeedback.sources" :key="`${source.rank}-${source.title}`" class="citation-item">
             <strong>{{ source.sourceType }} - {{ source.title }}</strong>
-            <small>{{ source.folderPath || '-' }}</small>
+            <small>{{ [source.folderPath, source.sectionTitle].filter(Boolean).join(' / ') || '-' }}</small>
             <p>{{ source.excerpt }}</p>
           </article>
         </section>
