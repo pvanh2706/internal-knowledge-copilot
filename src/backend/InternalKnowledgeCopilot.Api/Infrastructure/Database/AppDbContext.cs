@@ -302,6 +302,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(draft => draft.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
             entity.Property(draft => draft.Content).HasColumnName("content").IsRequired();
             entity.Property(draft => draft.Language).HasColumnName("language").HasMaxLength(50).IsRequired();
+            entity.Property(draft => draft.MissingInformationJson).HasColumnName("missing_information_json");
+            entity.Property(draft => draft.RelatedDocumentsJson).HasColumnName("related_documents_json");
             entity.Property(draft => draft.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
             entity.Property(draft => draft.RejectReason).HasColumnName("reject_reason").HasMaxLength(2000);
             entity.Property(draft => draft.GeneratedByUserId).HasColumnName("generated_by_user_id");

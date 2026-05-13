@@ -28,7 +28,48 @@ public sealed class WikiServiceTests
 
         Assert.Equal(WikiStatus.Draft, draft.Status);
         Assert.Contains("# Payment Workflow", draft.Content);
+        Assert.NotEmpty(draft.MissingInformation);
         Assert.Equal(1, await dbContext.WikiDrafts.CountAsync());
+    }
+
+    [Fact]
+    public async Task GenerateDraftAsync_AttachesRelatedDocumentsFromVectorSearch()
+    {
+        await using var dbContext = CreateDbContext();
+        var setup = await SeedIndexedDocumentAsync(dbContext);
+        var related = await SeedRelatedDocumentAsync(dbContext, setup.ReviewerId, setup.FolderId);
+        var vectorStore = new FakeKnowledgeVectorStore
+        {
+            QueryResults =
+            [
+                new KnowledgeVectorSearchResult(
+                    "related",
+                    "provider response code troubleshooting",
+                    new Dictionary<string, object?>
+                    {
+                        ["source_type"] = "document",
+                        ["document_id"] = related.DocumentId.ToString(),
+                        ["document_version_id"] = related.VersionId.ToString(),
+                        ["folder_id"] = setup.FolderId.ToString(),
+                        ["title"] = "Provider Retry Guide",
+                        ["folder_path"] = "/Payments",
+                        ["section_title"] = "Retry rules",
+                    },
+                    0.1),
+            ],
+        };
+        var service = CreateService(dbContext, vectorStore);
+
+        var draft = await service.GenerateDraftAsync(
+            setup.ReviewerId,
+            new GenerateWikiDraftRequest(setup.DocumentId, setup.VersionId));
+
+        var relatedDocument = Assert.Single(draft.RelatedDocuments);
+        Assert.Equal(related.DocumentId, relatedDocument.DocumentId);
+        Assert.Contains("similar knowledge", relatedDocument.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("## Related documents", draft.Content);
+        Assert.NotNull(vectorStore.LastFilter);
+        Assert.Contains(setup.FolderId, vectorStore.LastFilter.FolderIds);
     }
 
     [Fact]
@@ -126,6 +167,40 @@ public sealed class WikiServiceTests
         return new SeededDocument(reviewerId, folderId, documentId, versionId);
     }
 
+    private static async Task<RelatedSeededDocument> SeedRelatedDocumentAsync(AppDbContext dbContext, Guid reviewerId, Guid folderId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        dbContext.Documents.Add(new DocumentEntity
+        {
+            Id = documentId,
+            FolderId = folderId,
+            Title = "Provider Retry Guide",
+            Status = DocumentStatus.Approved,
+            CurrentVersionId = versionId,
+            CreatedByUserId = reviewerId,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.DocumentVersions.Add(new DocumentVersionEntity
+        {
+            Id = versionId,
+            DocumentId = documentId,
+            VersionNumber = 1,
+            OriginalFileName = "provider-retry.txt",
+            StoredFilePath = "provider-retry.txt",
+            FileExtension = ".txt",
+            FileSizeBytes = 10,
+            Status = DocumentVersionStatus.Indexed,
+            UploadedByUserId = reviewerId,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        await dbContext.SaveChangesAsync();
+        return new RelatedSeededDocument(documentId, versionId);
+    }
+
     private static AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -137,9 +212,15 @@ public sealed class WikiServiceTests
 
     private sealed record SeededDocument(Guid ReviewerId, Guid FolderId, Guid DocumentId, Guid VersionId);
 
+    private sealed record RelatedSeededDocument(Guid DocumentId, Guid VersionId);
+
     private sealed class FakeKnowledgeVectorStore : IKnowledgeVectorStore
     {
         public List<KnowledgeChunkRecord> UpsertedChunks { get; } = [];
+
+        public IReadOnlyList<KnowledgeVectorSearchResult> QueryResults { get; init; } = [];
+
+        public KnowledgeQueryFilter? LastFilter { get; private set; }
 
         public Task EnsureCollectionAsync(CancellationToken cancellationToken = default)
         {
@@ -158,7 +239,8 @@ public sealed class WikiServiceTests
             KnowledgeQueryFilter? filter = null,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<KnowledgeVectorSearchResult>>([]);
+            LastFilter = filter;
+            return Task.FromResult(QueryResults);
         }
     }
 

@@ -33,7 +33,13 @@ Cap nhat: 2026-05-12
   - Backend validate citation source id, chi tra citation nam trong context da duoc phep.
   - Da luu structured answer metadata vao `ai_interactions`.
   - UI Q&A hien confidence, missing information, conflicts va suggested follow-ups.
-- Phase 5 tro di: Pending.
+- Phase 5 `Wiki intelligence`: Done.
+  - Wiki draft generation dung structured JSON output voi retry/fallback.
+  - Wiki draft luu missing information va related documents dang JSON.
+  - Backend tim related documents bang vector search co permission filter.
+  - UI wiki draft hien related documents va missing information cho reviewer.
+  - Khi publish, wiki chunks co them related/missing metadata count.
+- Phase 6 tro di: Pending.
 
 ## 1. Muc tieu
 
@@ -1152,7 +1158,7 @@ Da trien khai:
 - `ai_interactions` luu `confidence`, `missing_information_json`, `conflicts_json`, `suggested_follow_ups_json`.
 - UI Q&A hien confidence, missing information, conflicts va suggested follow-ups.
 
-### Phase 5: Wiki intelligence
+### Phase 5: Wiki intelligence - Done 2026-05-13
 
 Muc tieu:
 
@@ -1169,6 +1175,17 @@ Acceptance:
 
 - Draft khong con copy 900 ky tu dau.
 - Reviewer thay duoc ly do tai lieu lien quan.
+
+Da trien khai:
+
+- `IWikiDraftGenerationService` tra `WikiDraftContent` gom markdown content, language va missing information.
+- `OpenAiCompatibleWikiDraftGenerationService` yeu cau provider tra structured JSON, parse sang Markdown va retry mot lan khi schema invalid.
+- `MockWikiDraftGenerationService` tao draft theo sections heuristic thay vi copy 900 ky tu dau.
+- `WikiService.GenerateDraftAsync` uu tien `normalized.txt`, sinh related documents bang vector search trong visible folders, loai current document.
+- `wiki_drafts` luu `missing_information_json` va `related_documents_json`.
+- API `WikiDraftDetailResponse` tra `missingInformation` va `relatedDocuments`.
+- UI Wiki drafts hien related documents kem reason va missing information.
+- Publish wiki index them `related_document_count` va `missing_information_count` vao vector metadata.
 
 ### Phase 6: Feedback improvement loop
 

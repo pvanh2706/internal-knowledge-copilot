@@ -104,6 +104,20 @@ onMounted(loadData)
       <div v-if="selectedDraft" class="folder-detail">
         <h3>{{ selectedDraft.title }}</h3>
         <p>{{ selectedDraft.folderPath }} - {{ selectedDraft.status }}</p>
+        <div v-if="selectedDraft.relatedDocuments.length" class="feedback-box">
+          <strong>Related documents</strong>
+          <article v-for="document in selectedDraft.relatedDocuments" :key="document.documentId" class="citation-item">
+            <strong>{{ document.title }}</strong>
+            <small>{{ document.folderPath || '-' }}</small>
+            <p>{{ document.reason }}</p>
+          </article>
+        </div>
+        <div v-if="selectedDraft.missingInformation.length" class="feedback-box">
+          <strong>Missing information</strong>
+          <ul>
+            <li v-for="item in selectedDraft.missingInformation" :key="item">{{ item }}</li>
+          </ul>
+        </div>
         <pre class="wiki-content">{{ selectedDraft.content }}</pre>
 
         <form v-if="selectedDraft.status === 'Draft'" class="stack-form" @submit.prevent="submitPublish">

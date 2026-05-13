@@ -18,8 +18,17 @@ export interface WikiDraftListItem {
 
 export interface WikiDraftDetail extends WikiDraftListItem {
   content: string
+  missingInformation: string[]
+  relatedDocuments: WikiRelatedDocument[]
   rejectReason?: string | null
   reviewedAt?: string | null
+}
+
+export interface WikiRelatedDocument {
+  documentId: string
+  title: string
+  folderPath: string
+  reason: string
 }
 
 export interface WikiPage {

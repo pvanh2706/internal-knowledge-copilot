@@ -7,6 +7,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace InternalKnowledgeCopilot.Api.Modules.Wiki;
 
@@ -55,17 +56,22 @@ public sealed class WikiService(
             throw new UnauthorizedAccessException("folder_forbidden");
         }
 
-        if (string.IsNullOrWhiteSpace(version.ExtractedTextPath) || !File.Exists(version.ExtractedTextPath))
+        var sourceTextPath = !string.IsNullOrWhiteSpace(version.NormalizedTextPath) && File.Exists(version.NormalizedTextPath)
+            ? version.NormalizedTextPath
+            : version.ExtractedTextPath;
+
+        if (string.IsNullOrWhiteSpace(sourceTextPath) || !File.Exists(sourceTextPath))
         {
             throw new InvalidOperationException("extracted_text_not_found");
         }
 
-        var sourceText = await File.ReadAllTextAsync(version.ExtractedTextPath, cancellationToken);
+        var sourceText = await File.ReadAllTextAsync(sourceTextPath, cancellationToken);
         if (string.IsNullOrWhiteSpace(sourceText))
         {
             throw new InvalidOperationException("extracted_text_empty");
         }
 
+        var relatedDocuments = await FindRelatedDocumentsAsync(reviewerId, version, sourceText, cancellationToken);
         var generated = await draftGenerationService.GenerateAsync(version.Document.Title, sourceText, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var draft = new WikiDraftEntity
@@ -74,8 +80,10 @@ public sealed class WikiService(
             SourceDocumentId = version.DocumentId,
             SourceDocumentVersionId = version.Id,
             Title = version.Document.Title,
-            Content = generated.Content,
+            Content = AppendRelatedDocumentsSection(generated.Content, relatedDocuments),
             Language = generated.Language,
+            MissingInformationJson = JsonSerializer.Serialize(generated.MissingInformation),
+            RelatedDocumentsJson = JsonSerializer.Serialize(relatedDocuments),
             Status = WikiStatus.Draft,
             GeneratedByUserId = reviewerId,
             CreatedAt = now,
@@ -84,7 +92,19 @@ public sealed class WikiService(
 
         dbContext.WikiDrafts.Add(draft);
         await dbContext.SaveChangesAsync(cancellationToken);
-        await auditLogService.RecordAsync(reviewerId, "WikiDraftGenerated", "WikiDraft", draft.Id, new { draft.SourceDocumentId, draft.SourceDocumentVersionId }, cancellationToken);
+        await auditLogService.RecordAsync(
+            reviewerId,
+            "WikiDraftGenerated",
+            "WikiDraft",
+            draft.Id,
+            new
+            {
+                draft.SourceDocumentId,
+                draft.SourceDocumentVersionId,
+                RelatedDocumentCount = relatedDocuments.Count,
+                MissingInformationCount = generated.MissingInformation.Count,
+            },
+            cancellationToken);
         draft.SourceDocument = version.Document;
         draft.SourceDocumentVersion = version;
         return ToDetailResponse(draft);
@@ -190,7 +210,7 @@ public sealed class WikiService(
         dbContext.WikiPages.Add(page);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        await IndexWikiPageAsync(page, folderPath ?? string.Empty, cancellationToken);
+        await IndexWikiPageAsync(page, folderPath ?? string.Empty, draft, cancellationToken);
         await auditLogService.RecordAsync(reviewerId, "WikiPublished", "WikiPage", page.Id, new { DraftId = draft.Id, page.VisibilityScope, page.FolderId }, cancellationToken);
         return new WikiPageResponse(page.Id, page.SourceDraftId, page.Title, page.Content, page.Language, page.VisibilityScope, page.FolderId, folderPath, page.PublishedAt);
     }
@@ -229,10 +249,12 @@ public sealed class WikiService(
         return ToDetailResponse(draft);
     }
 
-    private async Task IndexWikiPageAsync(WikiPageEntity page, string folderPath, CancellationToken cancellationToken)
+    private async Task IndexWikiPageAsync(WikiPageEntity page, string folderPath, WikiDraftEntity draft, CancellationToken cancellationToken)
     {
         var sections = sectionDetector.Detect(page.Content);
         var chunks = chunker.Chunk(page.Content, sections);
+        var relatedDocuments = ParseRelatedDocuments(draft.RelatedDocumentsJson);
+        var missingInformation = ParseStringList(draft.MissingInformationJson);
         var vectorChunks = new List<KnowledgeChunkRecord>(chunks.Count);
         foreach (var chunk in chunks)
         {
@@ -258,6 +280,8 @@ public sealed class WikiService(
                     ["section_index"] = chunk.SectionIndex ?? -1,
                     ["char_start"] = chunk.StartOffset ?? 0,
                     ["char_end"] = chunk.EndOffset ?? 0,
+                    ["related_document_count"] = relatedDocuments.Count,
+                    ["missing_information_count"] = missingInformation.Count,
                     ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
                 }));
         }
@@ -291,10 +315,191 @@ public sealed class WikiService(
             draft.SourceDocument?.Folder?.Path ?? string.Empty,
             draft.Content,
             draft.Language,
+            ParseStringList(draft.MissingInformationJson),
+            ParseRelatedDocuments(draft.RelatedDocumentsJson),
             draft.Status,
             draft.RejectReason,
             draft.CreatedAt,
             draft.UpdatedAt,
             draft.ReviewedAt);
     }
+
+    private async Task<IReadOnlyList<WikiRelatedDocumentResponse>> FindRelatedDocumentsAsync(
+        Guid reviewerId,
+        DocumentVersionEntity sourceVersion,
+        string sourceText,
+        CancellationToken cancellationToken)
+    {
+        if (sourceVersion.Document is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var visibleFolderIds = await folderPermissionService.GetVisibleFolderIdsAsync(reviewerId, cancellationToken);
+            var queryText = !string.IsNullOrWhiteSpace(sourceVersion.DocumentSummary)
+                ? sourceVersion.DocumentSummary
+                : sourceText;
+            var embedding = await embeddingService.CreateEmbeddingAsync(TrimForEmbedding(queryText), cancellationToken);
+            var vectorResults = await vectorStore.QueryAsync(
+                embedding,
+                30,
+                new KnowledgeQueryFilter
+                {
+                    FolderIds = visibleFolderIds.ToArray(),
+                    IncludeCompanyVisible = true,
+                    SourceTypes = ["document", "wiki"],
+                    Statuses = ["approved", "published"],
+                },
+                cancellationToken);
+
+            var candidates = vectorResults
+                .Select(ToRelatedCandidate)
+                .Where(candidate => candidate is not null)
+                .Select(candidate => candidate!)
+                .Where(candidate => candidate.DocumentId != sourceVersion.DocumentId)
+                .GroupBy(candidate => candidate.DocumentId)
+                .Select(group => group.OrderBy(candidate => candidate.Distance ?? double.MaxValue).First())
+                .OrderBy(candidate => candidate.Distance ?? double.MaxValue)
+                .Take(10)
+                .ToList();
+
+            if (candidates.Count == 0)
+            {
+                return [];
+            }
+
+            var candidateIds = candidates.Select(candidate => candidate.DocumentId).ToHashSet();
+            var documents = await dbContext.Documents
+                .AsNoTracking()
+                .Include(document => document.Folder)
+                .Where(document =>
+                    candidateIds.Contains(document.Id) &&
+                    document.DeletedAt == null &&
+                    document.Status == DocumentStatus.Approved &&
+                    document.CurrentVersionId != null &&
+                    visibleFolderIds.Contains(document.FolderId))
+                .ToDictionaryAsync(document => document.Id, cancellationToken);
+
+            return candidates
+                .Where(candidate => documents.ContainsKey(candidate.DocumentId))
+                .Take(5)
+                .Select(candidate =>
+                {
+                    var document = documents[candidate.DocumentId];
+                    return new WikiRelatedDocumentResponse(
+                        document.Id,
+                        document.Title,
+                        document.Folder?.Path ?? candidate.FolderPath,
+                        BuildRelatedReason(candidate));
+                })
+                .ToList();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    private static RelatedDocumentCandidate? ToRelatedCandidate(KnowledgeVectorSearchResult result)
+    {
+        var documentId = GetGuid(result.Metadata, "document_id");
+        if (documentId is null)
+        {
+            return null;
+        }
+
+        return new RelatedDocumentCandidate(
+            documentId.Value,
+            GetString(result.Metadata, "title") ?? "Related document",
+            GetString(result.Metadata, "folder_path") ?? string.Empty,
+            GetString(result.Metadata, "section_title"),
+            result.Text,
+            result.Distance);
+    }
+
+    private static string BuildRelatedReason(RelatedDocumentCandidate candidate)
+    {
+        var section = string.IsNullOrWhiteSpace(candidate.SectionTitle)
+            ? "matching content"
+            : $"section '{candidate.SectionTitle}'";
+        return $"Found similar knowledge in {section}.";
+    }
+
+    private static string AppendRelatedDocumentsSection(string content, IReadOnlyList<WikiRelatedDocumentResponse> relatedDocuments)
+    {
+        var section = relatedDocuments.Count == 0
+            ? "- No related documents found in permitted knowledge base."
+            : string.Join(
+                Environment.NewLine,
+                relatedDocuments.Select(document => $"- {document.Title} ({document.FolderPath}): {document.Reason}"));
+
+        return $"""
+            {content.Trim()}
+
+            ## Related documents
+
+            {section}
+            """;
+    }
+
+    private static string TrimForEmbedding(string text)
+    {
+        var normalized = string.Join(' ', text.Split([' ', '\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= 4000 ? normalized : normalized[..4000].TrimEnd();
+    }
+
+    private static string? GetString(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        return metadata.TryGetValue(key, out var value) ? value?.ToString() : null;
+    }
+
+    private static Guid? GetGuid(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        var value = GetString(metadata, key);
+        return Guid.TryParse(value, out var guid) ? guid : null;
+    }
+
+    private static IReadOnlyList<string> ParseStringList(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static IReadOnlyList<WikiRelatedDocumentResponse> ParseRelatedDocuments(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<WikiRelatedDocumentResponse[]>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private sealed record RelatedDocumentCandidate(
+        Guid DocumentId,
+        string Title,
+        string FolderPath,
+        string? SectionTitle,
+        string Text,
+        double? Distance);
 }

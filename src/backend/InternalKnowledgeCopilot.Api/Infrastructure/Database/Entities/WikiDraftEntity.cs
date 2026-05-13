@@ -20,6 +20,10 @@ public sealed class WikiDraftEntity
 
     public required string Language { get; set; }
 
+    public string? MissingInformationJson { get; set; }
+
+    public string? RelatedDocumentsJson { get; set; }
+
     public WikiStatus Status { get; set; }
 
     public string? RejectReason { get; set; }

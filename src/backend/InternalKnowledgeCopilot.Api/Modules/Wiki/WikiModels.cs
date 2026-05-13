@@ -29,11 +29,19 @@ public sealed record WikiDraftDetailResponse(
     string FolderPath,
     string Content,
     string Language,
+    IReadOnlyList<string> MissingInformation,
+    IReadOnlyList<WikiRelatedDocumentResponse> RelatedDocuments,
     WikiStatus Status,
     string? RejectReason,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? ReviewedAt);
+
+public sealed record WikiRelatedDocumentResponse(
+    Guid DocumentId,
+    string Title,
+    string FolderPath,
+    string Reason);
 
 public sealed record WikiPageResponse(
     Guid Id,
