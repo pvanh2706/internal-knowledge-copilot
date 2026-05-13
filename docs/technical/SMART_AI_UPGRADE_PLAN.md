@@ -81,7 +81,13 @@ Cap nhat: 2026-05-13
   - Document indexing, wiki publish va correction approve deu ghi ledger song song voi Chroma va keyword index.
   - Ledger luu source metadata, text, text hash, vector id, chunk/section index va metadata JSON.
   - Test da chung minh ledger replace stale chunks, luu metadata va duoc ghi khi publish wiki/approve correction.
-- Cac hang muc sau Phase 12: Pending.
+- Phase 13 `Knowledge index rebuild`: Done.
+  - Da them rebuild service doc `knowledge_chunks`, tao lai embeddings va upsert lai vector store theo batch.
+  - Co tuy chon reset Chroma collection truoc khi replay ledger.
+  - Rebuild cung replace lai SQLite keyword index theo tung source tu ledger.
+  - API/UI Admin/Reviewer co summary ledger/keyword counts va nut rebuild index.
+  - Test da chung minh rebuild replay chunk, reset vector store va cap nhat keyword index.
+- Cac hang muc sau Phase 13: Pending.
 
 ## 1. Muc tieu
 
@@ -1440,6 +1446,39 @@ Da trien khai:
 - `DocumentProcessingService`, `WikiService`, `AiFeedbackService` goi ledger khi upsert chunks.
 - Test `KnowledgeChunkLedgerServiceTests` cover replace/stale chunk va metadata snapshot.
 - Test wiki/correction verify ledger rows duoc tao khi publish/approve.
+
+### Phase 13: Knowledge index rebuild
+
+Muc tieu:
+
+- Dung `knowledge_chunks` ledger lam source de rebuild lai vector/keyword index khi doi collection, doi embedding model hoac nghi ngo drift.
+- Cho Admin/Reviewer chay rebuild co kiem soat, thay duoc so chunk se replay.
+- Giam rui ro mat index Chroma vi SQLite da giu day du text/metadata chunk.
+
+Cong viec:
+
+- Mo rong `IKnowledgeVectorStore` voi `ResetCollectionAsync`.
+- Chroma implementation co the delete/recreate collection hien tai.
+- Them `IKnowledgeIndexRebuildService`.
+- Service doc ledger, tao embedding moi tu chunk text, upsert lai vector store theo batch.
+- Service replace lai keyword index theo tung source tu ledger.
+- Them API `/api/knowledge-index/summary` va `/api/knowledge-index/rebuild` cho Admin/Reviewer.
+- Them UI `/knowledge-index` de xem ledger/keyword counts va chay rebuild.
+
+Acceptance:
+
+- Rebuild khong can upload/index lai document goc.
+- Reset vector store la tuy chon ro rang.
+- Keyword index duoc tao lai tu ledger sau rebuild.
+- Test offline chung minh replay chunk, reset vector va rebuild keyword index.
+
+Da trien khai:
+
+- `ChromaKnowledgeVectorStore.ResetCollectionAsync` reset collection hien tai.
+- `KnowledgeIndexRebuildService` rebuild tu `knowledge_chunks`, batch size clamp 1..200, audit action `KnowledgeIndexRebuilt`.
+- `KnowledgeIndexController` expose summary/rebuild endpoints.
+- Frontend them `knowledgeIndex.ts`, page `KnowledgeIndexPage.vue`, route/nav `Index`.
+- Test `KnowledgeIndexRebuildServiceTests` cover replay, reset va summary.
 
 ## 17. Thu tu uu tien neu thoi gian ngan
 

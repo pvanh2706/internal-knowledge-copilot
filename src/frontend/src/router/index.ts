@@ -11,6 +11,7 @@ import DocumentListPage from '../pages/documents/DocumentListPage.vue'
 import DocumentReviewPage from '../pages/review/DocumentReviewPage.vue'
 import EvaluationPage from '../pages/review/EvaluationPage.vue'
 import FeedbackReviewPage from '../pages/review/FeedbackReviewPage.vue'
+import KnowledgeIndexPage from '../pages/review/KnowledgeIndexPage.vue'
 import RetrievalExplainPage from '../pages/review/RetrievalExplainPage.vue'
 import WikiDraftPage from '../pages/wiki/WikiDraftPage.vue'
 import { useAuthStore } from '../stores/auth'
@@ -28,6 +29,7 @@ const router = createRouter({
     { path: '/feedback', name: 'feedback', component: FeedbackReviewPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/evaluation', name: 'evaluation', component: EvaluationPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/retrieval-explain', name: 'retrieval-explain', component: RetrievalExplainPage, meta: { requiresAuth: true, requiresReviewer: true } },
+    { path: '/knowledge-index', name: 'knowledge-index', component: KnowledgeIndexPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/admin/users', name: 'admin-users', component: UserManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/teams', name: 'admin-teams', component: TeamManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/folders', name: 'admin-folders', component: FolderManagementPage, meta: { requiresAuth: true, requiresReviewer: true } },

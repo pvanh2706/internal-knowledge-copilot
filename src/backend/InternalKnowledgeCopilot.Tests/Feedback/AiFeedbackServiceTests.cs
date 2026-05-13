@@ -217,6 +217,11 @@ public sealed class AiFeedbackServiceTests
             return Task.CompletedTask;
         }
 
+        public Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task UpsertChunksAsync(IReadOnlyList<KnowledgeChunkRecord> chunks, CancellationToken cancellationToken = default)
         {
             UpsertedChunks.AddRange(chunks);

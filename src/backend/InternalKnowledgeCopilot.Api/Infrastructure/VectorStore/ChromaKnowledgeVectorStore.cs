@@ -28,6 +28,17 @@ public sealed class ChromaKnowledgeVectorStore(HttpClient httpClient, IOptions<C
         collectionId = collection?.Id ?? throw new InvalidOperationException("Chroma did not return collection id.");
     }
 
+    public async Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureCollectionAsync(cancellationToken);
+
+        var response = await httpClient.DeleteAsync(BuildCollectionPath(collectionId!), cancellationToken);
+        response.EnsureSuccessStatusCode();
+        collectionId = null;
+
+        await EnsureCollectionAsync(cancellationToken);
+    }
+
     public async Task UpsertChunksAsync(IReadOnlyList<KnowledgeChunkRecord> chunks, CancellationToken cancellationToken = default)
     {
         if (chunks.Count == 0)

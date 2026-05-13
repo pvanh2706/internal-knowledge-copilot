@@ -4,6 +4,8 @@ public interface IKnowledgeVectorStore
 {
     Task EnsureCollectionAsync(CancellationToken cancellationToken = default);
 
+    Task ResetCollectionAsync(CancellationToken cancellationToken = default);
+
     Task UpsertChunksAsync(IReadOnlyList<KnowledgeChunkRecord> chunks, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(

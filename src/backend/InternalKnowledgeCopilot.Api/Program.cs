@@ -13,6 +13,7 @@ using InternalKnowledgeCopilot.Api.Modules.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Evaluation;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
+using InternalKnowledgeCopilot.Api.Modules.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Modules.Wiki;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -86,6 +87,7 @@ builder.Services.AddScoped<IKnowledgeKeywordIndexService, KnowledgeKeywordIndexS
 builder.Services.AddScoped<IAiQuestionService, AiQuestionService>();
 builder.Services.AddScoped<IAiFeedbackService, AiFeedbackService>();
 builder.Services.AddScoped<IEvaluationService, EvaluationService>();
+builder.Services.AddScoped<IKnowledgeIndexRebuildService, KnowledgeIndexRebuildService>();
 builder.Services.AddScoped<IWikiService, WikiService>();
 builder.Services.AddHttpClient<IKnowledgeVectorStore, ChromaKnowledgeVectorStore>((serviceProvider, client) =>
 {
