@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
+using InternalKnowledgeCopilot.Api.Modules.AiSettings;
 
 namespace InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 
@@ -28,7 +29,7 @@ public sealed class MockDocumentUnderstandingService : IDocumentUnderstandingSer
     }
 }
 
-public sealed class OpenAiCompatibleDocumentUnderstandingService(OpenAiCompatibleClient client) : IDocumentUnderstandingService
+public sealed class OpenAiCompatibleDocumentUnderstandingService(OpenAiCompatibleClient client, IAiProviderSettingsService settingsService) : IDocumentUnderstandingService
 {
     private const int MaxSourceCharacters = 12000;
 
@@ -74,7 +75,8 @@ public sealed class OpenAiCompatibleDocumentUnderstandingService(OpenAiCompatibl
             {trimmedSource}
             """;
 
-        var raw = await client.CompleteAsync(systemPrompt, userPrompt, cancellationToken);
+        var options = await settingsService.GetCurrentAsync(cancellationToken);
+        var raw = await client.CompleteAsync(systemPrompt, userPrompt, options, cancellationToken);
         if (TryParse(raw, title, normalizedText, sections, out var result))
         {
             return result;
@@ -90,7 +92,7 @@ public sealed class OpenAiCompatibleDocumentUnderstandingService(OpenAiCompatibl
             {userPrompt}
             """;
 
-        var repaired = await client.CompleteAsync(systemPrompt, repairPrompt, cancellationToken);
+        var repaired = await client.CompleteAsync(systemPrompt, repairPrompt, options, cancellationToken);
         return TryParse(repaired, title, normalizedText, sections, out var repairedResult)
             ? repairedResult
             : DocumentUnderstandingHeuristics.Analyze(title, normalizedText, sections, ["ai_understanding_invalid_json"]);

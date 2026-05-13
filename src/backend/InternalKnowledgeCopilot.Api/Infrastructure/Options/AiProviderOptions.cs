@@ -22,6 +22,14 @@ public sealed class AiProviderOptions
 
     public int EmbeddingDimension { get; set; } = 3072;
 
+    public string EmbeddingProviderName { get; set; } = "openai-compatible";
+
+    public string EmbeddingBaseUrl { get; set; } = "https://api.openai.com/v1";
+
+    public string EmbeddingApiKey { get; set; } = string.Empty;
+
+    public string EmbeddingApiKeyHeaderName { get; set; } = "Authorization";
+
     public string ReasoningEffort { get; set; } = "medium";
 
     public double? Temperature { get; set; } = 0.2;

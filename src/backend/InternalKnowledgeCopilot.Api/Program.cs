@@ -9,6 +9,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Ai;
+using InternalKnowledgeCopilot.Api.Modules.AiSettings;
 using InternalKnowledgeCopilot.Api.Modules.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Evaluation;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
@@ -19,7 +20,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Options;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Serialization;
 
@@ -47,40 +47,20 @@ builder.Services.AddScoped<IDocumentTextExtractor, DocumentTextExtractor>();
 builder.Services.AddScoped<IDocumentTextNormalizer, DocumentTextNormalizer>();
 builder.Services.AddScoped<ISectionDetector, SectionDetector>();
 builder.Services.AddScoped<ITextChunker, TextChunker>();
-var aiProviderName = builder.Configuration.GetValue<string>($"{AiProviderOptions.SectionName}:Name") ?? "mock";
-if (string.Equals(aiProviderName, "mock", StringComparison.OrdinalIgnoreCase))
-{
-    builder.Services.AddScoped<IEmbeddingService, MockEmbeddingService>();
-    builder.Services.AddScoped<IAnswerGenerationService, MockAnswerGenerationService>();
-    builder.Services.AddScoped<IWikiDraftGenerationService, MockWikiDraftGenerationService>();
-    builder.Services.AddScoped<IDocumentUnderstandingService, MockDocumentUnderstandingService>();
-}
-else
-{
-    builder.Services.AddHttpClient<OpenAiCompatibleClient>((serviceProvider, client) =>
-    {
-        var aiOptions = serviceProvider.GetRequiredService<IOptions<AiProviderOptions>>().Value;
-        var baseUrl = aiOptions.BaseUrl.EndsWith("/", StringComparison.Ordinal) ? aiOptions.BaseUrl : aiOptions.BaseUrl + "/";
-        client.BaseAddress = new Uri(baseUrl);
-        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, aiOptions.TimeoutSeconds));
-
-        if (!string.IsNullOrWhiteSpace(aiOptions.ApiKey))
-        {
-            if (string.Equals(aiOptions.ApiKeyHeaderName, "api-key", StringComparison.OrdinalIgnoreCase))
-            {
-                client.DefaultRequestHeaders.Add("api-key", aiOptions.ApiKey);
-            }
-            else
-            {
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiOptions.ApiKey);
-            }
-        }
-    });
-    builder.Services.AddScoped<IEmbeddingService, OpenAiCompatibleEmbeddingService>();
-    builder.Services.AddScoped<IAnswerGenerationService, OpenAiCompatibleAnswerGenerationService>();
-    builder.Services.AddScoped<IWikiDraftGenerationService, OpenAiCompatibleWikiDraftGenerationService>();
-    builder.Services.AddScoped<IDocumentUnderstandingService, OpenAiCompatibleDocumentUnderstandingService>();
-}
+builder.Services.AddScoped<IAiProviderSettingsService, AiProviderSettingsService>();
+builder.Services.AddHttpClient<OpenAiCompatibleClient>();
+builder.Services.AddScoped<MockEmbeddingService>();
+builder.Services.AddScoped<OpenAiCompatibleEmbeddingService>();
+builder.Services.AddScoped<IEmbeddingService, RuntimeEmbeddingService>();
+builder.Services.AddScoped<MockAnswerGenerationService>();
+builder.Services.AddScoped<OpenAiCompatibleAnswerGenerationService>();
+builder.Services.AddScoped<IAnswerGenerationService, RuntimeAnswerGenerationService>();
+builder.Services.AddScoped<MockWikiDraftGenerationService>();
+builder.Services.AddScoped<OpenAiCompatibleWikiDraftGenerationService>();
+builder.Services.AddScoped<IWikiDraftGenerationService, RuntimeWikiDraftGenerationService>();
+builder.Services.AddScoped<MockDocumentUnderstandingService>();
+builder.Services.AddScoped<OpenAiCompatibleDocumentUnderstandingService>();
+builder.Services.AddScoped<IDocumentUnderstandingService, RuntimeDocumentUnderstandingService>();
 builder.Services.AddScoped<IDocumentProcessingService, DocumentProcessingService>();
 builder.Services.AddScoped<IKnowledgeChunkLedgerService, KnowledgeChunkLedgerService>();
 builder.Services.AddScoped<IKnowledgeKeywordIndexService, KnowledgeKeywordIndexService>();

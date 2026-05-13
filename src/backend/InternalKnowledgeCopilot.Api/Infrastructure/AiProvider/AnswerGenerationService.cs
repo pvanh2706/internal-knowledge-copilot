@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using InternalKnowledgeCopilot.Api.Modules.Ai;
+using InternalKnowledgeCopilot.Api.Modules.AiSettings;
 
 namespace InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 
@@ -64,7 +65,7 @@ public sealed class MockAnswerGenerationService : IAnswerGenerationService
     }
 }
 
-public sealed class OpenAiCompatibleAnswerGenerationService(OpenAiCompatibleClient client) : IAnswerGenerationService
+public sealed class OpenAiCompatibleAnswerGenerationService(OpenAiCompatibleClient client, IAiProviderSettingsService settingsService) : IAnswerGenerationService
 {
     private const int MaxChunkCharacters = 1600;
 
@@ -127,7 +128,8 @@ public sealed class OpenAiCompatibleAnswerGenerationService(OpenAiCompatibleClie
             needsClarification to true, fill missingInformation, and do not cite irrelevant sources.
             """;
 
-        var rawAnswer = await client.CompleteAsync(systemPrompt, userPrompt, cancellationToken);
+        var options = await settingsService.GetCurrentAsync(cancellationToken);
+        var rawAnswer = await client.CompleteAsync(systemPrompt, userPrompt, options, cancellationToken);
         if (TryParseGroundedAnswer(rawAnswer, chunks, out var draft))
         {
             return draft;
@@ -145,7 +147,7 @@ public sealed class OpenAiCompatibleAnswerGenerationService(OpenAiCompatibleClie
             {userPrompt}
             """;
 
-        var repairedAnswer = await client.CompleteAsync(systemPrompt, repairPrompt, cancellationToken);
+        var repairedAnswer = await client.CompleteAsync(systemPrompt, repairPrompt, options, cancellationToken);
         return TryParseGroundedAnswer(repairedAnswer, chunks, out var repairedDraft)
             ? repairedDraft
             : BuildFallbackDraft(rawAnswer);

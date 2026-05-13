@@ -357,6 +357,119 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.Database.Migrations
                     b.ToTable("audit_logs", (string)null);
                 });
 
+            modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.AiProviderSettingEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApiKey")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("api_key");
+
+                    b.Property<string>("ApiKeyHeaderName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("api_key_header_name");
+
+                    b.Property<string>("BaseUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("base_url");
+
+                    b.Property<string>("ChatEndpointMode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("chat_endpoint_mode");
+
+                    b.Property<string>("ChatModel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("chat_model");
+
+                    b.Property<int>("EmbeddingDimension")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("embedding_dimension");
+
+                    b.Property<string>("EmbeddingApiKey")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("embedding_api_key");
+
+                    b.Property<string>("EmbeddingApiKeyHeaderName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("embedding_api_key_header_name");
+
+                    b.Property<string>("EmbeddingBaseUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("embedding_base_url");
+
+                    b.Property<string>("EmbeddingModel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("embedding_model");
+
+                    b.Property<string>("EmbeddingProviderName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("embedding_provider_name");
+
+                    b.Property<string>("FastModel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("fast_model");
+
+                    b.Property<int>("MaxOutputTokens")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("max_output_tokens");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("name");
+
+                    b.Property<string>("ReasoningEffort")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("reasoning_effort");
+
+                    b.Property<double?>("Temperature")
+                        .HasColumnType("REAL")
+                        .HasColumnName("temperature");
+
+                    b.Property<int>("TimeoutSeconds")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("timeout_seconds");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("ai_provider_settings", (string)null);
+                });
+
             modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.DocumentEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1600,6 +1713,16 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.Database.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ActorUser");
+                });
+
+            modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.AiProviderSettingEntity", b =>
+                {
+                    b.HasOne("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.UserEntity", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("UpdatedByUser");
                 });
 
             modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.DocumentEntity", b =>

@@ -49,6 +49,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<AuditLogEntity> AuditLogs => Set<AuditLogEntity>();
 
+    public DbSet<AiProviderSettingEntity> AiProviderSettings => Set<AiProviderSettingEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -647,6 +649,36 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasOne(log => log.ActorUser)
                 .WithMany()
                 .HasForeignKey(log => log.ActorUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AiProviderSettingEntity>(entity =>
+        {
+            entity.ToTable("ai_provider_settings");
+            entity.HasKey(setting => setting.Id);
+            entity.Property(setting => setting.Id).HasColumnName("id");
+            entity.Property(setting => setting.Name).HasColumnName("name").HasMaxLength(50).IsRequired();
+            entity.Property(setting => setting.BaseUrl).HasColumnName("base_url").HasMaxLength(1000).IsRequired();
+            entity.Property(setting => setting.ApiKey).HasColumnName("api_key").HasMaxLength(4000);
+            entity.Property(setting => setting.ApiKeyHeaderName).HasColumnName("api_key_header_name").HasMaxLength(100).IsRequired();
+            entity.Property(setting => setting.ChatEndpointMode).HasColumnName("chat_endpoint_mode").HasMaxLength(50).IsRequired();
+            entity.Property(setting => setting.ChatModel).HasColumnName("chat_model").HasMaxLength(200).IsRequired();
+            entity.Property(setting => setting.FastModel).HasColumnName("fast_model").HasMaxLength(200).IsRequired();
+            entity.Property(setting => setting.EmbeddingModel).HasColumnName("embedding_model").HasMaxLength(200).IsRequired();
+            entity.Property(setting => setting.EmbeddingDimension).HasColumnName("embedding_dimension");
+            entity.Property(setting => setting.EmbeddingProviderName).HasColumnName("embedding_provider_name").HasMaxLength(50).IsRequired();
+            entity.Property(setting => setting.EmbeddingBaseUrl).HasColumnName("embedding_base_url").HasMaxLength(1000).IsRequired();
+            entity.Property(setting => setting.EmbeddingApiKey).HasColumnName("embedding_api_key").HasMaxLength(4000);
+            entity.Property(setting => setting.EmbeddingApiKeyHeaderName).HasColumnName("embedding_api_key_header_name").HasMaxLength(100).IsRequired();
+            entity.Property(setting => setting.ReasoningEffort).HasColumnName("reasoning_effort").HasMaxLength(50).IsRequired();
+            entity.Property(setting => setting.Temperature).HasColumnName("temperature");
+            entity.Property(setting => setting.MaxOutputTokens).HasColumnName("max_output_tokens");
+            entity.Property(setting => setting.TimeoutSeconds).HasColumnName("timeout_seconds");
+            entity.Property(setting => setting.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(setting => setting.UpdatedByUserId).HasColumnName("updated_by_user_id");
+            entity.HasOne(setting => setting.UpdatedByUser)
+                .WithMany()
+                .HasForeignKey(setting => setting.UpdatedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
     }

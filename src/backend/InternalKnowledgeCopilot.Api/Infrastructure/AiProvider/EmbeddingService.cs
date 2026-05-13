@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
+using InternalKnowledgeCopilot.Api.Modules.AiSettings;
 using Microsoft.Extensions.Options;
 
 namespace InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
@@ -45,12 +46,13 @@ public sealed class MockEmbeddingService : IEmbeddingService
     }
 }
 
-public sealed class OpenAiCompatibleEmbeddingService(OpenAiCompatibleClient client, IOptions<AiProviderOptions> options) : IEmbeddingService
+public sealed class OpenAiCompatibleEmbeddingService(OpenAiCompatibleClient client, IAiProviderSettingsService settingsService) : IEmbeddingService
 {
-    public int Dimension => options.Value.EmbeddingDimension;
+    public int Dimension => settingsService.GetCurrent().EmbeddingDimension;
 
-    public Task<float[]> CreateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
+    public async Task<float[]> CreateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
-        return client.CreateEmbeddingAsync(text, cancellationToken);
+        var options = await settingsService.GetCurrentAsync(cancellationToken);
+        return await client.CreateEmbeddingAsync(text, options, cancellationToken);
     }
 }

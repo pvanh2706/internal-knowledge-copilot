@@ -189,9 +189,10 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
             latestEvaluationRunQuery = latestEvaluationRunQuery.Where(run => run.CreatedAt <= to);
         }
 
-        var latestEvaluationRun = await latestEvaluationRunQuery
+        var latestEvaluationRunRows = await latestEvaluationRunQuery.ToListAsync(cancellationToken);
+        var latestEvaluationRun = latestEvaluationRunRows
             .OrderByDescending(run => run.FinishedAt ?? run.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefault();
         var latestEvaluationPassRate = latestEvaluationRun is null || latestEvaluationRun.TotalCases == 0
             ? (double?)null
             : Math.Round((double)latestEvaluationRun.PassedCases / latestEvaluationRun.TotalCases * 100, 2);

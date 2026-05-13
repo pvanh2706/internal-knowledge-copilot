@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using InternalKnowledgeCopilot.Api.Modules.AiSettings;
 
 namespace InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 
@@ -112,7 +113,7 @@ public sealed class MockWikiDraftGenerationService : IWikiDraftGenerationService
     }
 }
 
-public sealed class OpenAiCompatibleWikiDraftGenerationService(OpenAiCompatibleClient client) : IWikiDraftGenerationService
+public sealed class OpenAiCompatibleWikiDraftGenerationService(OpenAiCompatibleClient client, IAiProviderSettingsService settingsService) : IWikiDraftGenerationService
 {
     private const int MaxSourceCharacters = 14000;
 
@@ -152,7 +153,8 @@ public sealed class OpenAiCompatibleWikiDraftGenerationService(OpenAiCompatibleC
             Create a structured wiki draft JSON. Make it reviewer-ready and concise.
             """;
 
-        var rawDraft = await client.CompleteAsync(systemPrompt, userPrompt, cancellationToken);
+        var options = await settingsService.GetCurrentAsync(cancellationToken);
+        var rawDraft = await client.CompleteAsync(systemPrompt, userPrompt, options, cancellationToken);
         if (TryParseStructuredDraft(rawDraft, title, language, out var parsedDraft))
         {
             return parsedDraft;
@@ -170,7 +172,7 @@ public sealed class OpenAiCompatibleWikiDraftGenerationService(OpenAiCompatibleC
             {userPrompt}
             """;
 
-        var repairedDraft = await client.CompleteAsync(systemPrompt, repairPrompt, cancellationToken);
+        var repairedDraft = await client.CompleteAsync(systemPrompt, repairPrompt, options, cancellationToken);
         return TryParseStructuredDraft(repairedDraft, title, language, out var repaired)
             ? repaired
             : BuildFallbackDraft(title, rawDraft, language);
