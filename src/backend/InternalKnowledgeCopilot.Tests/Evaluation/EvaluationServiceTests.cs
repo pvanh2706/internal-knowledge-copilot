@@ -211,6 +211,11 @@ public sealed class EvaluationServiceTests
                 [],
                 []));
         }
+
+        public Task<RetrievalExplainResponse> ExplainRetrievalAsync(Guid userId, AskQuestionRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class NoopAuditLogService : IAuditLogService

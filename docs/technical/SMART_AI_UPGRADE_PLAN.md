@@ -70,7 +70,13 @@ Cap nhat: 2026-05-13
   - Metadata duoc luu vao SQLite `document_versions`, dua vao Chroma metadata va keyword index.
   - UI tai lieu hien language/type/sensitivity, topics, entities va quality warnings.
   - Test da chung minh mock understanding extract metadata va warning cho extraction yeu.
-- Cac hang muc sau Phase 10: Pending.
+- Phase 11 `Retrieval explain`: Done.
+  - Da them API `/api/ai/retrieval/explain` cho Admin/Reviewer.
+  - Explain chay cung pipeline retrieval voi Q&A nhung khong generate answer va khong luu interaction.
+  - Response tra query understanding, permission filter, candidate stats, candidate decision va final context.
+  - UI reviewer co trang Retrieval de xem vector/keyword candidates, score, matched keywords va ly do bi loai/chon.
+  - Test da chung minh explain tra diagnostics va khong tao `ai_interactions`.
+- Cac hang muc sau Phase 11: Pending.
 
 ## 1. Muc tieu
 
@@ -1364,6 +1370,38 @@ Da trien khai:
 - Keyword index search them `keywords` va `entities` vao normalized text.
 - UI document version hien metadata understanding.
 - Test `DocumentUnderstandingServiceTests` cover metadata va warning extraction.
+
+### Phase 11: Retrieval explain
+
+Muc tieu:
+
+- Cho Admin/Reviewer nhin thay vi sao he thong chon hoac loai bo tung source trong retrieval.
+- Chung minh permission filter, hybrid vector/keyword retrieval, rerank va context packing dang hoat dong ro rang.
+- Debug duoc case cau tra loi yeu ma khong can doc log backend hay goi LLM.
+
+Cong viec:
+
+- Them `IAiQuestionService.ExplainRetrievalAsync`.
+- Them endpoint `POST /api/ai/retrieval/explain` chi danh cho Admin/Reviewer.
+- Reuse pipeline query understanding -> embedding -> vector search -> keyword search -> merge -> permission revalidation -> rerank/context packing.
+- Response gom query keywords, filter da ap dung, candidate counts, final context va diagnostics cho tung candidate.
+- Them UI `/retrieval-explain` de reviewer xem score, matched keywords, source vector/keyword, ly do reject/select.
+
+Acceptance:
+
+- Explain khong tao `ai_interactions` va khong goi answer generation.
+- Candidate bi loai co decision ro: sai scope, folder khong visible, document khong current indexed, wiki/correction khong visible/approved.
+- Final context hien score reasons de reviewer thay correction/wiki/document priority, keyword match, scope match va distance score.
+- Frontend build duoc va reviewer/admin truy cap duoc route.
+
+Da trien khai:
+
+- `RetrievalExplainResponse` gom query understanding, filter, candidate stats, final context va candidates.
+- `AiQuestionService` tach filter analysis co allowed/rejected diagnostics.
+- Scoring explain tra matched keywords va score reasons.
+- `AiController` them endpoint `retrieval/explain` voi role Admin/Reviewer.
+- Frontend them `explainRetrieval`, page `RetrievalExplainPage.vue`, route va nav item `Retrieval`.
+- Test `ExplainRetrievalAsync_ReturnsDiagnosticsWithoutSavingInteraction` cover diagnostics va khong luu interaction.
 
 ## 17. Thu tu uu tien neu thoi gian ngan
 

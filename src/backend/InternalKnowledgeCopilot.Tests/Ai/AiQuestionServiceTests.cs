@@ -455,6 +455,55 @@ public sealed class AiQuestionServiceTests
     }
 
     [Fact]
+    public async Task ExplainRetrievalAsync_ReturnsDiagnosticsWithoutSavingInteraction()
+    {
+        await using var dbContext = CreateDbContext();
+        var seed = await SeedVisibleKnowledgeAsync(dbContext, documentCount: 2);
+
+        var vectorStore = new FakeKnowledgeVectorStore([
+            CreateVectorResult(
+                "generic",
+                seed.FolderId,
+                seed.DocumentIds[0],
+                seed.VersionIds[0],
+                "Generic payment source",
+                "/Allowed",
+                "payment timeout can be retried later",
+                distance: 0.01),
+            CreateVectorResult(
+                "exact",
+                seed.FolderId,
+                seed.DocumentIds[1],
+                seed.VersionIds[1],
+                "Provider log source",
+                "/Allowed",
+                "payment timeout requires provider logs and chargeback ticket escalation",
+                distance: 0.95),
+        ]);
+        var service = new AiQuestionService(
+            dbContext,
+            new FolderPermissionService(dbContext),
+            new MockEmbeddingService(),
+            vectorStore,
+            new KnowledgeKeywordIndexService(dbContext),
+            new MockAnswerGenerationService());
+
+        var response = await service.ExplainRetrievalAsync(
+            seed.UserId,
+            new AskQuestionRequest("provider logs chargeback", AiScopeType.All, null, null));
+
+        Assert.Equal(["provider", "logs", "chargeback"], response.QueryUnderstanding.Keywords);
+        Assert.Equal(2, response.CandidateStats.VectorCandidateCount);
+        Assert.Equal(2, response.CandidateStats.MergedCandidateCount);
+        Assert.Equal(2, response.CandidateStats.AllowedCandidateCount);
+        Assert.Equal("Provider log source", response.FinalContext[0].Title);
+        Assert.True(response.FinalContext[0].SelectedForContext);
+        Assert.Contains("chargeback", response.FinalContext[0].MatchedKeywords);
+        Assert.Contains(response.Candidates, candidate => candidate.Decision.Contains("Selected for final context", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, await dbContext.AiInteractions.CountAsync());
+    }
+
+    [Fact]
     public async Task AskAsync_PacksAtMostEightChunksAndThreePerDocument()
     {
         await using var dbContext = CreateDbContext();

@@ -46,6 +46,42 @@ public sealed class AiController(IAiQuestionService aiQuestionService, IAiFeedba
         }
     }
 
+    [HttpPost("retrieval/explain")]
+    [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
+    public async Task<ActionResult<RetrievalExplainResponse>> ExplainRetrieval(AskQuestionRequest request, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(new ApiError("invalid_token", "Token khÃ´ng há»£p lá»‡."));
+        }
+
+        try
+        {
+            return Ok(await aiQuestionService.ExplainRetrievalAsync(userId.Value, request, cancellationToken));
+        }
+        catch (ArgumentException ex) when (ex.Message == "question_required")
+        {
+            return BadRequest(new ApiError("question_required", "CÃ¢u há»i lÃ  báº¯t buá»™c."));
+        }
+        catch (ArgumentException ex) when (ex.Message == "folder_required")
+        {
+            return BadRequest(new ApiError("folder_required", "Vui lÃ²ng chá»n folder cho pháº¡m vi Folder."));
+        }
+        catch (ArgumentException ex) when (ex.Message == "document_required")
+        {
+            return BadRequest(new ApiError("document_required", "Vui lÃ²ng chá»n tÃ i liá»‡u cho pháº¡m vi Document."));
+        }
+        catch (KeyNotFoundException ex) when (ex.Message == "document_not_found")
+        {
+            return NotFound(new ApiError("document_not_found", "KhÃ´ng tÃ¬m tháº¥y tÃ i liá»‡u."));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
     [HttpPost("interactions/{id:guid}/feedback")]
     public async Task<ActionResult<FeedbackResponse>> SubmitFeedback(Guid id, SubmitFeedbackRequest request, CancellationToken cancellationToken)
     {
