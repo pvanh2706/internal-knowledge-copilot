@@ -6,6 +6,7 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.EntityFrameworkCore;
@@ -22,9 +23,11 @@ public sealed class AiQuestionService(
     IFolderPermissionService folderPermissionService,
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore,
+    IKnowledgeKeywordIndexService keywordIndexService,
     IAnswerGenerationService answerGenerationService) : IAiQuestionService
 {
     private const int SearchLimit = 50;
+    private const int KeywordSearchLimit = 20;
     private const int MaxContextChunks = 8;
     private const int MaxChunksPerKnowledgeItem = 3;
     private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
@@ -49,12 +52,22 @@ public sealed class AiQuestionService(
         var visibleFolderIds = await folderPermissionService.GetVisibleFolderIdsAsync(userId, cancellationToken);
         var stopwatch = Stopwatch.StartNew();
         var queryEmbedding = await embeddingService.CreateEmbeddingAsync(question, cancellationToken);
+        var knowledgeFilter = BuildKnowledgeQueryFilter(visibleFolderIds, request);
         var vectorResults = await vectorStore.QueryAsync(
             queryEmbedding,
             SearchLimit,
-            BuildKnowledgeQueryFilter(visibleFolderIds, request),
+            knowledgeFilter,
             cancellationToken);
-        var chunks = await FilterAllowedChunksAsync(vectorResults, visibleFolderIds, request, cancellationToken);
+        var keywordResults = await keywordIndexService.SearchAsync(
+            queryUnderstanding.Keywords,
+            KeywordSearchLimit,
+            knowledgeFilter,
+            cancellationToken);
+        var chunks = await FilterAllowedChunksAsync(
+            MergeCandidateResults(vectorResults, keywordResults),
+            visibleFolderIds,
+            request,
+            cancellationToken);
 
         chunks = RerankAndPackContext(chunks, queryUnderstanding, request);
 
@@ -131,6 +144,25 @@ public sealed class AiQuestionService(
             .ToArray();
 
         return new QueryUnderstanding(keywords, NormalizeForSearch(question));
+    }
+
+    private static IReadOnlyList<KnowledgeVectorSearchResult> MergeCandidateResults(
+        IReadOnlyList<KnowledgeVectorSearchResult> vectorResults,
+        IReadOnlyList<KnowledgeVectorSearchResult> keywordResults)
+    {
+        var merged = new List<KnowledgeVectorSearchResult>(vectorResults.Count + keywordResults.Count);
+        var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var result in vectorResults.Concat(keywordResults))
+        {
+            var id = GetString(result.Metadata, "chunk_id") ?? result.Id;
+            if (seenIds.Add(id))
+            {
+                merged.Add(result);
+            }
+        }
+
+        return merged;
     }
 
     private async Task ValidateScopeAsync(Guid userId, AskQuestionRequest request, CancellationToken cancellationToken)

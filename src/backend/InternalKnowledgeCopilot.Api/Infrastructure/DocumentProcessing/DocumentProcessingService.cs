@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
+using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +20,8 @@ public sealed class DocumentProcessingService(
     ISectionDetector sectionDetector,
     ITextChunker chunker,
     IEmbeddingService embeddingService,
-    IKnowledgeVectorStore vectorStore) : IDocumentProcessingService
+    IKnowledgeVectorStore vectorStore,
+    IKnowledgeKeywordIndexService keywordIndexService) : IDocumentProcessingService
 {
     public async Task ProcessDocumentVersionAsync(Guid documentVersionId, CancellationToken cancellationToken = default)
     {
@@ -84,6 +86,7 @@ public sealed class DocumentProcessingService(
         }
 
         await vectorStore.UpsertChunksAsync(vectorChunks, cancellationToken);
+        await keywordIndexService.ReplaceChunksAsync(KnowledgeSourceType.Document, version.Id.ToString(), vectorChunks, cancellationToken);
 
         version.ExtractedTextPath = extractedTextPath;
         version.NormalizedTextPath = normalizedTextPath;

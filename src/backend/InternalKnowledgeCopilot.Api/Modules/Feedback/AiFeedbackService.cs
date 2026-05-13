@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,7 +33,8 @@ public sealed class AiFeedbackService(
     AppDbContext dbContext,
     IAuditLogService auditLogService,
     IEmbeddingService embeddingService,
-    IKnowledgeVectorStore vectorStore) : IAiFeedbackService
+    IKnowledgeVectorStore vectorStore,
+    IKnowledgeKeywordIndexService keywordIndexService) : IAiFeedbackService
 {
     public async Task<FeedbackResponse> SubmitAsync(Guid interactionId, Guid userId, SubmitFeedbackRequest request, CancellationToken cancellationToken = default)
     {
@@ -425,30 +427,32 @@ public sealed class AiFeedbackService(
             """;
         var embedding = await embeddingService.CreateEmbeddingAsync(text, cancellationToken);
         var folderPath = correction.Folder?.Path ?? string.Empty;
-        await vectorStore.UpsertChunksAsync(
-            [
-                new KnowledgeChunkRecord(
-                    correction.Id.ToString(),
-                    embedding,
-                    text,
-                    new Dictionary<string, object>
-                    {
-                        ["chunk_id"] = correction.Id.ToString(),
-                        ["source_type"] = "correction",
-                        ["source_id"] = correction.Id.ToString(),
-                        ["correction_id"] = correction.Id.ToString(),
-                        ["feedback_id"] = correction.AiFeedbackId.ToString(),
-                        ["ai_interaction_id"] = correction.AiInteractionId.ToString(),
-                        ["document_id"] = correction.DocumentId?.ToString() ?? string.Empty,
-                        ["folder_id"] = correction.FolderId?.ToString() ?? string.Empty,
-                        ["title"] = $"Correction: {Trim(correction.Question, 120)}",
-                        ["folder_path"] = folderPath,
-                        ["status"] = "approved",
-                        ["visibility_scope"] = correction.VisibilityScope == VisibilityScope.Company ? "company" : "folder",
-                        ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
-                    }),
-            ],
-            cancellationToken);
+        var chunks = new[]
+        {
+            new KnowledgeChunkRecord(
+                correction.Id.ToString(),
+                embedding,
+                text,
+                new Dictionary<string, object>
+                {
+                    ["chunk_id"] = correction.Id.ToString(),
+                    ["source_type"] = "correction",
+                    ["source_id"] = correction.Id.ToString(),
+                    ["correction_id"] = correction.Id.ToString(),
+                    ["feedback_id"] = correction.AiFeedbackId.ToString(),
+                    ["ai_interaction_id"] = correction.AiInteractionId.ToString(),
+                    ["document_id"] = correction.DocumentId?.ToString() ?? string.Empty,
+                    ["folder_id"] = correction.FolderId?.ToString() ?? string.Empty,
+                    ["title"] = $"Correction: {Trim(correction.Question, 120)}",
+                    ["folder_path"] = folderPath,
+                    ["status"] = "approved",
+                    ["visibility_scope"] = correction.VisibilityScope == VisibilityScope.Company ? "company" : "folder",
+                    ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
+                }),
+        };
+
+        await vectorStore.UpsertChunksAsync(chunks, cancellationToken);
+        await keywordIndexService.ReplaceChunksAsync(KnowledgeSourceType.Correction, correction.Id.ToString(), chunks, cancellationToken);
     }
 
     private static string? NormalizeNote(string? note)

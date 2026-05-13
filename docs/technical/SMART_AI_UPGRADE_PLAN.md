@@ -58,7 +58,13 @@ Cap nhat: 2026-05-13
   - Da them rule reranker boost correction/wiki/document, exact keyword, phrase match, scope match va distance.
   - Da them context packing toi da 8 chunks, moi knowledge item toi da 3 chunks, va bo trung chunk.
   - Test da chung minh exact keyword match co the vuot chunk gan vector hon, va context khong vuot gioi han packing.
-- Cac hang muc sau Phase 8: Pending.
+- Phase 9 `SQLite keyword retrieval fallback`: Done.
+  - Da them bang `knowledge_chunk_indexes` de mirror chunk text/metadata vao SQLite.
+  - Document indexing, wiki publish va correction approve deu ghi keyword index song song voi Chroma.
+  - Q&A merge vector candidates voi top keyword candidates truoc khi revalidate SQLite va rerank.
+  - Keyword search van dung cung permission/scope/status filter nhu vector search.
+  - Test da chung minh Q&A van lay duoc source khi vector search khong tra ket qua nhung keyword index match.
+- Cac hang muc sau Phase 9: Pending.
 
 ## 1. Muc tieu
 
@@ -1292,6 +1298,34 @@ Da trien khai:
 - Context packing bo trung source/section va gioi han toi da 8 chunks, toi da 3 chunks moi knowledge item.
 - Test `AskAsync_ReranksExactKeywordMatchAheadOfCloserVectorDistance` chung minh exact keyword duoc uu tien.
 - Test `AskAsync_PacksAtMostEightChunksAndThreePerDocument` chung minh context packing dung gioi han.
+
+### Phase 9: SQLite keyword retrieval fallback
+
+Muc tieu:
+
+- Hoan thien pipeline hybrid retrieval bang keyword search noi bo.
+- Giam truong hop vector search bo sot ten rieng, ma loi, keyword nghiep vu hoac cum tu chinh xac.
+
+Cong viec:
+
+- Mirror chunk da index vao SQLite de search keyword.
+- Khi hoi dap, lay top keyword candidates va merge voi vector candidates.
+- Van revalidate permission/status/current-version bang SQLite truoc khi dua vao answer.
+
+Acceptance:
+
+- Document/wiki/correction moi index co keyword row trong SQLite.
+- Neu vector search khong tra ket qua, keyword search van co the dua chunk dung vao answer.
+- Keyword candidates khong vuot quyen va khong dung source da archived/outdated/rejected.
+
+Da trien khai:
+
+- Them entity/table `KnowledgeChunkIndexEntity` / `knowledge_chunk_indexes`.
+- Them `IKnowledgeKeywordIndexService` de replace chunks theo source va search top keyword candidates.
+- `DocumentProcessingService`, `WikiService`, `AiFeedbackService` ghi keyword index khi index document/wiki/correction.
+- `AiQuestionService` merge vector results va keyword results truoc `FilterAllowedChunksAsync`, nen van dung revalidation hien co.
+- Test `AskAsync_UsesKeywordIndexWhenVectorSearchHasNoResults` chung minh fallback keyword hoat dong.
+- Test wiki/correction dam bao publish/approve tao keyword index.
 
 ## 17. Thu tu uu tien neu thoi gian ngan
 

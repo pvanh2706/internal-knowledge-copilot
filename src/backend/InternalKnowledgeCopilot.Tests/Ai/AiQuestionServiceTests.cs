@@ -2,6 +2,7 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Ai;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
@@ -88,6 +89,7 @@ public sealed class AiQuestionServiceTests
             new FolderPermissionService(dbContext),
             new MockEmbeddingService(),
             vectorStore,
+            new KnowledgeKeywordIndexService(dbContext),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(userId, new AskQuestionRequest("payment error", AiScopeType.All, null, null));
@@ -158,6 +160,7 @@ public sealed class AiQuestionServiceTests
             new FolderPermissionService(dbContext),
             new MockEmbeddingService(),
             vectorStore,
+            new KnowledgeKeywordIndexService(dbContext),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(userId, new AskQuestionRequest("secret wiki", AiScopeType.All, null, null));
@@ -243,6 +246,7 @@ public sealed class AiQuestionServiceTests
             new FolderPermissionService(dbContext),
             new MockEmbeddingService(),
             vectorStore,
+            new KnowledgeKeywordIndexService(dbContext),
             new FixedAnswerGenerationService(new AiAnswerDraft(
                 "Answer from selected source.",
                 false,
@@ -368,6 +372,7 @@ public sealed class AiQuestionServiceTests
             new FolderPermissionService(dbContext),
             new MockEmbeddingService(),
             vectorStore,
+            new KnowledgeKeywordIndexService(dbContext),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(userId, new AskQuestionRequest("payment error", AiScopeType.All, null, null));
@@ -408,12 +413,45 @@ public sealed class AiQuestionServiceTests
             new FolderPermissionService(dbContext),
             new MockEmbeddingService(),
             vectorStore,
+            new KnowledgeKeywordIndexService(dbContext),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(seed.UserId, new AskQuestionRequest("provider logs chargeback", AiScopeType.All, null, null));
 
         Assert.Equal("Provider log source", response.Citations[0].Title);
         Assert.Contains("provider logs", response.Answer, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AskAsync_UsesKeywordIndexWhenVectorSearchHasNoResults()
+    {
+        await using var dbContext = CreateDbContext();
+        var seed = await SeedVisibleKnowledgeAsync(dbContext, documentCount: 1);
+        var keywordIndexService = new KnowledgeKeywordIndexService(dbContext);
+        var keywordChunk = CreateKeywordChunk(
+            "keyword-only",
+            seed.FolderId,
+            seed.DocumentIds[0],
+            seed.VersionIds[0],
+            "Chargeback keyword source",
+            "/Allowed",
+            "chargeback evidence must include provider logs and customer confirmation");
+        await keywordIndexService.ReplaceChunksAsync(KnowledgeSourceType.Document, seed.VersionIds[0].ToString(), [keywordChunk]);
+        await dbContext.SaveChangesAsync();
+
+        var service = new AiQuestionService(
+            dbContext,
+            new FolderPermissionService(dbContext),
+            new MockEmbeddingService(),
+            new FakeKnowledgeVectorStore([]),
+            keywordIndexService,
+            new MockAnswerGenerationService());
+
+        var response = await service.AskAsync(seed.UserId, new AskQuestionRequest("chargeback provider logs", AiScopeType.All, null, null));
+
+        var citation = Assert.Single(response.Citations);
+        Assert.Equal("Chargeback keyword source", citation.Title);
+        Assert.Contains("customer confirmation", response.Answer, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -446,6 +484,7 @@ public sealed class AiQuestionServiceTests
             new FolderPermissionService(dbContext),
             new MockEmbeddingService(),
             new FakeKnowledgeVectorStore(vectorResults),
+            new KnowledgeKeywordIndexService(dbContext),
             answerService);
 
         await service.AskAsync(seed.UserId, new AskQuestionRequest("payment audit evidence", AiScopeType.All, null, null));
@@ -455,6 +494,29 @@ public sealed class AiQuestionServiceTests
         Assert.All(
             answerService.CapturedChunks.GroupBy(chunk => chunk.DocumentId),
             group => Assert.True(group.Count() <= 3));
+    }
+
+    private static KnowledgeChunkRecord CreateKeywordChunk(string id, Guid folderId, Guid documentId, Guid versionId, string title, string folderPath, string text)
+    {
+        return new KnowledgeChunkRecord(
+            id,
+            [1f, 0f, 0f],
+            text,
+            new Dictionary<string, object>
+            {
+                ["chunk_id"] = id,
+                ["source_type"] = "document",
+                ["source_id"] = versionId.ToString(),
+                ["document_id"] = documentId.ToString(),
+                ["document_version_id"] = versionId.ToString(),
+                ["folder_id"] = folderId.ToString(),
+                ["title"] = title,
+                ["folder_path"] = folderPath,
+                ["section_title"] = "Evidence",
+                ["section_index"] = 1,
+                ["status"] = "approved",
+                ["visibility_scope"] = "folder",
+            });
     }
 
     private static DocumentVersionEntity CreateIndexedVersion(Guid id, Guid documentId, Guid userId, DateTimeOffset now)

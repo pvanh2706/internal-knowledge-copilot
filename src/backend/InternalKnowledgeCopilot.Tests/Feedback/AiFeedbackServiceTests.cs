@@ -3,6 +3,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using Microsoft.EntityFrameworkCore;
@@ -110,6 +111,7 @@ public sealed class AiFeedbackServiceTests
         Assert.Single(vectorStore.UpsertedChunks);
         Assert.Equal("correction", vectorStore.UpsertedChunks[0].Metadata["source_type"]);
         Assert.Equal("approved", vectorStore.UpsertedChunks[0].Metadata["status"]);
+        Assert.Equal(1, await dbContext.KnowledgeChunkIndexes.CountAsync(chunk => chunk.SourceType == KnowledgeSourceType.Correction));
         Assert.Equal(AiQualityIssueStatus.Resolved, (await dbContext.AiQualityIssues.SingleAsync()).Status);
         Assert.Equal(FeedbackReviewStatus.Resolved, (await dbContext.AiFeedback.SingleAsync()).ReviewStatus);
     }
@@ -182,7 +184,8 @@ public sealed class AiFeedbackServiceTests
             dbContext,
             new NoopAuditLogService(),
             new MockEmbeddingService(),
-            vectorStore ?? new FakeKnowledgeVectorStore());
+            vectorStore ?? new FakeKnowledgeVectorStore(),
+            new KnowledgeKeywordIndexService(dbContext));
     }
 
     private static AppDbContext CreateDbContext()

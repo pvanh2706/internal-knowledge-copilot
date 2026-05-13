@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
+using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,7 @@ public sealed class WikiService(
     ISectionDetector sectionDetector,
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore,
+    IKnowledgeKeywordIndexService keywordIndexService,
     IAuditLogService auditLogService) : IWikiService
 {
     public async Task<WikiDraftDetailResponse> GenerateDraftAsync(Guid reviewerId, GenerateWikiDraftRequest request, CancellationToken cancellationToken = default)
@@ -211,6 +213,7 @@ public sealed class WikiService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await IndexWikiPageAsync(page, folderPath ?? string.Empty, draft, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
         await auditLogService.RecordAsync(reviewerId, "WikiPublished", "WikiPage", page.Id, new { DraftId = draft.Id, page.VisibilityScope, page.FolderId }, cancellationToken);
         return new WikiPageResponse(page.Id, page.SourceDraftId, page.Title, page.Content, page.Language, page.VisibilityScope, page.FolderId, folderPath, page.PublishedAt);
     }
@@ -287,6 +290,7 @@ public sealed class WikiService(
         }
 
         await vectorStore.UpsertChunksAsync(vectorChunks, cancellationToken);
+        await keywordIndexService.ReplaceChunksAsync(KnowledgeSourceType.Wiki, page.Id.ToString(), vectorChunks, cancellationToken);
     }
 
     private static WikiDraftListItemResponse ToListResponse(WikiDraftEntity draft)
