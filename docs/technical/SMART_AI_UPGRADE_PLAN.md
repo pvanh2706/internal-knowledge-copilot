@@ -6,7 +6,7 @@ Tai lieu nay de xuat cach nang cap Internal Knowledge Copilot tu MVP RAG mock th
 
 ## 0. Trang thai trien khai
 
-Cap nhat: 2026-05-12
+Cap nhat: 2026-05-13
 
 - Phase 1 `Provider va embedding that`: Done.
   - Da them `AiProviderOptions`.
@@ -46,7 +46,13 @@ Cap nhat: 2026-05-12
   - Reviewer tao correction draft, approve correction va index vao vector store.
   - Retrieval include `correction` source type va uu tien correction truoc wiki/document.
   - UI Feedback Review hien quality issue va correction actions.
-- Phase 7 tro di: Pending.
+- Phase 7 `Evaluation`: Done.
+  - Da them eval cases/runs/results de do before/after.
+  - Reviewer tao eval case truc tiep tu Incorrect feedback.
+  - Backend co API chay eval all active cases hoac mot case rieng.
+  - Eval run goi lai `AiQuestionService`, luu answer that, pass/fail, score va failure reason.
+  - Dashboard hien eval case active va pass rate cua run moi nhat.
+- Cac hang muc sau Phase 7: Pending.
 
 ## 1. Muc tieu
 
@@ -1242,6 +1248,16 @@ Acceptance:
 
 - Co baseline before/after.
 - Demo duoc mot case fail -> fix -> pass.
+
+Da trien khai:
+
+- Them tables `evaluation_cases`, `evaluation_runs`, `evaluation_run_results`.
+- Them `IEvaluationService` va API `/api/evaluation/cases`, `/api/evaluation/feedback/{feedbackId}/cases`, `/api/evaluation/runs`.
+- Reviewer tao eval case tu feedback sai voi expected answer va expected keywords.
+- Eval run chay lai cau hoi qua pipeline AI hien tai, luu `AiInteractionId`, actual answer, score, pass/fail va ly do fail.
+- Dashboard summary co KPI `evaluationCaseCount`, latest eval pass count/pass rate/run time.
+- UI Feedback co form tao eval case; UI Evaluation co nut chay all active cases hoac tung case.
+- Test unit chung minh case pass khi answer co expected keywords va fail khi thieu keyword.
 
 ## 17. Thu tu uu tien neu thoi gian ngan
 

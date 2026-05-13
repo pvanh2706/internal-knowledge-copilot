@@ -8,6 +8,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Ai;
 using InternalKnowledgeCopilot.Api.Modules.Auth;
+using InternalKnowledgeCopilot.Api.Modules.Evaluation;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using InternalKnowledgeCopilot.Api.Modules.Wiki;
@@ -78,6 +79,7 @@ else
 builder.Services.AddScoped<IDocumentProcessingService, DocumentProcessingService>();
 builder.Services.AddScoped<IAiQuestionService, AiQuestionService>();
 builder.Services.AddScoped<IAiFeedbackService, AiFeedbackService>();
+builder.Services.AddScoped<IEvaluationService, EvaluationService>();
 builder.Services.AddScoped<IWikiService, WikiService>();
 builder.Services.AddHttpClient<IKnowledgeVectorStore, ChromaKnowledgeVectorStore>((serviceProvider, client) =>
 {

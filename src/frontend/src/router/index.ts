@@ -9,6 +9,7 @@ import AiQuestionPage from '../pages/ai/AiQuestionPage.vue'
 import LoginPage from '../pages/auth/LoginPage.vue'
 import DocumentListPage from '../pages/documents/DocumentListPage.vue'
 import DocumentReviewPage from '../pages/review/DocumentReviewPage.vue'
+import EvaluationPage from '../pages/review/EvaluationPage.vue'
 import FeedbackReviewPage from '../pages/review/FeedbackReviewPage.vue'
 import WikiDraftPage from '../pages/wiki/WikiDraftPage.vue'
 import { useAuthStore } from '../stores/auth'
@@ -24,6 +25,7 @@ const router = createRouter({
     { path: '/wiki', name: 'wiki', component: WikiDraftPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/review', name: 'review', component: DocumentReviewPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/feedback', name: 'feedback', component: FeedbackReviewPage, meta: { requiresAuth: true, requiresReviewer: true } },
+    { path: '/evaluation', name: 'evaluation', component: EvaluationPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/admin/users', name: 'admin-users', component: UserManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/teams', name: 'admin-teams', component: TeamManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/folders', name: 'admin-folders', component: FolderManagementPage, meta: { requiresAuth: true, requiresReviewer: true } },

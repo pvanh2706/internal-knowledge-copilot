@@ -150,6 +150,52 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
                 item.Count))
             .ToList();
 
+        var evaluationCaseQuery = dbContext.EvaluationCases
+            .AsNoTracking()
+            .Where(evaluationCase => evaluationCase.IsActive);
+
+        if (from is not null)
+        {
+            evaluationCaseQuery = evaluationCaseQuery.Where(evaluationCase => evaluationCase.CreatedAt >= from);
+        }
+
+        if (to is not null)
+        {
+            evaluationCaseQuery = evaluationCaseQuery.Where(evaluationCase => evaluationCase.CreatedAt <= to);
+        }
+
+        if (folderId is not null || teamId is not null)
+        {
+            var scopedDocumentIds = dbContext.Documents
+                .AsNoTracking()
+                .Where(document => document.DeletedAt == null && scopedFolderIds.Contains(document.FolderId))
+                .Select(document => document.Id);
+
+            evaluationCaseQuery = evaluationCaseQuery.Where(evaluationCase =>
+                evaluationCase.ScopeType == AiScopeType.All ||
+                (evaluationCase.ScopeType == AiScopeType.Folder && evaluationCase.FolderId != null && scopedFolderIds.Contains(evaluationCase.FolderId.Value)) ||
+                (evaluationCase.ScopeType == AiScopeType.Document && evaluationCase.DocumentId != null && scopedDocumentIds.Contains(evaluationCase.DocumentId.Value)));
+        }
+
+        var evaluationCaseCount = await evaluationCaseQuery.CountAsync(cancellationToken);
+        var latestEvaluationRunQuery = dbContext.EvaluationRuns.AsNoTracking();
+        if (from is not null)
+        {
+            latestEvaluationRunQuery = latestEvaluationRunQuery.Where(run => run.CreatedAt >= from);
+        }
+
+        if (to is not null)
+        {
+            latestEvaluationRunQuery = latestEvaluationRunQuery.Where(run => run.CreatedAt <= to);
+        }
+
+        var latestEvaluationRun = await latestEvaluationRunQuery
+            .OrderByDescending(run => run.FinishedAt ?? run.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var latestEvaluationPassRate = latestEvaluationRun is null || latestEvaluationRun.TotalCases == 0
+            ? (double?)null
+            : Math.Round((double)latestEvaluationRun.PassedCases / latestEvaluationRun.TotalCases * 100, 2);
+
         return Ok(new DashboardSummaryResponse(
             documentCounts,
             wikiCounts,
@@ -157,6 +203,11 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
             feedbackCorrectCount,
             feedbackIncorrectCount,
             incorrectPendingCount,
+            evaluationCaseCount,
+            latestEvaluationRun?.TotalCases,
+            latestEvaluationRun?.PassedCases,
+            latestEvaluationPassRate,
+            latestEvaluationRun?.FinishedAt ?? latestEvaluationRun?.CreatedAt,
             topCitedSources));
     }
 }

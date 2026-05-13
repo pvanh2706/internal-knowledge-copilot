@@ -33,6 +33,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<RetrievalHintEntity> RetrievalHints => Set<RetrievalHintEntity>();
 
+    public DbSet<EvaluationCaseEntity> EvaluationCases => Set<EvaluationCaseEntity>();
+
+    public DbSet<EvaluationRunEntity> EvaluationRuns => Set<EvaluationRunEntity>();
+
+    public DbSet<EvaluationRunResultEntity> EvaluationRunResults => Set<EvaluationRunResultEntity>();
+
     public DbSet<WikiDraftEntity> WikiDrafts => Set<WikiDraftEntity>();
 
     public DbSet<WikiPageEntity> WikiPages => Set<WikiPageEntity>();
@@ -391,6 +397,87 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(hint => hint.CorrectionId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EvaluationCaseEntity>(entity =>
+        {
+            entity.ToTable("evaluation_cases");
+            entity.HasKey(evaluationCase => evaluationCase.Id);
+            entity.Property(evaluationCase => evaluationCase.SourceFeedbackId).HasColumnName("source_feedback_id");
+            entity.Property(evaluationCase => evaluationCase.Question).HasColumnName("question").HasMaxLength(4000).IsRequired();
+            entity.Property(evaluationCase => evaluationCase.ExpectedAnswer).HasColumnName("expected_answer").IsRequired();
+            entity.Property(evaluationCase => evaluationCase.ExpectedKeywordsJson).HasColumnName("expected_keywords_json");
+            entity.Property(evaluationCase => evaluationCase.ScopeType).HasColumnName("scope_type").HasConversion<string>().HasMaxLength(50);
+            entity.Property(evaluationCase => evaluationCase.FolderId).HasColumnName("folder_id");
+            entity.Property(evaluationCase => evaluationCase.DocumentId).HasColumnName("document_id");
+            entity.Property(evaluationCase => evaluationCase.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(evaluationCase => evaluationCase.IsActive).HasColumnName("is_active");
+            entity.Property(evaluationCase => evaluationCase.CreatedAt).HasColumnName("created_at");
+            entity.Property(evaluationCase => evaluationCase.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(evaluationCase => new { evaluationCase.IsActive, evaluationCase.CreatedAt });
+            entity.HasIndex(evaluationCase => evaluationCase.SourceFeedbackId);
+            entity.HasOne(evaluationCase => evaluationCase.SourceFeedback)
+                .WithMany()
+                .HasForeignKey(evaluationCase => evaluationCase.SourceFeedbackId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(evaluationCase => evaluationCase.Folder)
+                .WithMany()
+                .HasForeignKey(evaluationCase => evaluationCase.FolderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(evaluationCase => evaluationCase.Document)
+                .WithMany()
+                .HasForeignKey(evaluationCase => evaluationCase.DocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(evaluationCase => evaluationCase.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(evaluationCase => evaluationCase.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EvaluationRunEntity>(entity =>
+        {
+            entity.ToTable("evaluation_runs");
+            entity.HasKey(run => run.Id);
+            entity.Property(run => run.Name).HasColumnName("name").HasMaxLength(200);
+            entity.Property(run => run.TotalCases).HasColumnName("total_cases");
+            entity.Property(run => run.PassedCases).HasColumnName("passed_cases");
+            entity.Property(run => run.FailedCases).HasColumnName("failed_cases");
+            entity.Property(run => run.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(run => run.CreatedAt).HasColumnName("created_at");
+            entity.Property(run => run.FinishedAt).HasColumnName("finished_at");
+            entity.HasIndex(run => run.CreatedAt);
+            entity.HasOne(run => run.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(run => run.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EvaluationRunResultEntity>(entity =>
+        {
+            entity.ToTable("evaluation_run_results");
+            entity.HasKey(result => result.Id);
+            entity.Property(result => result.EvaluationRunId).HasColumnName("evaluation_run_id");
+            entity.Property(result => result.EvaluationCaseId).HasColumnName("evaluation_case_id");
+            entity.Property(result => result.AiInteractionId).HasColumnName("ai_interaction_id");
+            entity.Property(result => result.ActualAnswer).HasColumnName("actual_answer").IsRequired();
+            entity.Property(result => result.Passed).HasColumnName("passed");
+            entity.Property(result => result.Score).HasColumnName("score");
+            entity.Property(result => result.FailureReason).HasColumnName("failure_reason").HasMaxLength(2000);
+            entity.Property(result => result.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(result => result.EvaluationRunId);
+            entity.HasIndex(result => new { result.EvaluationCaseId, result.CreatedAt });
+            entity.HasOne(result => result.EvaluationRun)
+                .WithMany(run => run.Results)
+                .HasForeignKey(result => result.EvaluationRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(result => result.EvaluationCase)
+                .WithMany()
+                .HasForeignKey(result => result.EvaluationCaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(result => result.AiInteraction)
+                .WithMany()
+                .HasForeignKey(result => result.AiInteractionId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<WikiDraftEntity>(entity =>

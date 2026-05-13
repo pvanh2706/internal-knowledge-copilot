@@ -14,6 +14,10 @@ const feedbackCorrectRate = computed(() => {
   if (!summary.value || feedbackTotal.value === 0) return '0%'
   return `${Math.round((summary.value.feedbackCorrectCount / feedbackTotal.value) * 100)}%`
 })
+const latestEvaluationPassRate = computed(() => {
+  if (!summary.value || summary.value.latestEvaluationPassRate == null) return 'Chua chay'
+  return `${Math.round(summary.value.latestEvaluationPassRate)}%`
+})
 
 async function loadSummary() {
   if (!authStore.accessToken || (!authStore.isReviewer && !authStore.isAdmin)) return
@@ -67,6 +71,17 @@ onMounted(loadSummary)
       <article class="stat-card">
         <span>Feedback sai chờ xử lý</span>
         <strong>{{ summary.incorrectFeedbackPendingCount }}</strong>
+      </article>
+      <article class="stat-card">
+        <span>Eval cases active</span>
+        <strong>{{ summary.evaluationCaseCount }}</strong>
+      </article>
+      <article class="stat-card">
+        <span>Eval pass rate</span>
+        <strong>{{ latestEvaluationPassRate }}</strong>
+        <small v-if="summary.latestEvaluationTotalCases">
+          {{ summary.latestEvaluationPassedCases }}/{{ summary.latestEvaluationTotalCases }} pass
+        </small>
       </article>
     </div>
 

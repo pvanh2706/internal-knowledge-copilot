@@ -7,6 +7,11 @@ public sealed record DashboardSummaryResponse(
     int FeedbackCorrectCount,
     int FeedbackIncorrectCount,
     int IncorrectFeedbackPendingCount,
+    int EvaluationCaseCount,
+    int? LatestEvaluationTotalCases,
+    int? LatestEvaluationPassedCases,
+    double? LatestEvaluationPassRate,
+    DateTimeOffset? LatestEvaluationRunAt,
     IReadOnlyList<TopCitedSourceResponse> TopCitedSources);
 
 public sealed record NamedCountResponse(string Name, int Count);

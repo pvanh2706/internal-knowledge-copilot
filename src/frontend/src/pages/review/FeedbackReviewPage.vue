@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import type { FeedbackItem, FeedbackReviewStatus, QualityIssue } from '../../api/feedback'
 import { approveCorrection, createCorrection, getIncorrectFeedback, getQualityIssues, rejectCorrection, updateFeedbackReviewStatus } from '../../api/feedback'
+import { createEvaluationCaseFromFeedback } from '../../api/evaluation'
 import { ApiError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
 import type { VisibilityScope } from '../../api/wiki'
@@ -22,6 +23,10 @@ const correctionForm = ref({
   visibilityScope: 'Folder' as VisibilityScope,
   isCompanyPublicConfirmed: false,
   rejectReason: '',
+})
+const evaluationForm = ref({
+  expectedAnswer: '',
+  expectedKeywords: '',
 })
 
 async function loadData() {
@@ -47,6 +52,9 @@ function selectFeedback(item: FeedbackItem) {
   correctionForm.value.visibilityScope = 'Folder'
   correctionForm.value.isCompanyPublicConfirmed = false
   correctionForm.value.rejectReason = ''
+  evaluationForm.value.expectedAnswer =
+    selectedIssue.value?.corrections.find((correction) => correction.status === 'Approved')?.correctionText ?? ''
+  evaluationForm.value.expectedKeywords = ''
   errorMessage.value = ''
   successMessage.value = ''
 }
@@ -125,6 +133,34 @@ async function submitRejectCorrection(correctionId: string) {
     await loadData()
   } catch (error) {
     errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the reject correction.'
+  }
+}
+
+function splitKeywords(value: string) {
+  return value
+    .split(/[\n,]/)
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
+}
+
+async function submitEvaluationCase() {
+  if (!authStore.accessToken || !selectedFeedback.value) return
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  try {
+    await createEvaluationCaseFromFeedback(
+      selectedFeedback.value.id,
+      {
+        expectedAnswer: evaluationForm.value.expectedAnswer,
+        expectedKeywords: splitKeywords(evaluationForm.value.expectedKeywords),
+      },
+      authStore.accessToken,
+    )
+    successMessage.value = 'Da tao eval case tu feedback.'
+    evaluationForm.value.expectedKeywords = ''
+  } catch (error) {
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the tao eval case.'
   }
 }
 
@@ -219,6 +255,21 @@ onMounted(loadData)
               <textarea v-model="correctionForm.rejectReason" rows="2" placeholder="Dung khi bam Reject correction..." />
             </label>
             <button type="submit">Create correction draft</button>
+          </form>
+        </section>
+
+        <section class="answer-panel">
+          <h4>Evaluation case</h4>
+          <form class="stack-form" @submit.prevent="submitEvaluationCase">
+            <label>
+              Expected answer
+              <textarea v-model="evaluationForm.expectedAnswer" rows="4" placeholder="Nhap dap an dung dung de cham eval..." required />
+            </label>
+            <label>
+              Expected keywords
+              <textarea v-model="evaluationForm.expectedKeywords" rows="2" placeholder="Moi keyword mot dong hoac cach nhau bang dau phay..." />
+            </label>
+            <button type="submit">Create eval case</button>
           </form>
         </section>
 

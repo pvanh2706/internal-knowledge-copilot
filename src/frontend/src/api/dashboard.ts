@@ -19,6 +19,11 @@ export interface DashboardSummary {
   feedbackCorrectCount: number
   feedbackIncorrectCount: number
   incorrectFeedbackPendingCount: number
+  evaluationCaseCount: number
+  latestEvaluationTotalCases?: number | null
+  latestEvaluationPassedCases?: number | null
+  latestEvaluationPassRate?: number | null
+  latestEvaluationRunAt?: string | null
   topCitedSources: TopCitedSource[]
 }
 
