@@ -31,7 +31,14 @@ export interface DocumentVersion {
   hasNormalizedText: boolean
   sectionCount?: number | null
   documentSummary?: string | null
+  language?: string | null
+  documentType?: string | null
+  keyTopics: string[]
+  entities: string[]
+  effectiveDate?: string | null
+  sensitivity?: string | null
   processingWarnings: string[]
+  qualityWarnings: string[]
   uploadedBy: string
   reviewedBy?: string
   reviewedAt?: string

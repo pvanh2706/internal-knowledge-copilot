@@ -157,7 +157,7 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
             SectionTitle = GetString(chunk.Metadata, "section_title"),
             SectionIndex = GetInt(chunk.Metadata, "section_index"),
             Text = chunk.Text,
-            NormalizedText = NormalizeForSearch($"{GetString(chunk.Metadata, "title")} {GetString(chunk.Metadata, "section_title")} {chunk.Text}"),
+            NormalizedText = NormalizeForSearch($"{GetString(chunk.Metadata, "title")} {GetString(chunk.Metadata, "section_title")} {GetString(chunk.Metadata, "keywords")} {GetString(chunk.Metadata, "entities")} {chunk.Text}"),
             CreatedAt = now,
             UpdatedAt = now,
         };

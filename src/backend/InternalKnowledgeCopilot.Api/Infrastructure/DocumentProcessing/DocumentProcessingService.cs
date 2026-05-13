@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
@@ -20,6 +21,7 @@ public sealed class DocumentProcessingService(
     ISectionDetector sectionDetector,
     ITextChunker chunker,
     IEmbeddingService embeddingService,
+    IDocumentUnderstandingService documentUnderstandingService,
     IKnowledgeVectorStore vectorStore,
     IKnowledgeKeywordIndexService keywordIndexService) : IDocumentProcessingService
 {
@@ -55,6 +57,7 @@ public sealed class DocumentProcessingService(
         var textHash = Convert.ToHexString(SHA256.HashData(normalizedBytes)).ToLowerInvariant();
 
         var sections = sectionDetector.Detect(normalized.Text);
+        var understanding = await documentUnderstandingService.AnalyzeAsync(version.Document.Title, normalized.Text, sections, cancellationToken);
         var chunks = chunker.Chunk(normalized.Text, sections);
         var vectorChunks = new List<KnowledgeChunkRecord>(chunks.Count);
         foreach (var chunk in chunks)
@@ -81,6 +84,12 @@ public sealed class DocumentProcessingService(
                     ["section_index"] = chunk.SectionIndex ?? -1,
                     ["char_start"] = chunk.StartOffset ?? 0,
                     ["char_end"] = chunk.EndOffset ?? 0,
+                    ["language"] = understanding.Language,
+                    ["document_type"] = understanding.DocumentType,
+                    ["keywords"] = string.Join(", ", understanding.KeyTopics),
+                    ["entities"] = string.Join(", ", understanding.Entities),
+                    ["sensitivity"] = understanding.Sensitivity,
+                    ["text_hash"] = textHash,
                     ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
                 }));
         }
@@ -92,7 +101,16 @@ public sealed class DocumentProcessingService(
         version.NormalizedTextPath = normalizedTextPath;
         version.SectionCount = sections.Count;
         version.ProcessingWarningsJson = normalized.WarningsJson;
-        version.DocumentSummary = BuildSummary(sections, normalized.Text);
+        version.DocumentSummary = string.IsNullOrWhiteSpace(understanding.Summary)
+            ? BuildSummary(sections, normalized.Text)
+            : understanding.Summary;
+        version.Language = understanding.Language;
+        version.DocumentType = understanding.DocumentType;
+        version.KeyTopicsJson = JsonSerializer.Serialize(understanding.KeyTopics);
+        version.EntitiesJson = JsonSerializer.Serialize(understanding.Entities);
+        version.EffectiveDate = understanding.EffectiveDate;
+        version.Sensitivity = understanding.Sensitivity;
+        version.QualityWarningsJson = JsonSerializer.Serialize(understanding.QualityWarnings);
         version.TextHash = textHash;
         version.Status = DocumentVersionStatus.Indexed;
         version.IndexedAt = DateTimeOffset.UtcNow;

@@ -205,8 +205,14 @@ onMounted(loadData)
               <td>
                 <span v-if="version.hasNormalizedText">{{ version.sectionCount ?? 0 }} sections</span>
                 <span v-else>-</span>
+                <small v-if="version.language || version.documentType || version.sensitivity">
+                  {{ [version.language, version.documentType, version.sensitivity].filter(Boolean).join(' / ') }}
+                </small>
                 <small v-if="version.documentSummary">{{ version.documentSummary }}</small>
+                <small v-if="version.keyTopics.length">Topics: {{ version.keyTopics.join(', ') }}</small>
+                <small v-if="version.entities.length">Entities: {{ version.entities.join(', ') }}</small>
                 <small v-if="version.processingWarnings.length">{{ version.processingWarnings.join(', ') }}</small>
+                <small v-if="version.qualityWarnings.length">{{ version.qualityWarnings.join(', ') }}</small>
               </td>
             </tr>
           </tbody>

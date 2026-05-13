@@ -188,6 +188,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(version => version.SectionCount).HasColumnName("section_count");
             entity.Property(version => version.ProcessingWarningsJson).HasColumnName("processing_warnings_json");
             entity.Property(version => version.DocumentSummary).HasColumnName("document_summary").HasMaxLength(2000);
+            entity.Property(version => version.Language).HasColumnName("language").HasMaxLength(50);
+            entity.Property(version => version.DocumentType).HasColumnName("document_type").HasMaxLength(100);
+            entity.Property(version => version.KeyTopicsJson).HasColumnName("key_topics_json");
+            entity.Property(version => version.EntitiesJson).HasColumnName("entities_json");
+            entity.Property(version => version.EffectiveDate).HasColumnName("effective_date");
+            entity.Property(version => version.Sensitivity).HasColumnName("sensitivity").HasMaxLength(50);
+            entity.Property(version => version.QualityWarningsJson).HasColumnName("quality_warnings_json");
             entity.Property(version => version.TextHash).HasColumnName("text_hash").HasMaxLength(200);
             entity.Property(version => version.UploadedByUserId).HasColumnName("uploaded_by_user_id");
             entity.Property(version => version.ReviewedByUserId).HasColumnName("reviewed_by_user_id");

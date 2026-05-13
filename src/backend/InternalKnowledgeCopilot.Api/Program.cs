@@ -51,6 +51,7 @@ if (string.Equals(aiProviderName, "mock", StringComparison.OrdinalIgnoreCase))
     builder.Services.AddScoped<IEmbeddingService, MockEmbeddingService>();
     builder.Services.AddScoped<IAnswerGenerationService, MockAnswerGenerationService>();
     builder.Services.AddScoped<IWikiDraftGenerationService, MockWikiDraftGenerationService>();
+    builder.Services.AddScoped<IDocumentUnderstandingService, MockDocumentUnderstandingService>();
 }
 else
 {
@@ -76,6 +77,7 @@ else
     builder.Services.AddScoped<IEmbeddingService, OpenAiCompatibleEmbeddingService>();
     builder.Services.AddScoped<IAnswerGenerationService, OpenAiCompatibleAnswerGenerationService>();
     builder.Services.AddScoped<IWikiDraftGenerationService, OpenAiCompatibleWikiDraftGenerationService>();
+    builder.Services.AddScoped<IDocumentUnderstandingService, OpenAiCompatibleDocumentUnderstandingService>();
 }
 builder.Services.AddScoped<IDocumentProcessingService, DocumentProcessingService>();
 builder.Services.AddScoped<IKnowledgeKeywordIndexService, KnowledgeKeywordIndexService>();

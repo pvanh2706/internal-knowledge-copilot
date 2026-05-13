@@ -36,6 +36,20 @@ public sealed class DocumentVersionEntity
 
     public string? DocumentSummary { get; set; }
 
+    public string? Language { get; set; }
+
+    public string? DocumentType { get; set; }
+
+    public string? KeyTopicsJson { get; set; }
+
+    public string? EntitiesJson { get; set; }
+
+    public DateTimeOffset? EffectiveDate { get; set; }
+
+    public string? Sensitivity { get; set; }
+
+    public string? QualityWarningsJson { get; set; }
+
     public string? TextHash { get; set; }
 
     public Guid UploadedByUserId { get; set; }

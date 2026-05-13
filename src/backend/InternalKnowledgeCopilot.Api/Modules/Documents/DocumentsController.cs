@@ -399,7 +399,14 @@ public sealed class DocumentsController(
                 !string.IsNullOrWhiteSpace(version.NormalizedTextPath),
                 version.SectionCount,
                 version.DocumentSummary,
+                version.Language,
+                version.DocumentType,
+                ParseStringList(version.KeyTopicsJson),
+                ParseStringList(version.EntitiesJson),
+                version.EffectiveDate,
+                version.Sensitivity,
                 ParseProcessingWarnings(version.ProcessingWarningsJson),
+                ParseStringList(version.QualityWarningsJson),
                 version.UploadedByUser!.DisplayName,
                 version.ReviewedByUser?.DisplayName,
                 version.ReviewedAt,
@@ -425,18 +432,23 @@ public sealed class DocumentsController(
 
     private static IReadOnlyList<string> ParseProcessingWarnings(string? warningsJson)
     {
-        if (string.IsNullOrWhiteSpace(warningsJson))
+        return ParseStringList(warningsJson, "invalid_processing_warnings_json");
+    }
+
+    private static IReadOnlyList<string> ParseStringList(string? json, string invalidJsonWarning = "invalid_json")
+    {
+        if (string.IsNullOrWhiteSpace(json))
         {
             return [];
         }
 
         try
         {
-            return JsonSerializer.Deserialize<string[]>(warningsJson) ?? [];
+            return JsonSerializer.Deserialize<string[]>(json) ?? [];
         }
         catch (JsonException)
         {
-            return ["invalid_processing_warnings_json"];
+            return [invalidJsonWarning];
         }
     }
 }

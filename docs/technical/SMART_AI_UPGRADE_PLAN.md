@@ -64,7 +64,13 @@ Cap nhat: 2026-05-13
   - Q&A merge vector candidates voi top keyword candidates truoc khi revalidate SQLite va rerank.
   - Keyword search van dung cung permission/scope/status filter nhu vector search.
   - Test da chung minh Q&A van lay duoc source khi vector search khong tra ket qua nhung keyword index match.
-- Cac hang muc sau Phase 9: Pending.
+- Phase 10 `Document understanding metadata`: Done.
+  - Da them `IDocumentUnderstandingService` voi mock heuristic va OpenAI-compatible structured JSON.
+  - Ingestion sinh/lua metadata language, document type, summary, key topics, entities, effective date, sensitivity, quality warnings.
+  - Metadata duoc luu vao SQLite `document_versions`, dua vao Chroma metadata va keyword index.
+  - UI tai lieu hien language/type/sensitivity, topics, entities va quality warnings.
+  - Test da chung minh mock understanding extract metadata va warning cho extraction yeu.
+- Cac hang muc sau Phase 10: Pending.
 
 ## 1. Muc tieu
 
@@ -1326,6 +1332,38 @@ Da trien khai:
 - `AiQuestionService` merge vector results va keyword results truoc `FilterAllowedChunksAsync`, nen van dung revalidation hien co.
 - Test `AskAsync_UsesKeywordIndexWhenVectorSearchHasNoResults` chung minh fallback keyword hoat dong.
 - Test wiki/correction dam bao publish/approve tao keyword index.
+
+### Phase 10: Document understanding metadata
+
+Muc tieu:
+
+- Hoan thien phan con thieu cua Smart Ingestion: hieu tai lieu sau normalize, khong chi chunk text.
+- Luu metadata co cau truc vao SQLite de dung cho dashboard/retrieval/reviewer ve sau.
+
+Cong viec:
+
+- Them `IDocumentUnderstandingService`.
+- Provider `mock` dung heuristic offline; provider OpenAI-compatible dung structured JSON voi retry/fallback.
+- Luu language, document type, summary, key topics, entities, effective date, sensitivity, quality warnings vao `document_versions`.
+- Dua metadata vao Chroma chunk metadata va keyword index.
+- Hien metadata trong document detail UI.
+
+Acceptance:
+
+- Tai lieu sau khi index co language/document type/topics/entities/sensitivity trong SQLite.
+- Summary duoc lay tu understanding result neu co.
+- Metadata duoc day vao retrieval index.
+- Test offline khong can API key van chung minh extraction metadata.
+
+Da trien khai:
+
+- Them columns `language`, `document_type`, `key_topics_json`, `entities_json`, `effective_date`, `sensitivity`, `quality_warnings_json`.
+- Them `MockDocumentUnderstandingService` va `OpenAiCompatibleDocumentUnderstandingService`.
+- `DocumentProcessingService` goi understanding sau normalize/section detection va truoc chunk/index.
+- Document chunk metadata co `language`, `document_type`, `keywords`, `entities`, `sensitivity`, `text_hash`.
+- Keyword index search them `keywords` va `entities` vao normalized text.
+- UI document version hien metadata understanding.
+- Test `DocumentUnderstandingServiceTests` cover metadata va warning extraction.
 
 ## 17. Thu tu uu tien neu thoi gian ngan
 
