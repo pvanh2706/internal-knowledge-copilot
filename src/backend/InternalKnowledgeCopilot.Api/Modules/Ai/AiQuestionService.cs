@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
@@ -22,8 +24,16 @@ public sealed class AiQuestionService(
     IKnowledgeVectorStore vectorStore,
     IAnswerGenerationService answerGenerationService) : IAiQuestionService
 {
-    private const int SearchLimit = 30;
-    private const int MaxContextChunks = 5;
+    private const int SearchLimit = 50;
+    private const int MaxContextChunks = 8;
+    private const int MaxChunksPerKnowledgeItem = 3;
+    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "the", "and", "for", "with", "from", "that", "this", "are", "was", "were", "has", "have", "not",
+        "mot", "cac", "cua", "cho", "voi", "khi", "thi", "la", "va", "de", "duoc", "trong", "ngoai",
+        "neu", "sau", "truoc", "phai", "can", "nen", "hoi", "tra", "loi", "nguoi", "dung", "nhung",
+        "nao", "gi", "tai", "sao", "hay", "ve", "vao", "ra", "len", "xuong", "noi", "bo",
+    };
 
     public async Task<AskQuestionResponse> AskAsync(Guid userId, AskQuestionRequest request, CancellationToken cancellationToken = default)
     {
@@ -35,6 +45,7 @@ public sealed class AiQuestionService(
 
         await ValidateScopeAsync(userId, request, cancellationToken);
 
+        var queryUnderstanding = UnderstandQuery(question);
         var visibleFolderIds = await folderPermissionService.GetVisibleFolderIdsAsync(userId, cancellationToken);
         var stopwatch = Stopwatch.StartNew();
         var queryEmbedding = await embeddingService.CreateEmbeddingAsync(question, cancellationToken);
@@ -45,12 +56,7 @@ public sealed class AiQuestionService(
             cancellationToken);
         var chunks = await FilterAllowedChunksAsync(vectorResults, visibleFolderIds, request, cancellationToken);
 
-        chunks = chunks
-            .OrderByDescending(chunk => chunk.SourceType == KnowledgeSourceType.Correction)
-            .ThenByDescending(chunk => chunk.SourceType == KnowledgeSourceType.Wiki)
-            .ThenBy(chunk => chunk.Distance ?? double.MaxValue)
-            .Take(MaxContextChunks)
-            .ToList();
+        chunks = RerankAndPackContext(chunks, queryUnderstanding, request);
 
         var answerDraft = await answerGenerationService.GenerateAsync(question, chunks, cancellationToken);
         var citedSourceIdSet = answerDraft.CitedSourceIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -114,6 +120,17 @@ public sealed class AiQuestionService(
                 chunk.FolderPath,
                 chunk.SectionTitle,
                 ToExcerpt(chunk.Text))).ToList());
+    }
+
+    private static QueryUnderstanding UnderstandQuery(string question)
+    {
+        var keywords = TokenizeForSearch(question)
+            .Where(token => !StopWords.Contains(token))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(16)
+            .ToArray();
+
+        return new QueryUnderstanding(keywords, NormalizeForSearch(question));
     }
 
     private async Task ValidateScopeAsync(Guid userId, AskQuestionRequest request, CancellationToken cancellationToken)
@@ -263,6 +280,114 @@ public sealed class AiQuestionService(
             .ToList();
     }
 
+    private static List<RetrievedKnowledgeChunk> RerankAndPackContext(
+        IReadOnlyList<RetrievedKnowledgeChunk> chunks,
+        QueryUnderstanding queryUnderstanding,
+        AskQuestionRequest request)
+    {
+        var ranked = chunks
+            .Select((chunk, index) => new RankedKnowledgeChunk(
+                chunk,
+                index,
+                ScoreChunk(chunk, queryUnderstanding, request)))
+            .OrderByDescending(item => item.Score)
+            .ThenBy(item => item.OriginalIndex)
+            .Select(item => item.Chunk);
+
+        var packed = new List<RetrievedKnowledgeChunk>();
+        var seenSourceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var packedCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var chunk in ranked)
+        {
+            var exactSourceKey = GetExactSourceKey(chunk);
+            if (!seenSourceKeys.Add(exactSourceKey))
+            {
+                continue;
+            }
+
+            var packingKey = GetPackingKey(chunk);
+            packedCounts.TryGetValue(packingKey, out var currentCount);
+            if (currentCount >= MaxChunksPerKnowledgeItem)
+            {
+                continue;
+            }
+
+            packed.Add(chunk);
+            packedCounts[packingKey] = currentCount + 1;
+
+            if (packed.Count >= MaxContextChunks)
+            {
+                break;
+            }
+        }
+
+        return packed;
+    }
+
+    private static double ScoreChunk(
+        RetrievedKnowledgeChunk chunk,
+        QueryUnderstanding queryUnderstanding,
+        AskQuestionRequest request)
+    {
+        var normalizedText = NormalizeForSearch($"{chunk.Title} {chunk.SectionTitle} {chunk.Text}");
+        var matchedKeywords = queryUnderstanding.Keywords.Count(keyword => normalizedText.Contains(keyword, StringComparison.Ordinal));
+        var allKeywordsMatched = queryUnderstanding.Keywords.Length > 0 && matchedKeywords == queryUnderstanding.Keywords.Length;
+        var phraseMatch = !string.IsNullOrWhiteSpace(queryUnderstanding.NormalizedQuestion)
+            && normalizedText.Contains(queryUnderstanding.NormalizedQuestion, StringComparison.Ordinal);
+        var distanceScore = chunk.Distance is null
+            ? 0
+            : Math.Max(0, 1 - Math.Min(chunk.Distance.Value, 1));
+
+        return SourcePriority(chunk.SourceType)
+            + (matchedKeywords * 12)
+            + (allKeywordsMatched ? 20 : 0)
+            + (phraseMatch ? 18 : 0)
+            + ScopePriority(chunk, request)
+            + distanceScore;
+    }
+
+    private static int SourcePriority(KnowledgeSourceType sourceType)
+    {
+        return sourceType switch
+        {
+            KnowledgeSourceType.Correction => 100,
+            KnowledgeSourceType.Wiki => 45,
+            KnowledgeSourceType.Document => 20,
+            _ => 0,
+        };
+    }
+
+    private static int ScopePriority(RetrievedKnowledgeChunk chunk, AskQuestionRequest request)
+    {
+        return request.ScopeType switch
+        {
+            AiScopeType.Folder when chunk.FolderId == request.FolderId => 20,
+            AiScopeType.Document when chunk.DocumentId == request.DocumentId => 20,
+            _ => 0,
+        };
+    }
+
+    private static string GetExactSourceKey(RetrievedKnowledgeChunk chunk)
+    {
+        return $"{chunk.SourceType}:{chunk.SourceId}:{chunk.SectionIndex}:{NormalizeForSearch(chunk.SectionTitle ?? string.Empty)}";
+    }
+
+    private static string GetPackingKey(RetrievedKnowledgeChunk chunk)
+    {
+        if (chunk.DocumentId is not null)
+        {
+            return $"document:{chunk.DocumentId}";
+        }
+
+        if (chunk.WikiPageId is not null)
+        {
+            return $"wiki:{chunk.WikiPageId}";
+        }
+
+        return $"{chunk.SourceType}:{chunk.SourceId}";
+    }
+
     private static bool IsAllowedWikiChunk(
         RetrievedKnowledgeChunk chunk,
         IReadOnlyDictionary<Guid, WikiPageVisibility> visibleWikiPages,
@@ -388,6 +513,42 @@ public sealed class AiQuestionService(
         var normalized = string.Join(' ', text.Split([' ', '\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries));
         return normalized.Length <= 320 ? normalized : normalized[..320].TrimEnd() + "...";
     }
+
+    private static string[] TokenizeForSearch(string text)
+    {
+        return NormalizeForSearch(text)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(token => token.Length >= 2)
+            .ToArray();
+    }
+
+    private static string NormalizeForSearch(string text)
+    {
+        var normalized = text
+            .Replace('đ', 'd')
+            .Replace('Đ', 'D')
+            .Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+
+        foreach (var character in normalized)
+        {
+            var category = CharUnicodeInfo.GetUnicodeCategory(character);
+            if (category == UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            builder.Append(char.IsLetterOrDigit(character)
+                ? char.ToLowerInvariant(character)
+                : ' ');
+        }
+
+        return string.Join(' ', builder.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private sealed record QueryUnderstanding(string[] Keywords, string NormalizedQuestion);
+
+    private sealed record RankedKnowledgeChunk(RetrievedKnowledgeChunk Chunk, int OriginalIndex, double Score);
 
     private sealed record WikiPageVisibility(Guid Id, Guid SourceDocumentId, VisibilityScope VisibilityScope, Guid? FolderId);
 

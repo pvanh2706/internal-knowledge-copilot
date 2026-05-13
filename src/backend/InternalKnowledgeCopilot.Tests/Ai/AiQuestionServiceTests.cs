@@ -377,6 +377,86 @@ public sealed class AiQuestionServiceTests
         Assert.Contains("provider logs", response.Answer, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task AskAsync_ReranksExactKeywordMatchAheadOfCloserVectorDistance()
+    {
+        await using var dbContext = CreateDbContext();
+        var seed = await SeedVisibleKnowledgeAsync(dbContext, documentCount: 2);
+
+        var vectorStore = new FakeKnowledgeVectorStore([
+            CreateVectorResult(
+                "generic",
+                seed.FolderId,
+                seed.DocumentIds[0],
+                seed.VersionIds[0],
+                "Generic payment source",
+                "/Allowed",
+                "payment timeout can be retried later",
+                distance: 0.01),
+            CreateVectorResult(
+                "exact",
+                seed.FolderId,
+                seed.DocumentIds[1],
+                seed.VersionIds[1],
+                "Provider log source",
+                "/Allowed",
+                "payment timeout requires provider logs and chargeback ticket escalation",
+                distance: 0.95),
+        ]);
+        var service = new AiQuestionService(
+            dbContext,
+            new FolderPermissionService(dbContext),
+            new MockEmbeddingService(),
+            vectorStore,
+            new MockAnswerGenerationService());
+
+        var response = await service.AskAsync(seed.UserId, new AskQuestionRequest("provider logs chargeback", AiScopeType.All, null, null));
+
+        Assert.Equal("Provider log source", response.Citations[0].Title);
+        Assert.Contains("provider logs", response.Answer, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AskAsync_PacksAtMostEightChunksAndThreePerDocument()
+    {
+        await using var dbContext = CreateDbContext();
+        var seed = await SeedVisibleKnowledgeAsync(dbContext, documentCount: 3);
+        var vectorResults = new List<KnowledgeVectorSearchResult>();
+
+        for (var documentIndex = 0; documentIndex < seed.DocumentIds.Length; documentIndex++)
+        {
+            for (var sectionIndex = 1; sectionIndex <= 4; sectionIndex++)
+            {
+                vectorResults.Add(CreateVectorResult(
+                    $"doc-{documentIndex}-section-{sectionIndex}",
+                    seed.FolderId,
+                    seed.DocumentIds[documentIndex],
+                    seed.VersionIds[documentIndex],
+                    $"Audit source {documentIndex}",
+                    "/Allowed",
+                    $"payment audit evidence document {documentIndex} section {sectionIndex}",
+                    distance: 0.1 + (documentIndex * 0.01) + (sectionIndex * 0.001),
+                    sectionIndex: sectionIndex));
+            }
+        }
+
+        var answerService = new CapturingAnswerGenerationService();
+        var service = new AiQuestionService(
+            dbContext,
+            new FolderPermissionService(dbContext),
+            new MockEmbeddingService(),
+            new FakeKnowledgeVectorStore(vectorResults),
+            answerService);
+
+        await service.AskAsync(seed.UserId, new AskQuestionRequest("payment audit evidence", AiScopeType.All, null, null));
+
+        Assert.NotNull(answerService.CapturedChunks);
+        Assert.Equal(8, answerService.CapturedChunks.Count);
+        Assert.All(
+            answerService.CapturedChunks.GroupBy(chunk => chunk.DocumentId),
+            group => Assert.True(group.Count() <= 3));
+    }
+
     private static DocumentVersionEntity CreateIndexedVersion(Guid id, Guid documentId, Guid userId, DateTimeOffset now)
     {
         return new DocumentVersionEntity
@@ -395,7 +475,77 @@ public sealed class AiQuestionServiceTests
         };
     }
 
-    private static KnowledgeVectorSearchResult CreateVectorResult(string id, Guid folderId, Guid documentId, Guid versionId, string title, string folderPath, string text)
+    private static async Task<VisibleKnowledgeSeed> SeedVisibleKnowledgeAsync(AppDbContext dbContext, int documentCount)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var teamId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        var documentIds = Enumerable.Range(0, documentCount).Select(_ => Guid.NewGuid()).ToArray();
+        var versionIds = Enumerable.Range(0, documentCount).Select(_ => Guid.NewGuid()).ToArray();
+
+        dbContext.Teams.Add(new TeamEntity { Id = teamId, Name = $"Team {teamId:N}", CreatedAt = now, UpdatedAt = now });
+        dbContext.Users.Add(new UserEntity
+        {
+            Id = userId,
+            Email = $"{userId:N}@example.local",
+            DisplayName = "User",
+            PasswordHash = "hash",
+            Role = UserRole.User,
+            PrimaryTeamId = teamId,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.Folders.Add(new FolderEntity
+        {
+            Id = folderId,
+            Name = "Allowed",
+            Path = $"/Allowed-{folderId:N}",
+            CreatedByUserId = userId,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.FolderPermissions.Add(new FolderPermissionEntity
+        {
+            Id = Guid.NewGuid(),
+            FolderId = folderId,
+            TeamId = teamId,
+            CanView = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+
+        for (var index = 0; index < documentCount; index++)
+        {
+            dbContext.Documents.Add(new DocumentEntity
+            {
+                Id = documentIds[index],
+                FolderId = folderId,
+                Title = $"Knowledge source {index}",
+                Status = DocumentStatus.Approved,
+                CurrentVersionId = versionIds[index],
+                CreatedByUserId = userId,
+                CreatedAt = now,
+                UpdatedAt = now,
+            });
+            dbContext.DocumentVersions.Add(CreateIndexedVersion(versionIds[index], documentIds[index], userId, now));
+        }
+
+        await dbContext.SaveChangesAsync();
+        return new VisibleKnowledgeSeed(userId, folderId, documentIds, versionIds);
+    }
+
+    private static KnowledgeVectorSearchResult CreateVectorResult(
+        string id,
+        Guid folderId,
+        Guid documentId,
+        Guid versionId,
+        string title,
+        string folderPath,
+        string text,
+        double distance = 0.1,
+        int sectionIndex = 1)
     {
         return new KnowledgeVectorSearchResult(
             id,
@@ -410,9 +560,9 @@ public sealed class AiQuestionServiceTests
                 ["title"] = title,
                 ["folder_path"] = folderPath,
                 ["section_title"] = "Troubleshooting",
-                ["section_index"] = 1,
+                ["section_index"] = sectionIndex,
             },
-            0.1);
+            distance);
     }
 
     private static KnowledgeVectorSearchResult CreateWikiVectorResult(Guid wikiPageId, Guid folderId, Guid documentId, string title, string folderPath, string text)
@@ -495,4 +645,24 @@ public sealed class AiQuestionServiceTests
             return Task.FromResult(draft);
         }
     }
+
+    private sealed class CapturingAnswerGenerationService : IAnswerGenerationService
+    {
+        public IReadOnlyList<RetrievedKnowledgeChunk> CapturedChunks { get; private set; } = [];
+
+        public Task<AiAnswerDraft> GenerateAsync(string question, IReadOnlyList<RetrievedKnowledgeChunk> chunks, CancellationToken cancellationToken = default)
+        {
+            CapturedChunks = chunks.ToList();
+            return Task.FromResult(new AiAnswerDraft(
+                "Captured chunks.",
+                false,
+                "high",
+                [],
+                [],
+                [],
+                chunks.Select(chunk => chunk.SourceId).ToArray()));
+        }
+    }
+
+    private sealed record VisibleKnowledgeSeed(Guid UserId, Guid FolderId, Guid[] DocumentIds, Guid[] VersionIds);
 }

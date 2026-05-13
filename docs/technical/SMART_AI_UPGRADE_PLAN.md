@@ -52,7 +52,13 @@ Cap nhat: 2026-05-13
   - Backend co API chay eval all active cases hoac mot case rieng.
   - Eval run goi lai `AiQuestionService`, luu answer that, pass/fail, score va failure reason.
   - Dashboard hien eval case active va pass rate cua run moi nhat.
-- Cac hang muc sau Phase 7: Pending.
+- Phase 8 `Hybrid retrieval va rule reranking`: Done.
+  - Da them query understanding rule-based de rut keyword tieng Viet/English tu cau hoi.
+  - Tang candidate vector search len 50 truoc khi rerank.
+  - Da them rule reranker boost correction/wiki/document, exact keyword, phrase match, scope match va distance.
+  - Da them context packing toi da 8 chunks, moi knowledge item toi da 3 chunks, va bo trung chunk.
+  - Test da chung minh exact keyword match co the vuot chunk gan vector hon, va context khong vuot gioi han packing.
+- Cac hang muc sau Phase 8: Pending.
 
 ## 1. Muc tieu
 
@@ -1258,6 +1264,34 @@ Da trien khai:
 - Dashboard summary co KPI `evaluationCaseCount`, latest eval pass count/pass rate/run time.
 - UI Feedback co form tao eval case; UI Evaluation co nut chay all active cases hoac tung case.
 - Test unit chung minh case pass khi answer co expected keywords va fail khi thieu keyword.
+
+### Phase 8: Hybrid retrieval va rule reranking
+
+Muc tieu:
+
+- Cai thien chat luong context truoc khi dua vao answer generation.
+- Giam truong hop vector distance gan hon nhung thieu keyword/entity quan trong.
+
+Cong viec:
+
+- Them query understanding rule-based.
+- Rerank candidate chunks bang source priority, exact keyword match, phrase match, scope match va distance.
+- Context packing de tranh dua qua nhieu chunk trung lap tu cung mot tai lieu.
+
+Acceptance:
+
+- Chunk match keyword/entity quan trong duoc uu tien hon chunk vector gan nhung lech noi dung.
+- Context dua vao LLM khong qua 8 chunks.
+- Moi document/wiki/correction khong chiem qua 3 chunks trong mot prompt.
+
+Da trien khai:
+
+- `AiQuestionService` rut keyword sau khi normalize dau tieng Viet va bo stop words.
+- Candidate search limit tang tu 30 len 50 de co them ung vien cho rerank.
+- Rerank score gom source boost: correction > wiki > document, keyword/phrase boost, scope boost va distance score.
+- Context packing bo trung source/section va gioi han toi da 8 chunks, toi da 3 chunks moi knowledge item.
+- Test `AskAsync_ReranksExactKeywordMatchAheadOfCloserVectorDistance` chung minh exact keyword duoc uu tien.
+- Test `AskAsync_PacksAtMostEightChunksAndThreePerDocument` chung minh context packing dung gioi han.
 
 ## 17. Thu tu uu tien neu thoi gian ngan
 
