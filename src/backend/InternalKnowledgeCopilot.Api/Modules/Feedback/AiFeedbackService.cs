@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +35,7 @@ public sealed class AiFeedbackService(
     IAuditLogService auditLogService,
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore,
+    IKnowledgeChunkLedgerService chunkLedgerService,
     IKnowledgeKeywordIndexService keywordIndexService) : IAiFeedbackService
 {
     public async Task<FeedbackResponse> SubmitAsync(Guid interactionId, Guid userId, SubmitFeedbackRequest request, CancellationToken cancellationToken = default)
@@ -447,11 +449,15 @@ public sealed class AiFeedbackService(
                     ["folder_path"] = folderPath,
                     ["status"] = "approved",
                     ["visibility_scope"] = correction.VisibilityScope == VisibilityScope.Company ? "company" : "folder",
+                    ["chunk_index"] = 0,
+                    ["section_title"] = "Approved correction",
+                    ["section_index"] = 0,
                     ["created_at"] = DateTimeOffset.UtcNow.ToString("O"),
                 }),
         };
 
         await vectorStore.UpsertChunksAsync(chunks, cancellationToken);
+        await chunkLedgerService.ReplaceChunksAsync(KnowledgeSourceType.Correction, correction.Id.ToString(), chunks, cancellationToken);
         await keywordIndexService.ReplaceChunksAsync(KnowledgeSourceType.Correction, correction.Id.ToString(), chunks, cancellationToken);
     }
 

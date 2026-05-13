@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
+using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
@@ -33,6 +34,7 @@ public sealed class WikiService(
     ISectionDetector sectionDetector,
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore,
+    IKnowledgeChunkLedgerService chunkLedgerService,
     IKnowledgeKeywordIndexService keywordIndexService,
     IAuditLogService auditLogService) : IWikiService
 {
@@ -279,6 +281,7 @@ public sealed class WikiService(
                     ["folder_path"] = folderPath,
                     ["status"] = "published",
                     ["visibility_scope"] = page.VisibilityScope == VisibilityScope.Company ? "company" : "folder",
+                    ["chunk_index"] = chunk.Index,
                     ["section_title"] = chunk.SectionTitle ?? string.Empty,
                     ["section_index"] = chunk.SectionIndex ?? -1,
                     ["char_start"] = chunk.StartOffset ?? 0,
@@ -290,6 +293,7 @@ public sealed class WikiService(
         }
 
         await vectorStore.UpsertChunksAsync(vectorChunks, cancellationToken);
+        await chunkLedgerService.ReplaceChunksAsync(KnowledgeSourceType.Wiki, page.Id.ToString(), vectorChunks, cancellationToken);
         await keywordIndexService.ReplaceChunksAsync(KnowledgeSourceType.Wiki, page.Id.ToString(), vectorChunks, cancellationToken);
     }
 

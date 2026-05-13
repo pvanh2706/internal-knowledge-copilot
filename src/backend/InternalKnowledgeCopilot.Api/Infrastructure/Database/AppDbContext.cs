@@ -33,6 +33,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<RetrievalHintEntity> RetrievalHints => Set<RetrievalHintEntity>();
 
+    public DbSet<KnowledgeChunkEntity> KnowledgeChunks => Set<KnowledgeChunkEntity>();
+
     public DbSet<KnowledgeChunkIndexEntity> KnowledgeChunkIndexes => Set<KnowledgeChunkIndexEntity>();
 
     public DbSet<EvaluationCaseEntity> EvaluationCases => Set<EvaluationCaseEntity>();
@@ -406,6 +408,39 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(hint => hint.CorrectionId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<KnowledgeChunkEntity>(entity =>
+        {
+            entity.ToTable("knowledge_chunks");
+            entity.HasKey(chunk => chunk.ChunkId);
+            entity.Property(chunk => chunk.ChunkId).HasColumnName("chunk_id").HasMaxLength(200);
+            entity.Property(chunk => chunk.SourceType).HasColumnName("source_type").HasConversion<string>().HasMaxLength(50);
+            entity.Property(chunk => chunk.SourceId).HasColumnName("source_id").HasMaxLength(100).IsRequired();
+            entity.Property(chunk => chunk.DocumentId).HasColumnName("document_id");
+            entity.Property(chunk => chunk.DocumentVersionId).HasColumnName("document_version_id");
+            entity.Property(chunk => chunk.WikiPageId).HasColumnName("wiki_page_id");
+            entity.Property(chunk => chunk.CorrectionId).HasColumnName("correction_id");
+            entity.Property(chunk => chunk.FolderId).HasColumnName("folder_id");
+            entity.Property(chunk => chunk.VisibilityScope).HasColumnName("visibility_scope").HasMaxLength(50).IsRequired();
+            entity.Property(chunk => chunk.Status).HasColumnName("status").HasMaxLength(50).IsRequired();
+            entity.Property(chunk => chunk.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
+            entity.Property(chunk => chunk.FolderPath).HasColumnName("folder_path").HasMaxLength(1000).IsRequired();
+            entity.Property(chunk => chunk.SectionTitle).HasColumnName("section_title").HasMaxLength(300);
+            entity.Property(chunk => chunk.SectionIndex).HasColumnName("section_index");
+            entity.Property(chunk => chunk.ChunkIndex).HasColumnName("chunk_index");
+            entity.Property(chunk => chunk.Text).HasColumnName("text").IsRequired();
+            entity.Property(chunk => chunk.TextHash).HasColumnName("text_hash").HasMaxLength(200).IsRequired();
+            entity.Property(chunk => chunk.VectorId).HasColumnName("vector_id").HasMaxLength(200).IsRequired();
+            entity.Property(chunk => chunk.MetadataJson).HasColumnName("metadata_json").IsRequired();
+            entity.Property(chunk => chunk.CreatedAt).HasColumnName("created_at");
+            entity.Property(chunk => chunk.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(chunk => new { chunk.SourceType, chunk.SourceId });
+            entity.HasIndex(chunk => new { chunk.SourceType, chunk.Status });
+            entity.HasIndex(chunk => chunk.FolderId);
+            entity.HasIndex(chunk => chunk.DocumentId);
+            entity.HasIndex(chunk => chunk.DocumentVersionId);
+            entity.HasIndex(chunk => chunk.TextHash);
         });
 
         modelBuilder.Entity<KnowledgeChunkIndexEntity>(entity =>

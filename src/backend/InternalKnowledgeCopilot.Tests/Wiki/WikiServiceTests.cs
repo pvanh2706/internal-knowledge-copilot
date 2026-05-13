@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
+using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
@@ -93,6 +94,7 @@ public sealed class WikiServiceTests
         Assert.Equal(1, await dbContext.WikiPages.CountAsync());
         Assert.NotEmpty(vectorStore.UpsertedChunks);
         Assert.Equal("wiki", vectorStore.UpsertedChunks[0].Metadata["source_type"]);
+        Assert.True(await dbContext.KnowledgeChunks.AnyAsync(chunk => chunk.SourceType == KnowledgeSourceType.Wiki));
         Assert.True(await dbContext.KnowledgeChunkIndexes.AnyAsync(chunk => chunk.SourceType == KnowledgeSourceType.Wiki));
     }
 
@@ -106,6 +108,7 @@ public sealed class WikiServiceTests
             new SectionDetector(),
             new MockEmbeddingService(),
             vectorStore,
+            new KnowledgeChunkLedgerService(dbContext),
             new KnowledgeKeywordIndexService(dbContext),
             new NoopAuditLogService());
     }

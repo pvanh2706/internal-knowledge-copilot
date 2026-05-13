@@ -3,6 +3,7 @@ using System.Text.Json;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
+using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,7 @@ public sealed class DocumentProcessingService(
     IEmbeddingService embeddingService,
     IDocumentUnderstandingService documentUnderstandingService,
     IKnowledgeVectorStore vectorStore,
+    IKnowledgeChunkLedgerService chunkLedgerService,
     IKnowledgeKeywordIndexService keywordIndexService) : IDocumentProcessingService
 {
     public async Task ProcessDocumentVersionAsync(Guid documentVersionId, CancellationToken cancellationToken = default)
@@ -80,6 +82,7 @@ public sealed class DocumentProcessingService(
                     ["version_number"] = version.VersionNumber,
                     ["status"] = "approved",
                     ["visibility_scope"] = "folder",
+                    ["chunk_index"] = chunk.Index,
                     ["section_title"] = chunk.SectionTitle ?? string.Empty,
                     ["section_index"] = chunk.SectionIndex ?? -1,
                     ["char_start"] = chunk.StartOffset ?? 0,
@@ -95,6 +98,7 @@ public sealed class DocumentProcessingService(
         }
 
         await vectorStore.UpsertChunksAsync(vectorChunks, cancellationToken);
+        await chunkLedgerService.ReplaceChunksAsync(KnowledgeSourceType.Document, version.Id.ToString(), vectorChunks, cancellationToken);
         await keywordIndexService.ReplaceChunksAsync(KnowledgeSourceType.Document, version.Id.ToString(), vectorChunks, cancellationToken);
 
         version.ExtractedTextPath = extractedTextPath;

@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
+using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
@@ -80,6 +81,7 @@ else
     builder.Services.AddScoped<IDocumentUnderstandingService, OpenAiCompatibleDocumentUnderstandingService>();
 }
 builder.Services.AddScoped<IDocumentProcessingService, DocumentProcessingService>();
+builder.Services.AddScoped<IKnowledgeChunkLedgerService, KnowledgeChunkLedgerService>();
 builder.Services.AddScoped<IKnowledgeKeywordIndexService, KnowledgeKeywordIndexService>();
 builder.Services.AddScoped<IAiQuestionService, AiQuestionService>();
 builder.Services.AddScoped<IAiFeedbackService, AiFeedbackService>();

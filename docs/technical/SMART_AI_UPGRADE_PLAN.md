@@ -76,7 +76,12 @@ Cap nhat: 2026-05-13
   - Response tra query understanding, permission filter, candidate stats, candidate decision va final context.
   - UI reviewer co trang Retrieval de xem vector/keyword candidates, score, matched keywords va ly do bi loai/chon.
   - Test da chung minh explain tra diagnostics va khong tao `ai_interactions`.
-- Cac hang muc sau Phase 11: Pending.
+- Phase 12 `Knowledge chunk ledger`: Done.
+  - Da them bang SQLite `knowledge_chunks` de luu ledger chunk day du cho debug/rebuild vector DB.
+  - Document indexing, wiki publish va correction approve deu ghi ledger song song voi Chroma va keyword index.
+  - Ledger luu source metadata, text, text hash, vector id, chunk/section index va metadata JSON.
+  - Test da chung minh ledger replace stale chunks, luu metadata va duoc ghi khi publish wiki/approve correction.
+- Cac hang muc sau Phase 12: Pending.
 
 ## 1. Muc tieu
 
@@ -1402,6 +1407,39 @@ Da trien khai:
 - `AiController` them endpoint `retrieval/explain` voi role Admin/Reviewer.
 - Frontend them `explainRetrieval`, page `RetrievalExplainPage.vue`, route va nav item `Retrieval`.
 - Test `ExplainRetrievalAsync_ReturnsDiagnosticsWithoutSavingInteraction` cover diagnostics va khong luu interaction.
+
+### Phase 12: Knowledge chunk ledger
+
+Muc tieu:
+
+- Luu day du chunk da index vao SQLite de co ledger debug/rebuild, khong chi phu thuoc vao Chroma va keyword index.
+- Giu SQLite la source truth cho text/metadata chunk; vector DB chi giu embedding index.
+- Tao nen tang cho phase sau: rebuild vector collection, compare drift giua SQLite va Chroma, audit chunk theo source.
+
+Cong viec:
+
+- Them entity/table `knowledge_chunks`.
+- Them `IKnowledgeChunkLedgerService` voi `ReplaceChunksAsync` va `GetChunksForSourceAsync`.
+- Tich hop ledger vao document indexing, wiki publish va correction approve.
+- Them `chunk_index` vao metadata document/wiki/correction.
+- Tao migration SQLite.
+- Them unit test cho ledger va integration test voi wiki/correction.
+
+Acceptance:
+
+- Moi lan index lai cung source thi stale chunks trong ledger bi replace.
+- Ledger luu du source type/source id/document/wiki/correction/folder/status/visibility/text/hash/vector id/metadata JSON.
+- Wiki publish va correction approve tao dong trong `knowledge_chunks` song song voi `knowledge_chunk_indexes`.
+- Test offline pass khong can Chroma/API key.
+
+Da trien khai:
+
+- Them `KnowledgeChunkEntity` mapped vao bang `knowledge_chunks`.
+- Them migration `AddKnowledgeChunksLedger`.
+- `KnowledgeChunkLedgerService` luu chunk text, metadata JSON va SHA-256 text hash; co snapshot API noi bo cho rebuild.
+- `DocumentProcessingService`, `WikiService`, `AiFeedbackService` goi ledger khi upsert chunks.
+- Test `KnowledgeChunkLedgerServiceTests` cover replace/stale chunk va metadata snapshot.
+- Test wiki/correction verify ledger rows duoc tao khi publish/approve.
 
 ## 17. Thu tu uu tien neu thoi gian ngan
 
