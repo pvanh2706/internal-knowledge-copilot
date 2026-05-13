@@ -39,7 +39,14 @@ Cap nhat: 2026-05-12
   - Backend tim related documents bang vector search co permission filter.
   - UI wiki draft hien related documents va missing information cho reviewer.
   - Khi publish, wiki chunks co them related/missing metadata count.
-- Phase 6 tro di: Pending.
+- Phase 6 `Feedback improvement loop`: Done.
+  - Feedback Incorrect tao `AI Quality Issue` va job `ClassifyAiFailure`.
+  - Worker phan loai failure rule-based va de xuat action.
+  - Them `knowledge_corrections` va `retrieval_hints`.
+  - Reviewer tao correction draft, approve correction va index vao vector store.
+  - Retrieval include `correction` source type va uu tien correction truoc wiki/document.
+  - UI Feedback Review hien quality issue va correction actions.
+- Phase 7 tro di: Pending.
 
 ## 1. Muc tieu
 
@@ -1187,7 +1194,7 @@ Da trien khai:
 - UI Wiki drafts hien related documents kem reason va missing information.
 - Publish wiki index them `related_document_count` va `missing_information_count` vao vector metadata.
 
-### Phase 6: Feedback improvement loop
+### Phase 6: Feedback improvement loop - Done 2026-05-13
 
 Muc tieu:
 
@@ -1206,6 +1213,17 @@ Acceptance:
 - User feedback sai tao issue.
 - Reviewer approve correction.
 - Lan hoi sau dung correction.
+
+Da trien khai:
+
+- Them enum `AiQualityIssueStatus`, `KnowledgeCorrectionStatus`, source type `Correction`.
+- Them tables `ai_quality_issues`, `knowledge_corrections`, `retrieval_hints`.
+- Khi user submit feedback `Incorrect`, backend tao quality issue va pending job `ClassifyAiFailure`.
+- `ProcessingJobWorker` xu ly job `ClassifyAiFailure`, phan loai failure rule-based, luu severity/root cause/recommended actions/evidence.
+- Reviewer co API/UI xem quality issues, tao correction draft, approve/reject correction.
+- Approve correction se index correction vao vector store voi metadata `source_type=correction`, `status=approved`, permission scope va audit log.
+- `AiQuestionService` query include correction, revalidate correction bang SQLite, va uu tien correction truoc wiki/document.
+- Test da chung minh answer lan sau uu tien approved correction chunk.
 
 ### Phase 7: Evaluation
 

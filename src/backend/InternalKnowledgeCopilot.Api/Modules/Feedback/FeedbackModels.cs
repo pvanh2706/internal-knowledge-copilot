@@ -6,6 +6,14 @@ public sealed record SubmitFeedbackRequest(AiFeedbackValue Value, string? Note);
 
 public sealed record UpdateFeedbackReviewStatusRequest(FeedbackReviewStatus Status, string? ReviewerNote);
 
+public sealed record CreateCorrectionRequest(
+    string CorrectionText,
+    VisibilityScope VisibilityScope,
+    Guid? FolderId,
+    bool IsCompanyPublicConfirmed);
+
+public sealed record RejectCorrectionRequest(string Reason);
+
 public sealed record FeedbackResponse(
     Guid Id,
     Guid AiInteractionId,
@@ -36,3 +44,33 @@ public sealed record FeedbackSourceResponse(
     string? SectionTitle,
     string Excerpt,
     int Rank);
+
+public sealed record QualityIssueResponse(
+    Guid Id,
+    Guid FeedbackId,
+    Guid AiInteractionId,
+    string Question,
+    string Answer,
+    string? UserNote,
+    AiQualityIssueStatus Status,
+    string? FailureType,
+    string? Severity,
+    string? RootCauseHypothesis,
+    IReadOnlyList<string> RecommendedActions,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<KnowledgeCorrectionResponse> Corrections);
+
+public sealed record KnowledgeCorrectionResponse(
+    Guid Id,
+    Guid QualityIssueId,
+    string Question,
+    string CorrectionText,
+    VisibilityScope VisibilityScope,
+    Guid? FolderId,
+    Guid? DocumentId,
+    KnowledgeCorrectionStatus Status,
+    string? RejectReason,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? ApprovedAt);

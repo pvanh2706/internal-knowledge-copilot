@@ -27,6 +27,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<AiFeedbackEntity> AiFeedback => Set<AiFeedbackEntity>();
 
+    public DbSet<AiQualityIssueEntity> AiQualityIssues => Set<AiQualityIssueEntity>();
+
+    public DbSet<KnowledgeCorrectionEntity> KnowledgeCorrections => Set<KnowledgeCorrectionEntity>();
+
+    public DbSet<RetrievalHintEntity> RetrievalHints => Set<RetrievalHintEntity>();
+
     public DbSet<WikiDraftEntity> WikiDrafts => Set<WikiDraftEntity>();
 
     public DbSet<WikiPageEntity> WikiPages => Set<WikiPageEntity>();
@@ -291,6 +297,100 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(feedback => feedback.ReviewedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AiQualityIssueEntity>(entity =>
+        {
+            entity.ToTable("ai_quality_issues");
+            entity.HasKey(issue => issue.Id);
+            entity.Property(issue => issue.AiFeedbackId).HasColumnName("ai_feedback_id");
+            entity.Property(issue => issue.AiInteractionId).HasColumnName("ai_interaction_id");
+            entity.Property(issue => issue.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(issue => issue.FailureType).HasColumnName("failure_type").HasMaxLength(100);
+            entity.Property(issue => issue.Severity).HasColumnName("severity").HasMaxLength(50);
+            entity.Property(issue => issue.RootCauseHypothesis).HasColumnName("root_cause_hypothesis").HasMaxLength(2000);
+            entity.Property(issue => issue.RecommendedActionsJson).HasColumnName("recommended_actions_json");
+            entity.Property(issue => issue.EvidenceJson).HasColumnName("evidence_json");
+            entity.Property(issue => issue.CreatedAt).HasColumnName("created_at");
+            entity.Property(issue => issue.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(issue => issue.ClassifiedAt).HasColumnName("classified_at");
+            entity.Property(issue => issue.ResolvedAt).HasColumnName("resolved_at");
+            entity.HasIndex(issue => issue.AiFeedbackId).IsUnique();
+            entity.HasIndex(issue => new { issue.Status, issue.CreatedAt });
+            entity.HasOne(issue => issue.AiFeedback)
+                .WithMany()
+                .HasForeignKey(issue => issue.AiFeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(issue => issue.AiInteraction)
+                .WithMany()
+                .HasForeignKey(issue => issue.AiInteractionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<KnowledgeCorrectionEntity>(entity =>
+        {
+            entity.ToTable("knowledge_corrections");
+            entity.HasKey(correction => correction.Id);
+            entity.Property(correction => correction.QualityIssueId).HasColumnName("quality_issue_id");
+            entity.Property(correction => correction.AiFeedbackId).HasColumnName("ai_feedback_id");
+            entity.Property(correction => correction.AiInteractionId).HasColumnName("ai_interaction_id");
+            entity.Property(correction => correction.Question).HasColumnName("question").HasMaxLength(4000).IsRequired();
+            entity.Property(correction => correction.CorrectionText).HasColumnName("correction_text").IsRequired();
+            entity.Property(correction => correction.VisibilityScope).HasColumnName("visibility_scope").HasConversion<string>().HasMaxLength(50);
+            entity.Property(correction => correction.FolderId).HasColumnName("folder_id");
+            entity.Property(correction => correction.DocumentId).HasColumnName("document_id");
+            entity.Property(correction => correction.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(correction => correction.RejectReason).HasColumnName("reject_reason").HasMaxLength(2000);
+            entity.Property(correction => correction.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(correction => correction.ApprovedByUserId).HasColumnName("approved_by_user_id");
+            entity.Property(correction => correction.CreatedAt).HasColumnName("created_at");
+            entity.Property(correction => correction.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(correction => correction.ApprovedAt).HasColumnName("approved_at");
+            entity.Property(correction => correction.IndexedAt).HasColumnName("indexed_at");
+            entity.HasIndex(correction => correction.QualityIssueId);
+            entity.HasIndex(correction => new { correction.Status, correction.CreatedAt });
+            entity.HasOne(correction => correction.QualityIssue)
+                .WithMany()
+                .HasForeignKey(correction => correction.QualityIssueId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(correction => correction.AiFeedback)
+                .WithMany()
+                .HasForeignKey(correction => correction.AiFeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(correction => correction.AiInteraction)
+                .WithMany()
+                .HasForeignKey(correction => correction.AiInteractionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(correction => correction.Folder)
+                .WithMany()
+                .HasForeignKey(correction => correction.FolderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(correction => correction.Document)
+                .WithMany()
+                .HasForeignKey(correction => correction.DocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(correction => correction.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(correction => correction.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(correction => correction.ApprovedByUser)
+                .WithMany()
+                .HasForeignKey(correction => correction.ApprovedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<RetrievalHintEntity>(entity =>
+        {
+            entity.ToTable("retrieval_hints");
+            entity.HasKey(hint => hint.Id);
+            entity.Property(hint => hint.CorrectionId).HasColumnName("correction_id");
+            entity.Property(hint => hint.HintText).HasColumnName("hint_text").HasMaxLength(1000).IsRequired();
+            entity.Property(hint => hint.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(hint => hint.CorrectionId);
+            entity.HasOne(hint => hint.Correction)
+                .WithMany()
+                .HasForeignKey(hint => hint.CorrectionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<WikiDraftEntity>(entity =>

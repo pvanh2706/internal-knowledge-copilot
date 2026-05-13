@@ -46,7 +46,8 @@ public sealed class AiQuestionService(
         var chunks = await FilterAllowedChunksAsync(vectorResults, visibleFolderIds, request, cancellationToken);
 
         chunks = chunks
-            .OrderByDescending(chunk => chunk.SourceType == KnowledgeSourceType.Wiki)
+            .OrderByDescending(chunk => chunk.SourceType == KnowledgeSourceType.Correction)
+            .ThenByDescending(chunk => chunk.SourceType == KnowledgeSourceType.Wiki)
             .ThenBy(chunk => chunk.Distance ?? double.MaxValue)
             .Take(MaxContextChunks)
             .ToList();
@@ -155,7 +156,7 @@ public sealed class AiQuestionService(
 
     private static KnowledgeQueryFilter BuildKnowledgeQueryFilter(IReadOnlySet<Guid> visibleFolderIds, AskQuestionRequest request)
     {
-        var sourceTypes = new[] { "document", "wiki" };
+        var sourceTypes = new[] { "correction", "document", "wiki" };
         var statuses = new[] { "approved", "published" };
 
         return request.ScopeType switch
@@ -207,6 +208,12 @@ public sealed class AiQuestionService(
             .Where(chunk => chunk.SourceType == KnowledgeSourceType.Wiki && chunk.WikiPageId is not null)
             .Select(chunk => chunk.WikiPageId!.Value)
             .ToHashSet();
+        var correctionIds = candidates
+            .Where(chunk => chunk.SourceType == KnowledgeSourceType.Correction)
+            .Select(chunk => Guid.TryParse(chunk.SourceId, out var correctionId) ? correctionId : (Guid?)null)
+            .Where(correctionId => correctionId is not null)
+            .Select(correctionId => correctionId!.Value)
+            .ToHashSet();
 
         var currentIndexedVersionIds = await dbContext.DocumentVersions
             .AsNoTracking()
@@ -233,10 +240,22 @@ public sealed class AiQuestionService(
                 ))
             .Select(page => new WikiPageVisibility(page.Id, page.SourceDocumentId, page.VisibilityScope, page.FolderId))
             .ToDictionaryAsync(page => page.Id, cancellationToken);
+        var visibleCorrections = await dbContext.KnowledgeCorrections
+            .AsNoTracking()
+            .Where(correction =>
+                correctionIds.Contains(correction.Id) &&
+                correction.Status == KnowledgeCorrectionStatus.Approved &&
+                (
+                    (correction.VisibilityScope == VisibilityScope.Company) ||
+                    (correction.VisibilityScope == VisibilityScope.Folder && correction.FolderId != null && visibleFolderIds.Contains(correction.FolderId.Value))
+                ))
+            .Select(correction => new CorrectionVisibility(correction.Id, correction.VisibilityScope, correction.FolderId, correction.DocumentId))
+            .ToDictionaryAsync(correction => correction.Id, cancellationToken);
 
         return candidates
             .Where(chunk => chunk.SourceType switch
             {
+                KnowledgeSourceType.Correction => IsAllowedCorrectionChunk(chunk, visibleCorrections, request),
                 KnowledgeSourceType.Wiki => IsAllowedWikiChunk(chunk, visibleWikiPages, request),
                 KnowledgeSourceType.Document => chunk.DocumentVersionId is not null && currentVersionIdSet.Contains(chunk.DocumentVersionId.Value),
                 _ => false,
@@ -265,6 +284,30 @@ public sealed class AiQuestionService(
         }
 
         if (page.VisibilityScope == VisibilityScope.Folder && chunk.FolderId != page.FolderId)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsAllowedCorrectionChunk(
+        RetrievedKnowledgeChunk chunk,
+        IReadOnlyDictionary<Guid, CorrectionVisibility> visibleCorrections,
+        AskQuestionRequest request)
+    {
+        if (!Guid.TryParse(chunk.SourceId, out var correctionId)
+            || !visibleCorrections.TryGetValue(correctionId, out var correction))
+        {
+            return false;
+        }
+
+        if (request.ScopeType == AiScopeType.Folder && correction.FolderId != request.FolderId)
+        {
+            return false;
+        }
+
+        if (request.ScopeType == AiScopeType.Document && correction.DocumentId != request.DocumentId)
         {
             return false;
         }
@@ -315,7 +358,7 @@ public sealed class AiQuestionService(
 
     private static bool IsVisibleByFolder(RetrievedKnowledgeChunk chunk, IReadOnlySet<Guid> visibleFolderIds)
     {
-        if (chunk.SourceType == KnowledgeSourceType.Wiki && string.Equals(chunk.VisibilityScope, "company", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(chunk.VisibilityScope, "company", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -347,4 +390,6 @@ public sealed class AiQuestionService(
     }
 
     private sealed record WikiPageVisibility(Guid Id, Guid SourceDocumentId, VisibilityScope VisibilityScope, Guid? FolderId);
+
+    private sealed record CorrectionVisibility(Guid Id, VisibilityScope VisibilityScope, Guid? FolderId, Guid? DocumentId);
 }

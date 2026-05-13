@@ -1,7 +1,7 @@
 import { apiRequest } from './http'
 
 export type AiScopeType = 'All' | 'Folder' | 'Document'
-export type KnowledgeSourceType = 'Document' | 'Wiki'
+export type KnowledgeSourceType = 'Document' | 'Wiki' | 'Correction'
 export type AiConfidence = 'high' | 'medium' | 'low'
 
 export interface AskQuestionPayload {

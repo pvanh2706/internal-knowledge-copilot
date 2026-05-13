@@ -260,6 +260,123 @@ public sealed class AiQuestionServiceTests
         Assert.Equal(1, await dbContext.AiInteractionSources.CountAsync());
     }
 
+    [Fact]
+    public async Task AskAsync_PrioritizesApprovedCorrectionChunks()
+    {
+        await using var dbContext = CreateDbContext();
+        var now = DateTimeOffset.UtcNow;
+        var teamId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var correctionId = Guid.NewGuid();
+        var feedbackId = Guid.NewGuid();
+        var interactionId = Guid.NewGuid();
+        var issueId = Guid.NewGuid();
+
+        dbContext.Teams.Add(new TeamEntity { Id = teamId, Name = "Team", CreatedAt = now, UpdatedAt = now });
+        dbContext.Users.Add(new UserEntity
+        {
+            Id = userId,
+            Email = "user@example.local",
+            DisplayName = "User",
+            PasswordHash = "hash",
+            Role = UserRole.User,
+            PrimaryTeamId = teamId,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.Folders.Add(new FolderEntity { Id = folderId, Name = "Allowed", Path = "/Allowed", CreatedByUserId = userId, CreatedAt = now, UpdatedAt = now });
+        dbContext.FolderPermissions.Add(new FolderPermissionEntity
+        {
+            Id = Guid.NewGuid(),
+            FolderId = folderId,
+            TeamId = teamId,
+            CanView = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.Documents.Add(new DocumentEntity
+        {
+            Id = documentId,
+            FolderId = folderId,
+            Title = "Payment source",
+            Status = DocumentStatus.Approved,
+            CurrentVersionId = versionId,
+            CreatedByUserId = userId,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.DocumentVersions.Add(CreateIndexedVersion(versionId, documentId, userId, now));
+        dbContext.AiInteractions.Add(new AiInteractionEntity
+        {
+            Id = interactionId,
+            UserId = userId,
+            Question = "payment error",
+            Answer = "Old answer",
+            ScopeType = AiScopeType.All,
+            CreatedAt = now,
+        });
+        dbContext.AiFeedback.Add(new AiFeedbackEntity
+        {
+            Id = feedbackId,
+            AiInteractionId = interactionId,
+            UserId = userId,
+            Value = AiFeedbackValue.Incorrect,
+            ReviewStatus = FeedbackReviewStatus.Resolved,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.AiQualityIssues.Add(new AiQualityIssueEntity
+        {
+            Id = issueId,
+            AiFeedbackId = feedbackId,
+            AiInteractionId = interactionId,
+            Status = AiQualityIssueStatus.Resolved,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.KnowledgeCorrections.Add(new KnowledgeCorrectionEntity
+        {
+            Id = correctionId,
+            QualityIssueId = issueId,
+            AiFeedbackId = feedbackId,
+            AiInteractionId = interactionId,
+            Question = "payment error",
+            CorrectionText = "payment error must check provider logs before retry",
+            VisibilityScope = VisibilityScope.Folder,
+            FolderId = folderId,
+            DocumentId = documentId,
+            Status = KnowledgeCorrectionStatus.Approved,
+            CreatedByUserId = userId,
+            ApprovedByUserId = userId,
+            CreatedAt = now,
+            UpdatedAt = now,
+            ApprovedAt = now,
+            IndexedAt = now,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var vectorStore = new FakeKnowledgeVectorStore([
+            CreateCorrectionVectorResult(correctionId, folderId, documentId, "Payment correction", "/Allowed", "payment error must check provider logs before retry"),
+            CreateVectorResult("document", folderId, documentId, versionId, "Payment source", "/Allowed", "payment error old source"),
+        ]);
+        var service = new AiQuestionService(
+            dbContext,
+            new FolderPermissionService(dbContext),
+            new MockEmbeddingService(),
+            vectorStore,
+            new MockAnswerGenerationService());
+
+        var response = await service.AskAsync(userId, new AskQuestionRequest("payment error", AiScopeType.All, null, null));
+
+        Assert.NotEmpty(response.Citations);
+        Assert.Equal(KnowledgeSourceType.Correction, response.Citations[0].SourceType);
+        Assert.Contains("provider logs", response.Answer, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static DocumentVersionEntity CreateIndexedVersion(Guid id, Guid documentId, Guid userId, DateTimeOffset now)
     {
         return new DocumentVersionEntity
@@ -315,6 +432,26 @@ public sealed class AiQuestionServiceTests
                 ["folder_path"] = folderPath,
             },
             0.1);
+    }
+
+    private static KnowledgeVectorSearchResult CreateCorrectionVectorResult(Guid correctionId, Guid folderId, Guid documentId, string title, string folderPath, string text)
+    {
+        return new KnowledgeVectorSearchResult(
+            correctionId.ToString(),
+            text,
+            new Dictionary<string, object?>
+            {
+                ["source_type"] = "correction",
+                ["source_id"] = correctionId.ToString(),
+                ["correction_id"] = correctionId.ToString(),
+                ["document_id"] = documentId.ToString(),
+                ["folder_id"] = folderId.ToString(),
+                ["visibility_scope"] = "folder",
+                ["title"] = title,
+                ["folder_path"] = folderPath,
+                ["status"] = "approved",
+            },
+            0.01);
     }
 
     private static AppDbContext CreateDbContext()

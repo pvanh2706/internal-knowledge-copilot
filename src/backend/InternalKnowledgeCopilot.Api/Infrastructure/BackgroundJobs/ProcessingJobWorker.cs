@@ -2,6 +2,7 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
+using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -31,6 +32,7 @@ public sealed class ProcessingJobWorker(IServiceScopeFactory scopeFactory, IOpti
         using var scope = scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var processingService = scope.ServiceProvider.GetRequiredService<IDocumentProcessingService>();
+        var feedbackService = scope.ServiceProvider.GetRequiredService<IAiFeedbackService>();
         var maxAttempts = Math.Max(1, options.Value.MaxAttempts);
 
         var job = await dbContext.ProcessingJobs
@@ -56,6 +58,10 @@ public sealed class ProcessingJobWorker(IServiceScopeFactory scopeFactory, IOpti
             {
                 await processingService.ProcessDocumentVersionAsync(job.TargetId, cancellationToken);
             }
+            else if (job.JobType == "ClassifyAiFailure" && job.TargetType == "AiQualityIssue")
+            {
+                await feedbackService.ClassifyIssueAsync(job.TargetId, cancellationToken);
+            }
             else
             {
                 throw new InvalidOperationException($"Unsupported processing job: {job.JobType}/{job.TargetType}");
@@ -73,7 +79,7 @@ public sealed class ProcessingJobWorker(IServiceScopeFactory scopeFactory, IOpti
             job.FinishedAt = hasAttemptsRemaining ? null : DateTimeOffset.UtcNow;
             logger.LogWarning(ex, "Processing job {JobId} failed on attempt {Attempt}/{MaxAttempts}.", job.Id, job.Attempts, maxAttempts);
 
-            if (!hasAttemptsRemaining)
+            if (!hasAttemptsRemaining && job.JobType == "ExtractAndEmbedDocument" && job.TargetType == "DocumentVersion")
             {
                 var version = await dbContext.DocumentVersions.FirstOrDefaultAsync(item => item.Id == job.TargetId, cancellationToken);
                 if (version is not null)
