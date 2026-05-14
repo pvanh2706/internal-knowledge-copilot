@@ -28,7 +28,7 @@ async function approve(versionId: string) {
     await approveDocument(selectedDocument.value!.id, versionId, authStore.accessToken!)
     await loadQueue()
     selectedDocument.value = await getDocument(selectedDocument.value!.id, authStore.accessToken!)
-  }, 'Da duyet version.')
+  }, 'Đã duyệt version.')
 }
 
 async function reject(versionId: string) {
@@ -38,7 +38,7 @@ async function reject(versionId: string) {
     rejectReason.value = ''
     await loadQueue()
     selectedDocument.value = await getDocument(selectedDocument.value!.id, authStore.accessToken!)
-  }, 'Da reject version.')
+  }, 'Đã reject version.')
 }
 
 async function runAction(action: () => Promise<void>, success: string) {
@@ -48,7 +48,7 @@ async function runAction(action: () => Promise<void>, success: string) {
     await action()
     successMessage.value = success
   } catch (error) {
-    errorMessage.value = error instanceof ApiError ? error.message : 'Khong the xu ly yeu cau.'
+    errorMessage.value = error instanceof ApiError ? error.message : 'Không thể xử lý yêu cầu.'
   }
 }
 

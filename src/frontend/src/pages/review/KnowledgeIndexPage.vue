@@ -34,7 +34,7 @@ async function loadSummary() {
   try {
     summary.value = await getKnowledgeIndexSummary(authStore.accessToken)
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the tai thong tin index.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải thông tin index.'
   } finally {
     isLoading.value = false
   }
@@ -55,10 +55,10 @@ async function submitRebuild() {
       },
       authStore.accessToken,
     )
-    successMessage.value = 'Da rebuild knowledge index.'
+    successMessage.value = 'Đã rebuild knowledge index.'
     await loadSummary()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the rebuild index.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể rebuild index.'
   } finally {
     isRebuilding.value = false
   }
@@ -74,7 +74,7 @@ onMounted(loadSummary)
 <template>
   <section class="panel management-page">
     <div>
-      <h2>Knowledge Index</h2>
+      <h2>Kho tri thức</h2>
     </div>
 
     <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
@@ -82,15 +82,15 @@ onMounted(loadSummary)
 
     <div class="stat-grid">
       <div class="stat-card">
-        <span>Ledger chunks</span>
+        <span>Chunk ledger</span>
         <strong>{{ summary?.ledgerChunkCount ?? '-' }}</strong>
       </div>
       <div class="stat-card">
-        <span>Keyword chunks</span>
+        <span>Chunk keyword</span>
         <strong>{{ summary?.keywordIndexChunkCount ?? '-' }}</strong>
       </div>
       <div class="stat-card">
-        <span>Source types</span>
+        <span>Loại nguồn</span>
         <small>{{ sourceCountText }}</small>
       </div>
     </div>
@@ -98,32 +98,32 @@ onMounted(loadSummary)
     <form class="stack-form" @submit.prevent="submitRebuild">
       <label class="checkbox-line">
         <input v-model="form.resetVectorStore" type="checkbox" />
-        Reset vector collection before replay
+        Reset vector collection trước khi chạy lại
       </label>
 
       <label>
-        Batch size
+        Kích thước batch
         <input v-model.number="form.batchSize" type="number" min="1" max="200" />
       </label>
 
       <div class="button-row">
         <button type="submit" :disabled="isRebuilding || isLoading">
-          {{ isRebuilding ? 'Rebuilding...' : 'Rebuild index' }}
+          {{ isRebuilding ? 'Đang rebuild...' : 'Rebuild index' }}
         </button>
         <button type="button" :disabled="isLoading" @click="loadSummary">
-          Refresh
+          Làm mới
         </button>
       </div>
     </form>
 
     <section v-if="rebuildResult" class="answer-panel">
-      <h3>Last rebuild</h3>
-      <p><strong>Ledger chunks:</strong> {{ rebuildResult.totalLedgerChunks }}</p>
-      <p><strong>Rebuilt chunks:</strong> {{ rebuildResult.rebuiltChunks }}</p>
-      <p><strong>Batches:</strong> {{ rebuildResult.batchCount }}</p>
+      <h3>Lần rebuild gần nhất</h3>
+      <p><strong>Chunk ledger:</strong> {{ rebuildResult.totalLedgerChunks }}</p>
+      <p><strong>Chunk đã rebuild:</strong> {{ rebuildResult.rebuiltChunks }}</p>
+      <p><strong>Số batch:</strong> {{ rebuildResult.batchCount }}</p>
       <p><strong>Reset vector:</strong> {{ rebuildResult.resetVectorStore ? 'yes' : 'no' }}</p>
-      <p><strong>Started:</strong> {{ formatDate(rebuildResult.startedAt) }}</p>
-      <p><strong>Finished:</strong> {{ formatDate(rebuildResult.finishedAt) }}</p>
+      <p><strong>Bắt đầu:</strong> {{ formatDate(rebuildResult.startedAt) }}</p>
+      <p><strong>Kết thúc:</strong> {{ formatDate(rebuildResult.finishedAt) }}</p>
     </section>
   </section>
 </template>

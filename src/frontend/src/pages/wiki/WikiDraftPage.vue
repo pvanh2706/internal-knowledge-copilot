@@ -49,10 +49,10 @@ async function submitPublish() {
       },
       authStore.accessToken,
     )
-    successMessage.value = 'Da publish wiki va index vao vector DB.'
+    successMessage.value = 'Đã publish wiki và index vào vector DB.'
     await loadData()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the publish wiki.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể publish wiki.'
   }
 }
 
@@ -63,10 +63,10 @@ async function submitReject() {
 
   try {
     selectedDraft.value = await rejectWikiDraft(selectedDraft.value.id, rejectReason.value, authStore.accessToken)
-    successMessage.value = 'Da reject wiki draft.'
+    successMessage.value = 'Đã reject wiki draft.'
     await loadData()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the reject wiki.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể reject wiki.'
   }
 }
 
@@ -76,7 +76,7 @@ onMounted(loadData)
 <template>
   <section class="panel management-page">
     <div>
-      <h2>Wiki drafts</h2>
+      <h2>Wiki draft</h2>
       <p>Reviewer kiểm tra wiki draft, publish hoặc reject trước khi đưa vào Q&A.</p>
     </div>
 
@@ -89,7 +89,7 @@ onMounted(loadData)
           <tr>
             <th>Tiêu đề</th>
             <th>Folder</th>
-            <th>Status</th>
+            <th>Trạng thái</th>
           </tr>
         </thead>
         <tbody>
@@ -105,7 +105,7 @@ onMounted(loadData)
         <h3>{{ selectedDraft.title }}</h3>
         <p>{{ selectedDraft.folderPath }} - {{ selectedDraft.status }}</p>
         <div v-if="selectedDraft.relatedDocuments.length" class="feedback-box">
-          <strong>Related documents</strong>
+          <strong>Tài liệu liên quan</strong>
           <article v-for="document in selectedDraft.relatedDocuments" :key="document.documentId" class="citation-item">
             <strong>{{ document.title }}</strong>
             <small>{{ document.folderPath || '-' }}</small>
@@ -113,7 +113,7 @@ onMounted(loadData)
           </article>
         </div>
         <div v-if="selectedDraft.missingInformation.length" class="feedback-box">
-          <strong>Missing information</strong>
+          <strong>Thông tin còn thiếu</strong>
           <ul>
             <li v-for="item in selectedDraft.missingInformation" :key="item">{{ item }}</li>
           </ul>

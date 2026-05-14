@@ -18,6 +18,6 @@ describe('App', () => {
     })
 
     expect(wrapper.text()).toContain('Internal Knowledge Copilot')
-    expect(wrapper.text()).toContain('Dashboard')
+    expect(wrapper.text()).toContain('Tổng quan')
   })
 })

@@ -104,7 +104,7 @@ export async function downloadDocument(id: string, token: string, versionId?: st
   })
 
   if (!response.ok) {
-    throw new Error('Khong the tai file.')
+    throw new Error('Không thể tải file.')
   }
 
   const blob = await response.blob()

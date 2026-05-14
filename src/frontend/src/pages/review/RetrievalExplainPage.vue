@@ -58,7 +58,7 @@ async function submitExplain() {
       authStore.accessToken,
     )
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the explain retrieval.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể explain retrieval.'
   } finally {
     isLoading.value = false
   }
@@ -85,35 +85,35 @@ onMounted(loadScopeData)
 <template>
   <section class="panel management-page">
     <div>
-      <h2>Retrieval Explain</h2>
+      <h2>Giải thích truy xuất</h2>
     </div>
 
     <form class="ai-form" @submit.prevent="submitExplain">
       <label>
-        Cau hoi
-        <textarea v-model="form.question" rows="4" placeholder="Nhap cau hoi can kiem tra..." required />
+        Câu hỏi
+        <textarea v-model="form.question" rows="4" placeholder="Nhập câu hỏi cần kiểm tra..." required />
       </label>
 
       <div class="management-form">
         <select v-model="form.scopeType">
-          <option value="All">Tat ca nguon duoc phep</option>
+          <option value="All">Tất cả nguồn được phép</option>
           <option value="Folder">Theo folder</option>
-          <option value="Document">Theo tai lieu</option>
+          <option value="Document">Theo tài liệu</option>
         </select>
 
         <select v-if="form.scopeType === 'Folder'" v-model="form.folderId" required>
-          <option value="">Chon folder</option>
+          <option value="">Chọn folder</option>
           <option v-for="folder in flattenedFolders" :key="folder.id" :value="folder.id">{{ folder.label }}</option>
         </select>
 
         <select v-if="form.scopeType === 'Document'" v-model="form.documentId" required>
-          <option value="">Chon tai lieu da index</option>
+          <option value="">Chọn tài liệu đã index</option>
           <option v-for="document in indexedDocuments" :key="document.id" :value="document.id">
             {{ document.title }} - {{ document.folderPath }}
           </option>
         </select>
 
-        <button type="submit" :disabled="isLoading || !canSubmit">{{ isLoading ? 'Dang explain...' : 'Explain' }}</button>
+        <button type="submit" :disabled="isLoading || !canSubmit">{{ isLoading ? 'Đang phân tích...' : 'Phân tích' }}</button>
       </div>
     </form>
 
@@ -121,15 +121,15 @@ onMounted(loadScopeData)
 
     <div v-if="explain" class="management-page">
       <section class="answer-panel">
-        <h3>Query</h3>
-        <p><strong>Normalized:</strong> {{ explain.queryUnderstanding.normalizedQuestion || '-' }}</p>
-        <p><strong>Keywords:</strong> {{ explain.queryUnderstanding.keywords.join(', ') || '-' }}</p>
+        <h3>Truy vấn</h3>
+        <p><strong>Chuẩn hóa:</strong> {{ explain.queryUnderstanding.normalizedQuestion || '-' }}</p>
+        <p><strong>Từ khóa:</strong> {{ explain.queryUnderstanding.keywords.join(', ') || '-' }}</p>
         <p>
-          <strong>Filter:</strong>
+          <strong>Bộ lọc:</strong>
           {{ explain.filter.sourceTypes.join(', ') }} /
           {{ explain.filter.statuses.join(', ') }} /
-          visible folders {{ explain.filter.visibleFolderCount }} /
-          filtered folders {{ explain.filter.filteredFolderCount }}
+          folder được xem {{ explain.filter.visibleFolderCount }} /
+          folder đã lọc {{ explain.filter.filteredFolderCount }}
         </p>
       </section>
 
@@ -143,26 +143,26 @@ onMounted(loadScopeData)
           <strong>{{ explain.candidateStats.keywordCandidateCount }}</strong>
         </div>
         <div class="stat-card">
-          <span>Merged</span>
+          <span>Đã gộp</span>
           <strong>{{ explain.candidateStats.mergedCandidateCount }}</strong>
         </div>
         <div class="stat-card">
-          <span>Allowed</span>
+          <span>Hợp lệ</span>
           <strong>{{ explain.candidateStats.allowedCandidateCount }}</strong>
         </div>
         <div class="stat-card">
-          <span>Final context</span>
+          <span>Context cuối</span>
           <strong>{{ explain.candidateStats.finalContextCount }}</strong>
         </div>
         <div class="stat-card">
-          <span>Rejected</span>
+          <span>Bị loại</span>
           <strong>{{ rejectedCandidates.length }}</strong>
         </div>
       </div>
 
       <section class="answer-panel">
-        <h3>Final Context</h3>
-        <p v-if="explain.finalContext.length === 0">Khong co context phu hop.</p>
+        <h3>Context cuối</h3>
+        <p v-if="explain.finalContext.length === 0">Không có context phù hợp.</p>
         <article v-for="candidate in explain.finalContext" :key="candidate.candidateId" class="citation-item">
           <strong>{{ candidate.sourceType }} - {{ candidate.title }}</strong>
           <small>
@@ -175,14 +175,14 @@ onMounted(loadScopeData)
       </section>
 
       <section class="answer-panel">
-        <h3>Candidates</h3>
+        <h3>Ứng viên</h3>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Source</th>
-              <th>Score</th>
-              <th>Match</th>
-              <th>Decision</th>
+              <th>Nguồn</th>
+              <th>Điểm</th>
+              <th>Khớp</th>
+              <th>Quyết định</th>
             </tr>
           </thead>
           <tbody>

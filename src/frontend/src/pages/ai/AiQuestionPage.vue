@@ -62,7 +62,7 @@ async function submitQuestion() {
       authStore.accessToken,
     )
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the hoi AI.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể hỏi AI.'
   } finally {
     isLoading.value = false
   }
@@ -82,9 +82,9 @@ async function submitFeedback(value: AiFeedbackValue) {
       },
       authStore.accessToken,
     )
-    feedbackMessage.value = value === 'Correct' ? 'Da ghi nhan cau tra loi dung.' : 'Da gui feedback sai cho reviewer.'
+    feedbackMessage.value = value === 'Correct' ? 'Đã ghi nhận câu trả lời đúng.' : 'Đã gửi feedback sai cho reviewer.'
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the gui feedback.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể gửi feedback.'
   }
 }
 
@@ -145,7 +145,7 @@ onMounted(loadScopeData)
         <pre>{{ answer.answer }}</pre>
         <div v-if="answer.missingInformation.length || answer.conflicts.length || answer.suggestedFollowUps.length" class="feedback-box">
           <div v-if="answer.missingInformation.length">
-            <strong>Missing information</strong>
+            <strong>Thông tin còn thiếu</strong>
             <ul>
               <li v-for="item in answer.missingInformation" :key="item">{{ item }}</li>
             </ul>

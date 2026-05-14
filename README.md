@@ -107,4 +107,4 @@ Use [docs/presentation](docs/presentation) for boss-facing presentation notes, s
 
 ## Pilot Materials
 
-Use [docs/pilot](docs/pilot) for team onboarding, user/reviewer/admin guides, content preparation, pilot operations, FAQ, support templates, data rules, and success report templates.
+Use [docs/pilot](docs/pilot) for team onboarding, user/reviewer/admin guides, content preparation, pilot operations, FAQ, support templates, data rules, and success report templates. The consolidated Vietnamese usage manual is [docs/pilot/VIETNAMESE_USER_MANUAL.md](docs/pilot/VIETNAMESE_USER_MANUAL.md).

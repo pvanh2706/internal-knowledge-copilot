@@ -82,7 +82,7 @@ async function loadSettings() {
   try {
     applySettings(await getAiProviderSettings(authStore.accessToken))
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the tai cau hinh AI.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải cấu hình AI.'
   } finally {
     isLoading.value = false
   }
@@ -106,9 +106,9 @@ async function submitSettings() {
       authStore.accessToken,
     )
     applySettings(updated)
-    successMessage.value = 'Da luu cau hinh AI provider.'
+    successMessage.value = 'Đã lưu cấu hình AI provider.'
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the luu cau hinh AI.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể lưu cấu hình AI.'
   } finally {
     isSaving.value = false
   }
@@ -124,7 +124,7 @@ async function submitTest() {
   try {
     testResult.value = await testAiProviderSettings(authStore.accessToken)
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the test AI provider.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể test AI provider.'
   } finally {
     isTesting.value = false
   }
@@ -136,8 +136,8 @@ onMounted(loadSettings)
 <template>
   <section class="panel management-page">
     <div>
-      <h2>AI Provider</h2>
-      <p>Cau hinh LLM va embedding provider cho ingestion, Q&A, wiki va evaluation.</p>
+      <h2>Cấu hình AI</h2>
+      <p>Cấu hình LLM và embedding provider cho ingestion, Q&A, wiki và evaluation.</p>
     </div>
 
     <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
@@ -150,14 +150,14 @@ onMounted(loadSettings)
       </div>
       <div class="stat-card">
         <span>API key</span>
-        <strong>{{ hasSavedApiKey ? 'Da luu' : 'Chua co' }}</strong>
+        <strong>{{ hasSavedApiKey ? 'Đã lưu' : 'Chưa có' }}</strong>
       </div>
       <div class="stat-card">
         <span>Embedding key</span>
-        <strong>{{ hasSavedEmbeddingApiKey ? 'Da luu' : 'Chua co' }}</strong>
+        <strong>{{ hasSavedEmbeddingApiKey ? 'Đã lưu' : 'Chưa có' }}</strong>
       </div>
       <div class="stat-card">
-        <span>Updated</span>
+        <span>Cập nhật</span>
         <small>{{ updatedText }}</small>
       </div>
     </div>
@@ -187,14 +187,14 @@ onMounted(loadSettings)
           v-model="form.apiKey"
           type="password"
           autocomplete="off"
-          :placeholder="hasSavedApiKey ? 'Nhap key moi neu muon thay doi' : 'Nhap API key'"
+          :placeholder="hasSavedApiKey ? 'Nhập key mới nếu muốn thay đổi' : 'Nhập API key'"
           :disabled="isMockProvider"
         />
       </label>
 
       <label class="checkbox-line">
         <input v-model="form.clearApiKey" type="checkbox" :disabled="isMockProvider" />
-        Xoa API key dang luu
+        Xóa API key đang lưu
       </label>
 
       <label>
@@ -252,14 +252,14 @@ onMounted(loadSettings)
             v-model="form.embeddingApiKey"
             type="password"
             autocomplete="off"
-            :placeholder="hasSavedEmbeddingApiKey ? 'Nhap key moi neu muon thay doi' : 'Nhap embedding API key'"
+            :placeholder="hasSavedEmbeddingApiKey ? 'Nhập key mới nếu muốn thay đổi' : 'Nhập embedding API key'"
             :disabled="isMockEmbeddingProvider"
           />
         </label>
 
         <label class="checkbox-line">
           <input v-model="form.clearEmbeddingApiKey" type="checkbox" :disabled="isMockEmbeddingProvider" />
-          Xoa embedding API key dang luu
+          Xóa embedding API key đang lưu
         </label>
 
         <label>
@@ -311,31 +311,31 @@ onMounted(loadSettings)
 
       <div class="button-row">
         <button type="submit" :disabled="isSaving || isLoading">
-          {{ isSaving ? 'Dang luu...' : 'Luu cau hinh' }}
+          {{ isSaving ? 'Đang lưu...' : 'Lưu cấu hình' }}
         </button>
         <button type="button" :disabled="isTesting || isLoading" @click="submitTest">
-          {{ isTesting ? 'Dang test...' : 'Test ket noi' }}
+          {{ isTesting ? 'Đang test...' : 'Test kết nối' }}
         </button>
-        <button type="button" :disabled="isLoading" @click="loadSettings">Refresh</button>
+        <button type="button" :disabled="isLoading" @click="loadSettings">Làm mới</button>
       </div>
     </form>
 
     <section v-if="testResult" class="answer-panel">
-      <h3>Test result</h3>
-      <p><strong>Status:</strong> {{ testResult.success ? 'OK' : 'Failed' }}</p>
+      <h3>Kết quả test</h3>
+      <p><strong>Trạng thái:</strong> {{ testResult.success ? 'OK' : 'Thất bại' }}</p>
       <p><strong>Provider:</strong> {{ testResult.providerName }}</p>
       <p>{{ testResult.message }}</p>
     </section>
 
     <section class="answer-panel">
-      <h3>Luu y khi doi embedding</h3>
+      <h3>Lưu ý khi đổi embedding</h3>
       <p>
-        Khi doi tu mock sang embedding that hoac doi embedding dimension, nen dung Chroma collection moi va chay lai
-        Knowledge Index rebuild de tranh tron vector khac dimension.
+        Khi đổi từ mock sang embedding thật hoặc đổi embedding dimension, nên dùng Chroma collection mới và chạy lại
+        Knowledge Index rebuild để tránh trộn vector khác dimension.
       </p>
       <p>
-        Co the dung Claude cho chat va OpenAI-compatible cho embedding. Neu embedding provider la mock, retrieval van
-        chay duoc nhung khong phai semantic embedding that.
+        Có thể dùng Claude cho chat và OpenAI-compatible cho embedding. Nếu embedding provider là mock, retrieval vẫn
+        chạy được nhưng không phải semantic embedding thật.
       </p>
     </section>
   </section>

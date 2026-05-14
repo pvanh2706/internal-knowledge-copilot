@@ -20,7 +20,7 @@ async function loadLogs() {
       entityType: filters.value.entityType || undefined,
     })
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the tai audit log.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải audit log.'
   }
 }
 
@@ -30,13 +30,13 @@ onMounted(loadLogs)
 <template>
   <section class="panel management-page">
     <div>
-      <h2>Audit log</h2>
+      <h2>Nhật ký audit</h2>
       <p>Theo dõi các hành động nghiệp vụ chính trong hệ thống.</p>
     </div>
 
     <form class="management-form" @submit.prevent="loadLogs">
       <input v-model="filters.action" type="text" placeholder="Action" />
-      <input v-model="filters.entityType" type="text" placeholder="Entity type" />
+      <input v-model="filters.entityType" type="text" placeholder="Loại entity" />
       <button type="submit">Lọc</button>
     </form>
 
@@ -47,7 +47,7 @@ onMounted(loadLogs)
         <tr>
           <th>Action</th>
           <th>Entity</th>
-          <th>Actor</th>
+          <th>Người thực hiện</th>
           <th>Metadata</th>
         </tr>
       </thead>

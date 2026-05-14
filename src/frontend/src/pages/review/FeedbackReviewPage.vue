@@ -77,10 +77,10 @@ async function submitReviewStatus() {
       },
       authStore.accessToken,
     )
-    successMessage.value = 'Da cap nhat trang thai feedback.'
+    successMessage.value = 'Đã cập nhật trạng thái feedback.'
     await loadData()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the cap nhat feedback.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể cập nhật feedback.'
   }
 }
 
@@ -100,11 +100,11 @@ async function submitCorrection() {
       },
       authStore.accessToken,
     )
-    successMessage.value = 'Da tao correction draft.'
+    successMessage.value = 'Đã tạo correction draft.'
     correctionForm.value.correctionText = ''
     await loadData()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the tao correction.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tạo correction.'
   }
 }
 
@@ -115,10 +115,10 @@ async function submitApproveCorrection(correctionId: string) {
 
   try {
     await approveCorrection(correctionId, authStore.accessToken)
-    successMessage.value = 'Da approve va index correction.'
+    successMessage.value = 'Đã approve và index correction.'
     await loadData()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the approve correction.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể approve correction.'
   }
 }
 
@@ -128,11 +128,11 @@ async function submitRejectCorrection(correctionId: string) {
   successMessage.value = ''
 
   try {
-    await rejectCorrection(correctionId, correctionForm.value.rejectReason || 'Rejected by reviewer.', authStore.accessToken)
-    successMessage.value = 'Da reject correction.'
+    await rejectCorrection(correctionId, correctionForm.value.rejectReason || 'Bị loại bởi reviewer.', authStore.accessToken)
+    successMessage.value = 'Đã reject correction.'
     await loadData()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the reject correction.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể reject correction.'
   }
 }
 
@@ -157,10 +157,10 @@ async function submitEvaluationCase() {
       },
       authStore.accessToken,
     )
-    successMessage.value = 'Da tao eval case tu feedback.'
+    successMessage.value = 'Đã tạo eval case từ feedback.'
     evaluationForm.value.expectedKeywords = ''
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the tao eval case.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tạo eval case.'
   }
 }
 
@@ -197,7 +197,7 @@ onMounted(loadData)
 
       <div v-if="selectedFeedback" class="folder-detail">
         <h3>{{ selectedFeedback.question }}</h3>
-        <p>{{ selectedFeedback.note || 'Khong co ghi chu tu user.' }}</p>
+        <p>{{ selectedFeedback.note || 'Không có ghi chú từ user.' }}</p>
 
         <section class="answer-panel">
           <h4>Câu trả lời AI</h4>
@@ -214,11 +214,11 @@ onMounted(loadData)
         </section>
 
         <section v-if="selectedIssue" class="answer-panel">
-          <h4>Quality issue</h4>
-          <p>{{ selectedIssue.status }} - {{ selectedIssue.failureType || 'Pending classification' }} - {{ selectedIssue.severity || '-' }}</p>
+          <h4>Vấn đề chất lượng</h4>
+          <p>{{ selectedIssue.status }} - {{ selectedIssue.failureType || 'Chưa phân loại' }} - {{ selectedIssue.severity || '-' }}</p>
           <p v-if="selectedIssue.rootCauseHypothesis">{{ selectedIssue.rootCauseHypothesis }}</p>
           <div v-if="selectedIssue.recommendedActions.length">
-            <strong>Recommended actions</strong>
+            <strong>Hành động đề xuất</strong>
             <ul>
               <li v-for="action in selectedIssue.recommendedActions" :key="action">{{ action }}</li>
             </ul>
@@ -237,24 +237,24 @@ onMounted(loadData)
           <form class="stack-form" @submit.prevent="submitCorrection">
             <label>
               Correction
-              <textarea v-model="correctionForm.correctionText" rows="5" placeholder="Nhap correction dung de he thong uu tien dung lan sau..." required />
+              <textarea v-model="correctionForm.correctionText" rows="5" placeholder="Nhập correction đúng để hệ thống ưu tiên dùng lần sau..." required />
             </label>
             <label>
-              Pham vi correction
+              Phạm vi correction
               <select v-model="correctionForm.visibilityScope">
-                <option value="Folder">Theo folder nguon</option>
-                <option value="Company">Toan cong ty</option>
+                <option value="Folder">Theo folder nguồn</option>
+                <option value="Company">Toàn công ty</option>
               </select>
             </label>
             <label v-if="correctionForm.visibilityScope === 'Company'" class="checkbox-line">
               <input v-model="correctionForm.isCompanyPublicConfirmed" type="checkbox" />
-              Xac nhan correction duoc phep public noi bo
+              Xác nhận correction được phép public nội bộ
             </label>
             <label>
-              Ly do reject correction
-              <textarea v-model="correctionForm.rejectReason" rows="2" placeholder="Dung khi bam Reject correction..." />
+              Lý do reject correction
+              <textarea v-model="correctionForm.rejectReason" rows="2" placeholder="Dùng khi bấm Reject correction..." />
             </label>
-            <button type="submit">Create correction draft</button>
+            <button type="submit">Tạo correction draft</button>
           </form>
         </section>
 
@@ -262,14 +262,14 @@ onMounted(loadData)
           <h4>Evaluation case</h4>
           <form class="stack-form" @submit.prevent="submitEvaluationCase">
             <label>
-              Expected answer
-              <textarea v-model="evaluationForm.expectedAnswer" rows="4" placeholder="Nhap dap an dung dung de cham eval..." required />
+              Đáp án kỳ vọng
+              <textarea v-model="evaluationForm.expectedAnswer" rows="4" placeholder="Nhập đáp án đúng dùng để chấm eval..." required />
             </label>
             <label>
-              Expected keywords
-              <textarea v-model="evaluationForm.expectedKeywords" rows="2" placeholder="Moi keyword mot dong hoac cach nhau bang dau phay..." />
+              Từ khóa kỳ vọng
+              <textarea v-model="evaluationForm.expectedKeywords" rows="2" placeholder="Mỗi keyword một dòng hoặc cách nhau bằng dấu phẩy..." />
             </label>
-            <button type="submit">Create eval case</button>
+            <button type="submit">Tạo eval case</button>
           </form>
         </section>
 

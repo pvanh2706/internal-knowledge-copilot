@@ -17,20 +17,20 @@ const authStore = useAuthStore()
       </div>
 
       <nav class="nav-list" aria-label="Điều hướng chính">
-        <RouterLink to="/">Dashboard</RouterLink>
+        <RouterLink to="/">Tổng quan</RouterLink>
         <RouterLink to="/documents">Tài liệu</RouterLink>
         <RouterLink to="/ai">Hỏi AI</RouterLink>
         <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/wiki">Wiki</RouterLink>
-        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/review">Review</RouterLink>
-        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/feedback">Feedback</RouterLink>
-        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/evaluation">Evaluation</RouterLink>
-        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/retrieval-explain">Retrieval</RouterLink>
-        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/knowledge-index">Index</RouterLink>
+        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/review">Duyệt tài liệu</RouterLink>
+        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/feedback">Phản hồi</RouterLink>
+        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/evaluation">Đánh giá</RouterLink>
+        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/retrieval-explain">Giải thích truy xuất</RouterLink>
+        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/knowledge-index">Kho tri thức</RouterLink>
         <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/admin/folders">Thư mục</RouterLink>
         <RouterLink v-if="authStore.isAdmin" to="/admin/users">Người dùng</RouterLink>
         <RouterLink v-if="authStore.isAdmin" to="/admin/teams">Team</RouterLink>
-        <RouterLink v-if="authStore.isAdmin" to="/admin/ai-settings">AI Provider</RouterLink>
-        <RouterLink v-if="authStore.isAdmin" to="/admin/audit-logs">Audit</RouterLink>
+        <RouterLink v-if="authStore.isAdmin" to="/admin/ai-settings">Cấu hình AI</RouterLink>
+        <RouterLink v-if="authStore.isAdmin" to="/admin/audit-logs">Nhật ký</RouterLink>
       </nav>
     </aside>
 

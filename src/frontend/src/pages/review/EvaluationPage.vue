@@ -46,7 +46,7 @@ async function submitRun(caseId?: string) {
     await loadData()
     selectedRun.value = run
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the chay eval.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể chạy eval.'
   } finally {
     isRunning.value = false
   }
@@ -68,7 +68,7 @@ onMounted(async () => {
   try {
     await loadData()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the tai evaluation.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải evaluation.'
   }
 })
 </script>
@@ -76,8 +76,8 @@ onMounted(async () => {
 <template>
   <section class="panel management-page">
     <div>
-      <h2>Evaluation</h2>
-      <p>Chay eval cases de do chat luong cau tra loi AI theo baseline before/after.</p>
+      <h2>Đánh giá</h2>
+      <p>Chạy eval cases để đo chất lượng câu trả lời AI theo baseline before/after.</p>
     </div>
 
     <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
@@ -85,22 +85,22 @@ onMounted(async () => {
 
     <form class="stack-form" @submit.prevent="submitRun()">
       <label>
-        Run name
+        Tên lần chạy
         <input v-model="runName" placeholder="baseline, after correction..." />
       </label>
-      <button type="submit" :disabled="isRunning">Run all active cases</button>
+      <button type="submit" :disabled="isRunning">Chạy tất cả case đang bật</button>
     </form>
 
     <div class="split-layout">
       <section class="answer-panel">
-        <h3>Eval cases</h3>
+        <h3>Eval case</h3>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Question</th>
-              <th>Keywords</th>
-              <th>Scope</th>
-              <th>Run</th>
+              <th>Câu hỏi</th>
+              <th>Từ khóa</th>
+              <th>Phạm vi</th>
+              <th>Chạy</th>
             </tr>
           </thead>
           <tbody>
@@ -109,7 +109,7 @@ onMounted(async () => {
               <td>{{ formatKeywords(item) }}</td>
               <td>{{ item.scopeType }}</td>
               <td>
-                <button type="button" class="text-button" :disabled="isRunning" @click="submitRun(item.id)">Run</button>
+                <button type="button" class="text-button" :disabled="isRunning" @click="submitRun(item.id)">Chạy</button>
               </td>
             </tr>
           </tbody>
@@ -117,18 +117,18 @@ onMounted(async () => {
       </section>
 
       <section class="answer-panel">
-        <h3>Runs</h3>
+        <h3>Lần chạy</h3>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Name</th>
+              <th>Tên</th>
               <th>Pass</th>
-              <th>Time</th>
+              <th>Thời gian</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="run in runs" :key="run.id" class="clickable-row" @click="selectRun(run)">
-              <td>{{ run.name || 'Evaluation run' }}</td>
+              <td>{{ run.name || 'Lần chạy evaluation' }}</td>
               <td>{{ run.passedCases }}/{{ run.totalCases }} ({{ formatPassRate(run) }})</td>
               <td>{{ run.finishedAt || run.createdAt }}</td>
             </tr>
@@ -138,14 +138,14 @@ onMounted(async () => {
     </div>
 
     <section v-if="selectedRun" class="answer-panel">
-      <h3>Run result</h3>
+      <h3>Kết quả chạy</h3>
       <table class="data-table">
         <thead>
           <tr>
-            <th>Question</th>
-            <th>Status</th>
-            <th>Score</th>
-            <th>Failure</th>
+            <th>Câu hỏi</th>
+            <th>Trạng thái</th>
+            <th>Điểm</th>
+            <th>Lỗi</th>
           </tr>
         </thead>
         <tbody>

@@ -52,7 +52,7 @@ async function submitUpload() {
     uploadForm.value.title = ''
     uploadForm.value.description = ''
     await loadData()
-  }, 'Da upload tai lieu, dang cho reviewer duyet.')
+  }, 'Đã upload tài liệu, đang chờ reviewer duyệt.')
 }
 
 async function submitUploadVersion() {
@@ -61,14 +61,14 @@ async function submitUploadVersion() {
     selectedDocument.value = await uploadDocumentVersion(selectedDocument.value!.id, selectedVersionFile.value!, authStore.accessToken!)
     selectedVersionFile.value = null
     await loadData()
-  }, 'Da upload version moi, dang cho reviewer duyet.')
+  }, 'Đã upload version mới, đang chờ reviewer duyệt.')
 }
 
 async function submitDownload(versionId?: string) {
   if (!authStore.accessToken || !selectedDocument.value) return
   await runAction(async () => {
     await downloadDocument(selectedDocument.value!.id, authStore.accessToken!, versionId)
-  }, 'Da bat dau tai file.')
+  }, 'Đã bắt đầu tải file.')
 }
 
 async function submitGenerateWikiDraft() {
@@ -81,7 +81,7 @@ async function submitGenerateWikiDraft() {
       },
       authStore.accessToken!,
     )
-  }, 'Da tao wiki draft tu tai lieu hien tai.')
+  }, 'Đã tạo wiki draft từ tài liệu hiện tại.')
 }
 
 function handleFileChange(event: Event) {
@@ -99,7 +99,7 @@ async function runAction(action: () => Promise<void>, success: string) {
     await action()
     successMessage.value = success
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the xu ly yeu cau.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể xử lý yêu cầu.'
   }
 }
 
@@ -155,7 +155,7 @@ onMounted(loadData)
           <tr>
             <th>Tên</th>
             <th>Folder</th>
-            <th>Status</th>
+            <th>Trạng thái</th>
             <th>Version</th>
             <th>Indexing</th>
           </tr>
@@ -176,7 +176,7 @@ onMounted(loadData)
         <p>{{ selectedDocument.folderPath }} - {{ selectedDocument.status }}</p>
         <button type="button" @click="submitDownload()">Tải bản hiện tại</button>
 
-        <button v-if="canGenerateWiki" type="button" @click="submitGenerateWikiDraft">Generate wiki draft</button>
+        <button v-if="canGenerateWiki" type="button" @click="submitGenerateWikiDraft">Tạo wiki draft</button>
 
         <form class="stack-form" @submit.prevent="submitUploadVersion">
           <label>
@@ -191,7 +191,7 @@ onMounted(loadData)
             <tr>
               <th>Version</th>
               <th>File</th>
-              <th>Status</th>
+              <th>Trạng thái</th>
               <th>Ingestion</th>
             </tr>
           </thead>

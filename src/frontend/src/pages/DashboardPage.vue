@@ -15,7 +15,7 @@ const feedbackCorrectRate = computed(() => {
   return `${Math.round((summary.value.feedbackCorrectCount / feedbackTotal.value) * 100)}%`
 })
 const latestEvaluationPassRate = computed(() => {
-  if (!summary.value || summary.value.latestEvaluationPassRate == null) return 'Chua chay'
+  if (!summary.value || summary.value.latestEvaluationPassRate == null) return 'Chưa chạy'
   return `${Math.round(summary.value.latestEvaluationPassRate)}%`
 })
 
@@ -26,7 +26,7 @@ async function loadSummary() {
   try {
     summary.value = await getDashboardSummary(authStore.accessToken)
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Khong the tai dashboard.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải dashboard.'
   }
 }
 
@@ -40,7 +40,7 @@ onMounted(loadSummary)
 <template>
   <section class="panel management-page">
     <div>
-      <h2>Dashboard</h2>
+      <h2>Tổng quan</h2>
       <p v-if="authStore.isReviewer || authStore.isAdmin">Theo dõi tài liệu, wiki, lượt hỏi AI và feedback.</p>
       <p v-else>Dashboard KPI chỉ dành cho Admin và Reviewer.</p>
     </div>
@@ -57,7 +57,7 @@ onMounted(loadSummary)
         <strong>{{ countOf(summary.documentCounts, 'PendingReview') }}</strong>
       </article>
       <article class="stat-card">
-        <span>Wiki published</span>
+        <span>Wiki đã publish</span>
         <strong>{{ countOf(summary.wikiCounts, 'Published') }}</strong>
       </article>
       <article class="stat-card">
@@ -73,11 +73,11 @@ onMounted(loadSummary)
         <strong>{{ summary.incorrectFeedbackPendingCount }}</strong>
       </article>
       <article class="stat-card">
-        <span>Eval cases active</span>
+        <span>Eval cases đang bật</span>
         <strong>{{ summary.evaluationCaseCount }}</strong>
       </article>
       <article class="stat-card">
-        <span>Eval pass rate</span>
+        <span>Tỷ lệ eval pass</span>
         <strong>{{ latestEvaluationPassRate }}</strong>
         <small v-if="summary.latestEvaluationTotalCases">
           {{ summary.latestEvaluationPassedCases }}/{{ summary.latestEvaluationTotalCases }} pass
