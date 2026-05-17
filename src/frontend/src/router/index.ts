@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardPage from '../pages/DashboardPage.vue'
 import AuditLogPage from '../pages/admin/AuditLogPage.vue'
 import AiSettingsPage from '../pages/admin/AiSettingsPage.vue'
+import DataResetPage from '../pages/admin/DataResetPage.vue'
 import FolderManagementPage from '../pages/admin/FolderManagementPage.vue'
 import TeamManagementPage from '../pages/admin/TeamManagementPage.vue'
 import UserManagementPage from '../pages/admin/UserManagementPage.vue'
@@ -35,6 +36,7 @@ const router = createRouter({
     { path: '/admin/teams', name: 'admin-teams', component: TeamManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/folders', name: 'admin-folders', component: FolderManagementPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/admin/ai-settings', name: 'admin-ai-settings', component: AiSettingsPage, meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: '/admin/data-reset', name: 'admin-data-reset', component: DataResetPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/audit-logs', name: 'admin-audit-logs', component: AuditLogPage, meta: { requiresAuth: true, requiresAdmin: true } },
   ],
 })

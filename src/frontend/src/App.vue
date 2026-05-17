@@ -30,6 +30,7 @@ const authStore = useAuthStore()
         <RouterLink v-if="authStore.isAdmin" to="/admin/users">Người dùng</RouterLink>
         <RouterLink v-if="authStore.isAdmin" to="/admin/teams">Team</RouterLink>
         <RouterLink v-if="authStore.isAdmin" to="/admin/ai-settings">Cấu hình AI</RouterLink>
+        <RouterLink v-if="authStore.isAdmin" to="/admin/data-reset">Reset dữ liệu</RouterLink>
         <RouterLink v-if="authStore.isAdmin" to="/admin/audit-logs">Nhật ký</RouterLink>
       </nav>
     </aside>

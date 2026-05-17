@@ -9,6 +9,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Ai;
+using InternalKnowledgeCopilot.Api.Modules.Admin;
 using InternalKnowledgeCopilot.Api.Modules.AiSettings;
 using InternalKnowledgeCopilot.Api.Modules.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Evaluation;
@@ -30,6 +31,7 @@ builder.Services.Configure<ChromaOptions>(builder.Configuration.GetSection(Chrom
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<BackgroundJobOptions>(builder.Configuration.GetSection(BackgroundJobOptions.SectionName));
 builder.Services.Configure<AiProviderOptions>(builder.Configuration.GetSection(AiProviderOptions.SectionName));
+builder.Services.Configure<DataResetOptions>(builder.Configuration.GetSection(DataResetOptions.SectionName));
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -69,6 +71,7 @@ builder.Services.AddScoped<IAiFeedbackService, AiFeedbackService>();
 builder.Services.AddScoped<IEvaluationService, EvaluationService>();
 builder.Services.AddScoped<IKnowledgeIndexRebuildService, KnowledgeIndexRebuildService>();
 builder.Services.AddScoped<IWikiService, WikiService>();
+builder.Services.AddScoped<IDataResetService, DataResetService>();
 builder.Services.AddHttpClient<IKnowledgeVectorStore, ChromaKnowledgeVectorStore>((serviceProvider, client) =>
 {
     var chromaOptions = serviceProvider.GetRequiredService<IOptions<ChromaOptions>>().Value;
