@@ -432,7 +432,7 @@ folder không visible
 Tài liệu chi tiết:
 
 ```text
-docs/technical/AI_QUESTION_TO_ANSWER_FLOW.md
+docs/technical/LUỒNG_HỎI_ĐÁP_AI.md
 ```
 
 ## 11. Luồng wiki generation và publishing
@@ -483,8 +483,8 @@ Publish:
 Tài liệu chi tiết:
 
 ```text
-docs/technical/DOCUMENT_UPLOAD_TO_KNOWLEDGE_FLOW.md
-docs/technical/SIMULATED_TEXT_TO_KNOWLEDGE_FLOW.md
+docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md
+docs/technical/GIẢ_LẬP_TEXT_THÀNH_TRI_THỨC.md
 ```
 
 ## 12. AI provider boundary
@@ -563,24 +563,22 @@ powershell -ExecutionPolicy Bypass -File scripts\smoke-mvp.ps1
 
 Nếu là AI agent hoặc developer mới, đọc theo thứ tự:
 
-1. `AI_HANDOFF.md`
-2. `docs/technical/TECHNICAL_SYSTEM_OVERVIEW_FOR_TEAM_AND_AI.md`
-3. `PHASE_STATUS.md`
-4. `KNOWN_LIMITATIONS.md`
+1. `BÀN_GIAO_AI.md`
+2. `docs/technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md`
+3. `docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md`
 5. Tài liệu flow liên quan:
 
 ```text
-docs/technical/DOCUMENT_UPLOAD_TO_KNOWLEDGE_FLOW.md
-docs/technical/AI_QUESTION_TO_ANSWER_FLOW.md
-docs/technical/SIMULATED_TEXT_TO_KNOWLEDGE_FLOW.md
+docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md
+docs/technical/LUỒNG_HỎI_ĐÁP_AI.md
+docs/technical/GIẢ_LẬP_TEXT_THÀNH_TRI_THỨC.md
 ```
 
 6. API/data model nếu cần:
 
 ```text
-API_SPEC.md
-DATA_MODEL.md
-RAG_AND_WIKI_FLOW.md
+ĐẶC_TẢ_API.md
+MÔ_HÌNH_DỮ_LIỆU.md
 ```
 
 7. Code module liên quan.
@@ -668,14 +666,15 @@ Reviewer workflow:
 ## 19. Tài liệu liên quan
 
 ```text
-AI_HANDOFF.md
-ARCHITECTURE_MVP.md
-API_SPEC.md
-DATA_MODEL.md
-RAG_AND_WIKI_FLOW.md
-docs/technical/DOCUMENT_UPLOAD_TO_KNOWLEDGE_FLOW.md
-docs/technical/AI_QUESTION_TO_ANSWER_FLOW.md
-docs/technical/SIMULATED_TEXT_TO_KNOWLEDGE_FLOW.md
-docs/technical/SMART_AI_UPGRADE_PLAN.md
-docs/technical/PRODUCTIZATION_PLAN.md
+BÀN_GIAO_AI.md
+docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md
+KIẾN_TRÚC_MVP.md
+ĐẶC_TẢ_API.md
+MÔ_HÌNH_DỮ_LIỆU.md
+docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md
+docs/technical/LUỒNG_HỎI_ĐÁP_AI.md
+docs/technical/GIẢ_LẬP_TEXT_THÀNH_TRI_THỨC.md
+docs/technical/KẾ_HOẠCH_NÂNG_CẤP_AI_THÔNG_MINH.md
+docs/technical/KẾ_HOẠCH_SẢN_PHẨM_HÓA.md
 ```
+

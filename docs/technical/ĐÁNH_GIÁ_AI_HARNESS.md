@@ -11,11 +11,12 @@ Nguyên tắc phân tích:
 
 Các nguồn đã kiểm tra chính:
 
-- `README.md`
-- `AI_HANDOFF.md`
-- `RAG_AND_WIKI_FLOW.md`
-- `docs/technical/DOCUMENT_UPLOAD_TO_KNOWLEDGE_FLOW.md`
-- `docs/technical/AI_QUESTION_TO_ANSWER_FLOW.md`
+- `GIỚI_THIỆU.md`
+- `BÀN_GIAO_AI.md`
+- `docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md`
+- `docs/technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md`
+- `docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md`
+- `docs/technical/LUỒNG_HỎI_ĐÁP_AI.md`
 - `src/backend/InternalKnowledgeCopilot.Api`
 - `src/frontend/src`
 - `src/backend/InternalKnowledgeCopilot.Tests`
@@ -24,7 +25,7 @@ Các nguồn đã kiểm tra chính:
 
 Tên dự án xác định được:
 
-- `Internal Knowledge Copilot`, theo `README.md`, `AI_HANDOFF.md`, tên solution/backend và namespace.
+- `Internal Knowledge Copilot`, theo `GIỚI_THIỆU.md`, `BÀN_GIAO_AI.md`, tên solution/backend và namespace.
 
 Dự án dùng để làm gì:
 
@@ -976,3 +977,4 @@ Còn thiếu để lên level tiếp theo:
 ## 16. Kết luận ngắn gọn
 
 Dự án này có giống AI Harness, nhưng hiện giống nhất ở lớp **Knowledge Harness** chứ chưa phải **AI Agent Harness**. Hệ thống đã có RAG khá trưởng thành: document approval, chunking, embedding, Chroma, hybrid retrieval, permission recheck, citations, feedback, correction, evaluation, dashboard và audit. Thành phần giống harness nhất là governance quanh tri thức: chỉ dùng document indexed/current, wiki phải publish, correction phải approve, retrieval phải qua permission filter. Thành phần thiếu nhất là agent/tool layer: LLM chưa được gọi tool, chưa có planner/executor, chưa có action approval cho tool calls. Nếu muốn nâng cấp, nên ưu tiên logging/prompt/model trace, retrieval trace, citation deep link, groundedness evaluation và sensitivity guardrails trước; sau đó mới thêm tool calling và workflow automation.
+

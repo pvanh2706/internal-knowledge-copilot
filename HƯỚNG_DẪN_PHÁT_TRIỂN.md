@@ -1,4 +1,4 @@
-# Development Guide
+﻿# Development Guide
 
 This document gives an AI coding agent enough operational context to scaffold, run, and continue the project without asking for routine setup decisions.
 
@@ -6,22 +6,19 @@ This document gives an AI coding agent enough operational context to scaffold, r
 
 Use these files as the product and engineering source of truth:
 
-- `docs/technical/LOCAL_SETUP_GUIDE.md`: fresh-machine clone, install, run, and smoke-test guide
-- `docs/technical/TROUBLESHOOTING.md`: local setup and runtime troubleshooting
-- `AI_HANDOFF.md`: fastest current-state briefing for future AI coding sessions
-- `REQUIREMENTS_DISCOVERY.md`: business context and confirmed MVP scope
-- `ARCHITECTURE_MVP.md`: stack, modules, deployment direction
-- `IMPLEMENTATION_PLAN.md`: milestone order and acceptance criteria
-- `API_SPEC.md`: API surface
-- `DATA_MODEL.md`: database model and vector payloads
-- `UI_FLOW.md`: pages and role-based flows
-- `RAG_AND_WIKI_FLOW.md`: indexing, retrieval, prompt behavior
-- `CODING_RULES.md`: implementation rules and definition of done for tasks
-- `PHASE_STATUS.md`: completed milestone history
-- `KNOWN_LIMITATIONS.md`: intentionally deferred or incomplete areas
-- `ROADMAP.md`: recommended post-MVP improvements
+- `docs/technical/HƯỚNG_DẪN_CÀI_ĐẶT_LOCAL.md`: fresh-machine clone, install, run, and smoke-test guide
+- `docs/technical/KHẮC_PHỤC_LỖI.md`: local setup and runtime troubleshooting
+- `BÀN_GIAO_AI.md`: fastest current-state briefing for future AI coding sessions
+- `docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md`: business context, confirmed MVP scope, status, limitations, done criteria, and roadmap
+- `KIẾN_TRÚC_MVP.md`: stack, modules, deployment direction
+- `ĐẶC_TẢ_API.md`: API surface
+- `MÔ_HÌNH_DỮ_LIỆU.md`: database model and vector payloads
+- `LUỒNG_GIAO_DIỆN.md`: pages and role-based flows
+- `docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md`: document processing and knowledge indexing behavior
+- `docs/technical/LUỒNG_HỎI_ĐÁP_AI.md`: retrieval, prompt, citation, and answer behavior
+- `QUY_TẮC_CODE.md`: implementation rules and definition of done for tasks
 
-If documents conflict, prefer the more specific implementation document. For example, API behavior in `API_SPEC.md` takes precedence over a higher-level mention in `REQUIREMENTS_DISCOVERY.md`.
+If documents conflict, prefer the more specific implementation document. For example, API behavior in `ĐẶC_TẢ_API.md` takes precedence over a higher-level mention in `docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md`.
 
 ## Implementation Assumptions
 
@@ -146,7 +143,7 @@ If the UI displays team names, use Vietnamese text with accents in the UI layer.
 
 For new feature work or bug fixes:
 
-1. Read `AI_HANDOFF.md`, `PHASE_STATUS.md`, `KNOWN_LIMITATIONS.md`, and the relevant spec files.
+1. Read `BÀN_GIAO_AI.md`, `docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md`, and the relevant spec files.
 2. Add the smallest slice that satisfies the requested change.
 3. Add or update tests for the risky logic in that slice.
 4. Run the relevant test/build commands.
@@ -197,3 +194,4 @@ Key implemented paths:
 - Smoke scripts: `scripts/smoke-mvp.ps1` and milestone-specific smoke scripts
 
 Generated local runtime folders such as `.chroma`, `.run`, `data`, `logs`, and `storage` are not source-of-truth documentation.
+

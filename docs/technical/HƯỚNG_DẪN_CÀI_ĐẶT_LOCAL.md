@@ -1,4 +1,4 @@
-# Local Setup Guide
+﻿# Local Setup Guide
 
 Tai lieu nay danh cho ky thuat moi clone repo ve may local de chay thu Internal Knowledge Copilot.
 
@@ -131,7 +131,7 @@ dotnet restore src/backend/InternalKnowledgeCopilot.sln
 dotnet build src/backend/InternalKnowledgeCopilot.sln
 ```
 
-Neu build fail, xem `docs/technical/TROUBLESHOOTING.md`.
+Neu build fail, xem `docs/technical/KHẮC_PHỤC_LỖI.md`.
 
 ## 9. Cai frontend dependencies
 
@@ -301,10 +301,11 @@ npm run dev
 
 ## 17. Tai lieu lien quan
 
-- `README.md`: tong quan repo.
-- `DEVELOPMENT.md`: ghi chu phat trien.
-- `TESTING.md`: chien luoc test va smoke flow.
+- `GIỚI_THIỆU.md`: tong quan repo.
+- `HƯỚNG_DẪN_PHÁT_TRIỂN.md`: ghi chu phat trien.
+- `HƯỚNG_DẪN_KIỂM_THỬ.md`: chien luoc test va smoke flow.
 - `.env.example`: bien cau hinh.
-- `docs/technical/TROUBLESHOOTING.md`: loi thuong gap.
-- `DEPLOYMENT_IIS.md`: ghi chu deploy IIS.
+- `docs/technical/KHẮC_PHỤC_LỖI.md`: loi thuong gap.
+- `TRIỂN_KHAI_IIS.md`: ghi chu deploy IIS.
+
 

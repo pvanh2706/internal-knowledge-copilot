@@ -1,4 +1,4 @@
-# AI Handoff
+﻿# AI Handoff
 
 Last updated: 2026-05-10
 
@@ -35,15 +35,12 @@ Internal Knowledge Copilot is an internal knowledge management MVP. It supports 
 
 For most future feature work, read in this order:
 
-1. `README.md`
-2. `PHASE_STATUS.md`
-3. `KNOWN_LIMITATIONS.md`
-4. `ROADMAP.md`
-5. The specific feature spec, usually one of `API_SPEC.md`, `DATA_MODEL.md`, `UI_FLOW.md`, or `RAG_AND_WIKI_FLOW.md`
-6. `CODING_RULES.md`
-7. The relevant source modules and tests
-
-Use `IMPLEMENTATION_PLAN.md` mainly as milestone history. The MVP milestones are already implemented.
+1. `GIỚI_THIỆU.md`
+2. `docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md`
+3. `docs/technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md`
+4. The specific feature spec, usually one of `ĐẶC_TẢ_API.md`, `MÔ_HÌNH_DỮ_LIỆU.md`, `LUỒNG_GIAO_DIỆN.md`, `docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md`, or `docs/technical/LUỒNG_HỎI_ĐÁP_AI.md`
+5. `QUY_TẮC_CODE.md`
+6. The relevant source modules and tests
 
 ## Verification Commands
 
@@ -84,5 +81,6 @@ The smoke script starts temporary infrastructure where possible and verifies the
 
 ## Current Scope Boundary
 
-Before adding large features, check `KNOWN_LIMITATIONS.md` and `ROADMAP.md`. Some missing features are intentional MVP deferrals, not bugs.
+Before adding large features, check `docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md`. Some missing features are intentional MVP deferrals, not bugs.
+
 

@@ -2,7 +2,7 @@
 
 Tài liệu này mô phỏng một file text đơn giản được upload vào Internal Knowledge Copilot và mô tả nó đi qua các luồng, class và hàm nào trong code cho đến khi trở thành nguồn tri thức có thể dùng cho AI Q&A.
 
-Tài liệu tham chiếu nền: `docs/technical/DOCUMENT_UPLOAD_TO_KNOWLEDGE_FLOW.md`.
+Tài liệu tham chiếu nền: `docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md`.
 
 ## 1. Thông tin text giả lập
 
@@ -900,3 +900,4 @@ Reviewer publish wiki
 Với file text giả lập `quy-trinh-xin-nghi-phep.md`, hệ thống không dùng nội dung upload ngay lập tức. Nội dung phải đi qua upload, lưu file, lưu metadata, reviewer approve, background job, extract, normalize, section detection, document understanding, chunking, embedding, vector upsert, ledger, keyword index và chuyển version sang `Indexed`.
 
 Khi reviewer sinh và publish wiki, cùng nội dung đó đi thêm một vòng chuẩn hóa qua `WikiService.GenerateDraftAsync`, `WikiService.PublishAsync` và `IndexWikiPageAsync`. Lúc này hệ thống có hai lớp tri thức: document knowledge làm nguồn gốc/fallback và wiki knowledge làm nguồn ưu tiên cho AI Q&A.
+
