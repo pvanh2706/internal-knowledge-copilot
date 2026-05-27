@@ -197,10 +197,12 @@ public sealed class AiProviderSettingsService(
         var fallback = fallbackOptions.Value;
         if (entity is null)
         {
-            return Clone(fallback);
+            var cloned = Clone(fallback);
+            ApplySharedOpenAiEmbeddingKey(cloned);
+            return cloned;
         }
 
-        return new AiProviderOptions
+        var options = new AiProviderOptions
         {
             Name = entity.Name,
             BaseUrl = entity.BaseUrl,
@@ -220,6 +222,9 @@ public sealed class AiProviderSettingsService(
             MaxOutputTokens = entity.MaxOutputTokens,
             TimeoutSeconds = entity.TimeoutSeconds,
         };
+
+        ApplySharedOpenAiEmbeddingKey(options);
+        return options;
     }
 
     private static AiProviderOptions Clone(AiProviderOptions options)
@@ -354,6 +359,33 @@ public sealed class AiProviderSettingsService(
         return string.Equals(options.EmbeddingProviderName, "mock", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static void ApplySharedOpenAiEmbeddingKey(AiProviderOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.EmbeddingApiKey)
+            || string.IsNullOrWhiteSpace(options.ApiKey)
+            || !CanReuseChatKeyForEmbedding(options.Name, options.EmbeddingProviderName)
+            || !SameBaseUrl(options.BaseUrl, options.EmbeddingBaseUrl))
+        {
+            return;
+        }
+
+        options.EmbeddingApiKey = options.ApiKey;
+    }
+
+    private static bool CanReuseChatKeyForEmbedding(string providerName, string embeddingProviderName)
+    {
+        return string.Equals(providerName, "openai", StringComparison.OrdinalIgnoreCase)
+            && (
+                string.Equals(embeddingProviderName, "openai", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(embeddingProviderName, "openai-compatible", StringComparison.OrdinalIgnoreCase)
+            );
+    }
+
+    private static bool SameBaseUrl(string left, string right)
+    {
+        return string.Equals(left.TrimEnd('/'), right.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool HasApiKey(AiProviderOptions options)
     {
         return !string.IsNullOrWhiteSpace(options.ApiKey);
@@ -373,6 +405,7 @@ public sealed class AiProviderSettingsService(
         return new AiProviderSettingsResponse(
             options.Name,
             options.BaseUrl,
+            string.IsNullOrWhiteSpace(options.ApiKey) ? null : options.ApiKey,
             hasApiKey,
             options.ApiKeyHeaderName,
             options.ChatEndpointMode,
@@ -380,6 +413,7 @@ public sealed class AiProviderSettingsService(
             options.FastModel,
             options.EmbeddingProviderName,
             options.EmbeddingBaseUrl,
+            string.IsNullOrWhiteSpace(options.EmbeddingApiKey) ? null : options.EmbeddingApiKey,
             hasEmbeddingApiKey,
             options.EmbeddingApiKeyHeaderName,
             options.EmbeddingModel,

@@ -76,7 +76,9 @@ public sealed partial class SectionDetector : ISectionDetector
         var numbered = NumberedHeadingRegex().Match(line);
         if (numbered.Success)
         {
-            return numbered.Groups["title"].Value.Trim();
+            var marker = numbered.Groups["marker"].Value.Trim();
+            var title = numbered.Groups["title"].Value.Trim();
+            return LooksLikeNumberedHeadingTitle(marker, title) ? title : null;
         }
 
         if (LooksLikeVietnameseHeading(line))
@@ -107,11 +109,30 @@ public sealed partial class SectionDetector : ISectionDetector
         return prefixes.Any(prefix => lower.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
+    private static bool LooksLikeNumberedHeadingTitle(string marker, string title)
+    {
+        if (string.IsNullOrWhiteSpace(title) || title.EndsWith('.') || title.EndsWith('!') || title.EndsWith('?'))
+        {
+            return false;
+        }
+
+        if (marker.Contains('.', StringComparison.Ordinal) || RomanNumeralRegex().IsMatch(marker))
+        {
+            return true;
+        }
+
+        var wordCount = title.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
+        return wordCount <= 4 || LooksLikeVietnameseHeading(title);
+    }
+
     [GeneratedRegex(@"^#{1,6}\s+(?<title>.+)$", RegexOptions.CultureInvariant)]
     private static partial Regex MarkdownHeadingRegex();
 
-    [GeneratedRegex(@"^(?:\d+(?:\.\d+)*|[IVX]+)[\.\)]\s+(?<title>.+)$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?<marker>\d+(?:\.\d+)*|[IVX]+)[\.\)]\s+(?<title>.+)$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex NumberedHeadingRegex();
+
+    [GeneratedRegex(@"^[IVX]+$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    private static partial Regex RomanNumeralRegex();
 
     private sealed record DetectedHeading(int StartOffset, string Title);
 }

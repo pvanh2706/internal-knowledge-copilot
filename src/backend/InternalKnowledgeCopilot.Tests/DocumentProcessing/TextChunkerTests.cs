@@ -45,6 +45,26 @@ public sealed class TextChunkerTests
     }
 
     [Fact]
+    public void SectionDetector_DoesNotTreatOrderedListItemsAsHeadings()
+    {
+        var detector = new SectionDetector();
+
+        var sections = detector.Detect("""
+            # Quy trinh xin nghi phep
+
+            ## Cac buoc
+            1. Nhan vien tao yeu cau nghi phep tren he thong HRM.
+            2. Quan ly truc tiep phe duyet yeu cau.
+            3. Bo phan Nhan su kiem tra so ngay phep con lai.
+            """);
+
+        Assert.Equal(2, sections.Count);
+        Assert.Equal("Quy trinh xin nghi phep", sections[0].Title);
+        Assert.Equal("Cac buoc", sections[1].Title);
+        Assert.Contains("Bo phan Nhan su", sections[1].Text);
+    }
+
+    [Fact]
     public void Chunk_PreservesSectionMetadata()
     {
         var detector = new SectionDetector();

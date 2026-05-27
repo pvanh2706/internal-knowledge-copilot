@@ -4,11 +4,17 @@ obj/
 TestResults/
 *.user
 *.lscache
+*.nupkg
 
 # Node
 node_modules/
 dist/
 dist-ssr/
+coverage/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 *.local
 
 # Local runtime data
@@ -16,8 +22,22 @@ data/
 storage/
 .chroma/
 .chroma*/
+.run/
+.run-check/
+.publish/
 logs/
 *.log
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Local environment files
+.env
+.env.*
+!.env.example
 
 # Editor
 .vs/

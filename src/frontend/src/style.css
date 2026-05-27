@@ -405,6 +405,12 @@ textarea {
   padding: 10px 14px;
 }
 
+.button-row button:disabled,
+.stack-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .wiki-content {
   max-height: 520px;
   overflow: auto;
@@ -457,6 +463,88 @@ textarea {
 
 .stat-card small {
   color: #667085;
+}
+
+.settings-section {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d7dce5;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.settings-section h3 {
+  margin: 0;
+}
+
+.settings-note {
+  margin: 0;
+  color: #667085;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 45%);
+  padding: 20px;
+}
+
+.warning-modal {
+  display: grid;
+  width: min(100%, 480px);
+  gap: 14px;
+  border: 1px solid #f5c2c7;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 20px 48px rgb(15 23 42 / 22%);
+  padding: 22px;
+}
+
+.warning-modal h2,
+.warning-modal p {
+  margin: 0;
+}
+
+.warning-modal h2 {
+  color: #8a2c0d;
+  font-size: 20px;
+}
+
+.warning-detail {
+  color: #667085;
+  font-weight: 600;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.modal-actions button,
+.primary-action {
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.modal-actions button {
+  background: #ffffff;
+  color: #344054;
+  border: 1px solid #cfd6e0;
+}
+
+.primary-action {
+  background: #1f6feb;
+  color: #ffffff;
 }
 
 @media (max-width: 760px) {

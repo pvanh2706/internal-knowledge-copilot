@@ -3,6 +3,7 @@ namespace InternalKnowledgeCopilot.Api.Modules.AiSettings;
 public sealed record AiProviderSettingsResponse(
     string Name,
     string BaseUrl,
+    string? ApiKey,
     bool HasApiKey,
     string ApiKeyHeaderName,
     string ChatEndpointMode,
@@ -10,6 +11,7 @@ public sealed record AiProviderSettingsResponse(
     string FastModel,
     string EmbeddingProviderName,
     string EmbeddingBaseUrl,
+    string? EmbeddingApiKey,
     bool HasEmbeddingApiKey,
     string EmbeddingApiKeyHeaderName,
     string EmbeddingModel,
@@ -45,3 +47,8 @@ public sealed record TestAiProviderSettingsResponse(
     bool Success,
     string ProviderName,
     string Message);
+
+public sealed record AiProviderConfigurationStatusResponse(
+    string ProviderName,
+    bool HasLlmApiKey,
+    bool UsesMockLlmProvider);
