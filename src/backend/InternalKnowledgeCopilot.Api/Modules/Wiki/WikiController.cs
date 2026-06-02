@@ -8,7 +8,7 @@ namespace InternalKnowledgeCopilot.Api.Modules.Wiki;
 [ApiController]
 [Route("api/wiki")]
 [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
-public sealed class WikiController(IWikiService wikiService) : ControllerBase
+public sealed class WikiController(IWikiService wikiService, ILogger<WikiController> logger) : ControllerBase
 {
     [HttpPost("generate")]
     public async Task<ActionResult<WikiDraftDetailResponse>> Generate(GenerateWikiDraftRequest request, CancellationToken cancellationToken)
@@ -31,9 +31,25 @@ public sealed class WikiController(IWikiService wikiService) : ControllerBase
         {
             return BadRequest(new ApiError("document_version_not_indexed", "Phiên bản tài liệu phải được duyệt và index trước khi sinh wiki."));
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex) when (ex.Message == "extracted_text_not_found")
         {
             return BadRequest(new ApiError("extracted_text_not_found", "Không tìm thấy nội dung đã trích xuất của tài liệu."));
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "extracted_text_empty")
+        {
+            return BadRequest(new ApiError("extracted_text_empty", "Nội dung đã trích xuất của tài liệu đang trống."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return WikiGenerationFailed(request, ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            return WikiGenerationFailed(request, ex);
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            return WikiGenerationFailed(request, ex);
         }
         catch (UnauthorizedAccessException)
         {
@@ -126,5 +142,20 @@ public sealed class WikiController(IWikiService wikiService) : ControllerBase
     {
         var rawUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(rawUserId, out var userId) ? userId : null;
+    }
+
+    private ObjectResult WikiGenerationFailed(GenerateWikiDraftRequest request, Exception ex)
+    {
+        logger.LogWarning(
+            ex,
+            "Wiki draft generation failed for document {DocumentId} version {DocumentVersionId}.",
+            request.DocumentId,
+            request.DocumentVersionId);
+
+        return StatusCode(
+            StatusCodes.Status502BadGateway,
+            new ApiError(
+                "wiki_generation_failed",
+                "Không thể sinh wiki draft vì AI provider không phản hồi hoặc cấu hình chưa hợp lệ. Vui lòng kiểm tra cấu hình AI provider."));
     }
 }

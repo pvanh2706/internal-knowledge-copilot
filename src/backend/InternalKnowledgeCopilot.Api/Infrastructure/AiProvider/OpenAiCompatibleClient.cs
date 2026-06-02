@@ -226,7 +226,6 @@ public sealed class OpenAiCompatibleClient(HttpClient httpClient)
         object payload,
         CancellationToken cancellationToken)
     {
-        httpClient.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
         using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(options, relativePath))
         {
             Content = JsonContent.Create(payload),
@@ -249,7 +248,7 @@ public sealed class OpenAiCompatibleClient(HttpClient httpClient)
             }
         }
 
-        return await httpClient.SendAsync(request, cancellationToken);
+        return await SendAsync(request, options, cancellationToken);
     }
 
     private async Task<HttpResponseMessage> PostEmbeddingAsJsonAsync(
@@ -258,7 +257,6 @@ public sealed class OpenAiCompatibleClient(HttpClient httpClient)
         object payload,
         CancellationToken cancellationToken)
     {
-        httpClient.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
         using var request = new HttpRequestMessage(HttpMethod.Post, BuildEmbeddingUri(options, relativePath))
         {
             Content = JsonContent.Create(payload),
@@ -276,7 +274,17 @@ public sealed class OpenAiCompatibleClient(HttpClient httpClient)
             }
         }
 
-        return await httpClient.SendAsync(request, cancellationToken);
+        return await SendAsync(request, options, cancellationToken);
+    }
+
+    private async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        AiProviderOptions options,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds)));
+        return await httpClient.SendAsync(request, timeoutCts.Token);
     }
 
     private static Uri BuildUri(AiProviderOptions options, string relativePath)
