@@ -169,7 +169,7 @@ If a command cannot be run, record the reason in the progress log.
 - [x] Phase 4 - Integration contracts and connector boundaries
 - [x] Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation
 - [x] Phase 6 - Workflow Copilot for CRM events
-- [ ] Phase 7 - AI action approval and execution
+- [x] Phase 7 - AI action approval and execution
 - [ ] Phase 8 - Frontend surfaces and embedded usage
 - [ ] Phase 9 - Worker and job hardening
 - [ ] Phase 10 - Product hardening, evaluation, and enterprise notes
@@ -539,19 +539,19 @@ Infrastructure/ActionExecution/ExternalActionExecutor.cs
 
 Checklist:
 
-- [ ] Add `AiActionRequestEntity` with tenant, application, recommendation, action type, target object, payload, approval mode, status, approver, execution result, idempotency key, and timestamps.
-- [ ] Add action statuses: `Draft`, `PendingApproval`, `Approved`, `Rejected`, `Executing`, `Succeeded`, `Failed`, `Cancelled`.
-- [ ] Add action request creation from workflow recommendations.
-- [ ] Add user approval endpoint.
-- [ ] Add user rejection endpoint with reason.
-- [ ] Add rule approval abstraction, but keep initial rules simple.
-- [ ] Add source-system action validation call before approval or execution.
-- [ ] Add source-system action execution through `IExternalActionExecutor`.
-- [ ] Enforce idempotency for action execution.
-- [ ] Add audit logs for create, approve, reject, execute, fail, and cancel.
-- [ ] Add tests for approval lifecycle.
-- [ ] Add tests for duplicate execution prevention.
-- [ ] Add tests for source-system validation failure.
+- [x] Add `AiActionRequestEntity` with tenant, application, recommendation, action type, target object, payload, approval mode, status, approver, execution result, idempotency key, and timestamps.
+- [x] Add action statuses: `Draft`, `PendingApproval`, `Approved`, `Rejected`, `Executing`, `Succeeded`, `Failed`, `Cancelled`.
+- [x] Add action request creation from workflow recommendations.
+- [x] Add user approval endpoint.
+- [x] Add user rejection endpoint with reason.
+- [x] Add rule approval abstraction, but keep initial rules simple.
+- [x] Add source-system action validation call before approval or execution.
+- [x] Add source-system action execution through `IExternalActionExecutor`.
+- [x] Enforce idempotency for action execution.
+- [x] Add audit logs for create, approve, reject, execute, fail, and cancel.
+- [x] Add tests for approval lifecycle.
+- [x] Add tests for duplicate execution prevention.
+- [x] Add tests for source-system validation failure.
 
 Acceptance criteria:
 
@@ -696,9 +696,9 @@ Use these slices for AI-assisted construction. Each slice should end with tests 
 
 ### Slice 8 - Action Approval
 
-- [ ] Add action request model and lifecycle.
-- [ ] Add approval/execution APIs.
-- [ ] Add idempotent source-system execution boundary.
+- [x] Add action request model and lifecycle.
+- [x] Add approval/execution APIs.
+- [x] Add idempotent source-system execution boundary.
 
 ### Slice 9 - Frontend and Demo Flow
 
@@ -766,3 +766,4 @@ Add entries here after each implementation batch.
 | 2026-06-04 | Codex | Phase 4 - Integration contracts and connector boundaries | Added integration connections, internal API-key auth, inbound event/document/object/permission sync contracts, durable idempotent inbound event storage, connector interfaces, internal HTTP connector, and focused backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 77/77; `dotnet ef database update` applied all migrations through `20260604091137_AddIntegrationContracts` on a fresh design-time SQLite database | Internal applications can now push sync/events without duplicate rows, and connector boundaries remain independent of CRM-specific logic. Next batch: Phase 5 - Tenant-Aware Retrieval, Indexing, and Permission Revalidation |
 | 2026-06-04 | Codex | Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation | Added application/source/external-object metadata to retrieval indexes, extended vector and keyword filters, preserved local folder permission checks, added external ACL snapshot plus realtime revalidation before answer generation, and added retrieval isolation tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 80/80; `dotnet ef database update` applied all migrations through `20260604093517_AddRetrievalSourceMetadata` on a fresh design-time SQLite database | Retrieval is now tenant-scoped, optionally application/source/object-scoped, and external citations can be rejected when source-system revalidation denies access. Next batch: Phase 6 - Workflow Copilot for CRM Events |
 | 2026-06-05 | Codex | Phase 6 - Workflow Copilot for CRM Events | Added workflow definitions/steps, durable domain events, AI recommendations with citations and feedback, deal-stage event API, recommendation history API, object-context accept/fetch flow, process-document retrieval, and mock/OpenAI-compatible recommendation generation with reasoning-based won/lost signals | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 84/84; `dotnet ef database update` applied all migrations through `20260604175019_AddWorkflowCopilot` on a fresh design-time SQLite database | CRM deal-stage events can now create auditable recommendations grounded in event context and retrieved process sources. Won/lost signals are explicitly labeled reasoning-based, not predictive ML. Next batch: Phase 7 - AI Action Approval and Execution |
+| 2026-06-05 | Codex | Phase 7 - AI Action Approval and Execution | Added action request lifecycle, manual and simple rule approval, recommendation-to-action creation API, approval/rejection/cancel/execute APIs, source-system validation before create/approval/execution, idempotent execution guard, and audit hooks | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 88/88; `dotnet ef database update` applied all migrations through `20260604180553_AddActionApprovals` on a fresh design-time SQLite database | AI now creates auditable action requests instead of directly mutating CRM data. Source-system execution uses `IExternalActionExecutor` and successful actions are not executed twice. Next batch: Phase 8 - Frontend Surfaces and Embedded Usage |

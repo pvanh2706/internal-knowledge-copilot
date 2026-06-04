@@ -27,6 +27,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<AiRecommendationEntity> AiRecommendations => Set<AiRecommendationEntity>();
 
+    public DbSet<AiActionRequestEntity> AiActionRequests => Set<AiActionRequestEntity>();
+
     public DbSet<UserEntity> Users => Set<UserEntity>();
 
     public DbSet<TeamEntity> Teams => Set<TeamEntity>();
@@ -438,6 +440,75 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasOne(recommendation => recommendation.FeedbackByUser)
                 .WithMany()
                 .HasForeignKey(recommendation => recommendation.FeedbackByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AiActionRequestEntity>(entity =>
+        {
+            entity.ToTable("ai_action_requests");
+            entity.HasKey(action => action.Id);
+            entity.Property(action => action.TenantId).HasColumnName("tenant_id");
+            entity.Property(action => action.ApplicationId).HasColumnName("application_id");
+            entity.Property(action => action.RecommendationId).HasColumnName("recommendation_id");
+            entity.Property(action => action.ActionType).HasColumnName("action_type").HasMaxLength(100).IsRequired();
+            entity.Property(action => action.TargetObjectType).HasColumnName("target_object_type").HasMaxLength(100).IsRequired();
+            entity.Property(action => action.TargetExternalObjectId).HasColumnName("target_external_object_id").HasMaxLength(300).IsRequired();
+            entity.Property(action => action.PayloadJson).HasColumnName("payload_json").IsRequired();
+            entity.Property(action => action.NormalizedPayloadJson).HasColumnName("normalized_payload_json");
+            entity.Property(action => action.ApprovalMode).HasColumnName("approval_mode").HasConversion<string>().HasMaxLength(50);
+            entity.Property(action => action.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(action => action.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(200).IsRequired();
+            entity.Property(action => action.RequestedByUserId).HasColumnName("requested_by_user_id");
+            entity.Property(action => action.ApprovedByUserId).HasColumnName("approved_by_user_id");
+            entity.Property(action => action.RejectedByUserId).HasColumnName("rejected_by_user_id");
+            entity.Property(action => action.ExecutedByUserId).HasColumnName("executed_by_user_id");
+            entity.Property(action => action.RejectionReason).HasColumnName("rejection_reason").HasMaxLength(2000);
+            entity.Property(action => action.CancellationReason).HasColumnName("cancellation_reason").HasMaxLength(2000);
+            entity.Property(action => action.ValidationResultJson).HasColumnName("validation_result_json");
+            entity.Property(action => action.RuleDecisionJson).HasColumnName("rule_decision_json");
+            entity.Property(action => action.ExternalExecutionId).HasColumnName("external_execution_id").HasMaxLength(300);
+            entity.Property(action => action.ExecutionResultJson).HasColumnName("execution_result_json");
+            entity.Property(action => action.ExecutionError).HasColumnName("execution_error").HasMaxLength(2000);
+            entity.Property(action => action.CreatedAt).HasColumnName("created_at");
+            entity.Property(action => action.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(action => action.ApprovedAt).HasColumnName("approved_at");
+            entity.Property(action => action.RejectedAt).HasColumnName("rejected_at");
+            entity.Property(action => action.ExecutingStartedAt).HasColumnName("executing_started_at");
+            entity.Property(action => action.ExecutedAt).HasColumnName("executed_at");
+            entity.Property(action => action.CancelledAt).HasColumnName("cancelled_at");
+            entity.HasIndex(action => action.TenantId);
+            entity.HasIndex(action => action.ApplicationId);
+            entity.HasIndex(action => action.RecommendationId);
+            entity.HasIndex(action => new { action.TenantId, action.ApplicationId, action.IdempotencyKey }).IsUnique();
+            entity.HasIndex(action => new { action.TenantId, action.ApplicationId, action.Status, action.CreatedAt });
+            entity.HasIndex(action => new { action.TenantId, action.ApplicationId, action.TargetObjectType, action.TargetExternalObjectId, action.CreatedAt });
+            entity.HasOne(action => action.Tenant)
+                .WithMany()
+                .HasForeignKey(action => action.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.Application)
+                .WithMany()
+                .HasForeignKey(action => action.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.Recommendation)
+                .WithMany()
+                .HasForeignKey(action => action.RecommendationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.RequestedByUser)
+                .WithMany()
+                .HasForeignKey(action => action.RequestedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(action => action.ApprovedByUser)
+                .WithMany()
+                .HasForeignKey(action => action.ApprovedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(action => action.RejectedByUser)
+                .WithMany()
+                .HasForeignKey(action => action.RejectedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(action => action.ExecutedByUser)
+                .WithMany()
+                .HasForeignKey(action => action.ExecutedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
