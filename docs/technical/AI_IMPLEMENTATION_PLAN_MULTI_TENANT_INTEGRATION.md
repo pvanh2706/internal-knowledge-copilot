@@ -166,7 +166,7 @@ If a command cannot be run, record the reason in the progress log.
 - [x] Phase 1 - Tenant and application foundation
 - [x] Phase 2 - Tenantize existing data and query flows
 - [x] Phase 3 - Knowledge sources, external objects, and ACL snapshots
-- [ ] Phase 4 - Integration contracts and connector boundaries
+- [x] Phase 4 - Integration contracts and connector boundaries
 - [ ] Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation
 - [ ] Phase 6 - Workflow Copilot for CRM events
 - [ ] Phase 7 - AI action approval and execution
@@ -411,21 +411,27 @@ GET  /copilot/objects/{type}/{externalId}/context
 
 Checklist:
 
-- [ ] Add `IntegrationConnectionEntity` with tenant, application, base URL, auth mode, status, and secret reference fields.
-- [ ] Add inbound request models for domain events, document changed events, object sync, and permission sync.
-- [ ] Add validation for tenant/application resolution.
-- [ ] Add an initial internal integration authentication mechanism.
-- [ ] Add idempotency keys for inbound events.
-- [ ] Store inbound domain events in a durable table in Phase 6 or a temporary integration event table.
-- [ ] Add connector interfaces without implementing third-party connectors yet.
-- [ ] Add an internal HTTP connector implementation for company-owned systems.
-- [ ] Add tests for invalid app code, invalid tenant, duplicate event idempotency, and unauthorized integration calls.
+- [x] Add `IntegrationConnectionEntity` with tenant, application, base URL, auth mode, status, and secret reference fields.
+- [x] Add inbound request models for domain events, document changed events, object sync, and permission sync.
+- [x] Add validation for tenant/application resolution.
+- [x] Add an initial internal integration authentication mechanism.
+- [x] Add idempotency keys for inbound events.
+- [x] Store inbound domain events in a durable table in Phase 6 or a temporary integration event table.
+- [x] Add connector interfaces without implementing third-party connectors yet.
+- [x] Add an internal HTTP connector implementation for company-owned systems.
+- [x] Add tests for invalid app code, invalid tenant, duplicate event idempotency, and unauthorized integration calls.
 
 Acceptance criteria:
 
 - Internal apps can push document/object/permission changes.
 - Duplicate integration messages do not create duplicate records.
 - Connector interfaces are independent of CRM-specific domain logic.
+
+Implementation notes:
+
+- Added tenant/application-scoped integration connections, internal API-key authentication, durable inbound event storage, and idempotency keys across inbound sync/event endpoints.
+- Added connector boundaries for external content, object context, permission revalidation, action validation, and action execution, plus an internal HTTP connector implementation for company-owned systems.
+- Verification passed: `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 77/77; `dotnet ef database update` applied all migrations through `20260604091137_AddIntegrationContracts` on a fresh design-time SQLite database.
 
 ## 13. Phase 5 - Tenant-Aware Retrieval, Indexing, and Permission Revalidation
 
@@ -665,9 +671,9 @@ Use these slices for AI-assisted construction. Each slice should end with tests 
 
 ### Slice 5 - Integration API
 
-- [ ] Add integration connection and inbound sync/event endpoints.
-- [ ] Add connector interfaces.
-- [ ] Add idempotency tests.
+- [x] Add integration connection and inbound sync/event endpoints.
+- [x] Add connector interfaces.
+- [x] Add idempotency tests.
 
 ### Slice 6 - External-Aware Retrieval
 
@@ -750,3 +756,4 @@ Add entries here after each implementation batch.
 | 2026-06-04 | Codex | Phase 1 - Tenant and application foundation | Added tenant/application domain, EF mapping, migration, default seed data, tenant resolver, admin services/controllers, and focused backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 64/64; `npm test` passed 1/1; `npm run build` passed; `dotnet ef migrations list` confirmed `20260604035437_AddTenantsAndApplications` latest | Existing tables are not tenantized yet. Next batch: Phase 2 - Tenantize Existing Data and Query Flows |
 | 2026-06-04 | Codex | Phase 2 - Tenantize existing data and query flows | Added tenant ids to existing domain tables, tenant-scoped indexes, default-tenant backfill migration, tenant-aware auth/JWT, scoped query/write paths, tenant-aware indexing/rebuild/reset behavior, and cross-tenant backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 68/68 | Existing MVP flows now resolve and enforce tenant context. Next batch: Phase 3 - Knowledge Sources, External Objects, and ACL Snapshots |
 | 2026-06-04 | Codex | Phase 3 - Knowledge sources, external objects, and ACL snapshots | Added tenant/application-scoped knowledge sources, external objects, ACL snapshots, Admin/Reviewer inspection APIs, default local source mapping for documents/wiki, and idempotent sync tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 72/72; `dotnet ef database update` applied all migrations through `20260604085007_AddKnowledgeSourcesAndExternalObjects` on a fresh design-time SQLite database | External knowledge can now be represented without duplicate object rows, and ACL replacement is scoped to the target tenant/application/object. Next batch: Phase 4 - Integration Contracts and Connector Boundaries |
+| 2026-06-04 | Codex | Phase 4 - Integration contracts and connector boundaries | Added integration connections, internal API-key auth, inbound event/document/object/permission sync contracts, durable idempotent inbound event storage, connector interfaces, internal HTTP connector, and focused backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 77/77; `dotnet ef database update` applied all migrations through `20260604091137_AddIntegrationContracts` on a fresh design-time SQLite database | Internal applications can now push sync/events without duplicate rows, and connector boundaries remain independent of CRM-specific logic. Next batch: Phase 5 - Tenant-Aware Retrieval, Indexing, and Permission Revalidation |

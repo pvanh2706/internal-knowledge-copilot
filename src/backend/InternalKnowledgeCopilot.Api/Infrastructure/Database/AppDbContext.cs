@@ -15,6 +15,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<ExternalAclSnapshotEntity> ExternalAclSnapshots => Set<ExternalAclSnapshotEntity>();
 
+    public DbSet<IntegrationConnectionEntity> IntegrationConnections => Set<IntegrationConnectionEntity>();
+
+    public DbSet<IntegrationInboundEventEntity> IntegrationInboundEvents => Set<IntegrationInboundEventEntity>();
+
     public DbSet<UserEntity> Users => Set<UserEntity>();
 
     public DbSet<TeamEntity> Teams => Set<TeamEntity>();
@@ -208,6 +212,74 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(snapshot => snapshot.ExternalObjectRecordId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IntegrationConnectionEntity>(entity =>
+        {
+            entity.ToTable("integration_connections");
+            entity.HasKey(connection => connection.Id);
+            entity.Property(connection => connection.TenantId).HasColumnName("tenant_id");
+            entity.Property(connection => connection.ApplicationId).HasColumnName("application_id");
+            entity.Property(connection => connection.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+            entity.Property(connection => connection.BaseUrl).HasColumnName("base_url").HasMaxLength(1000).IsRequired();
+            entity.Property(connection => connection.AuthMode).HasColumnName("auth_mode").HasConversion<string>().HasMaxLength(50);
+            entity.Property(connection => connection.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(connection => connection.SecretReference).HasColumnName("secret_reference").HasMaxLength(200).IsRequired();
+            entity.Property(connection => connection.SecretHash).HasColumnName("secret_hash").HasMaxLength(500);
+            entity.Property(connection => connection.SecretRotatedAt).HasColumnName("secret_rotated_at");
+            entity.Property(connection => connection.MetadataJson).HasColumnName("metadata_json");
+            entity.Property(connection => connection.CreatedAt).HasColumnName("created_at");
+            entity.Property(connection => connection.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(connection => connection.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(connection => connection.TenantId);
+            entity.HasIndex(connection => connection.ApplicationId);
+            entity.HasIndex(connection => new { connection.TenantId, connection.ApplicationId, connection.SecretReference }).IsUnique();
+            entity.HasIndex(connection => new { connection.TenantId, connection.Status });
+            entity.HasOne(connection => connection.Tenant)
+                .WithMany()
+                .HasForeignKey(connection => connection.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(connection => connection.Application)
+                .WithMany()
+                .HasForeignKey(connection => connection.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<IntegrationInboundEventEntity>(entity =>
+        {
+            entity.ToTable("integration_inbound_events");
+            entity.HasKey(inboundEvent => inboundEvent.Id);
+            entity.Property(inboundEvent => inboundEvent.TenantId).HasColumnName("tenant_id");
+            entity.Property(inboundEvent => inboundEvent.ApplicationId).HasColumnName("application_id");
+            entity.Property(inboundEvent => inboundEvent.IntegrationConnectionId).HasColumnName("integration_connection_id");
+            entity.Property(inboundEvent => inboundEvent.EventType).HasColumnName("event_type").HasConversion<string>().HasMaxLength(100);
+            entity.Property(inboundEvent => inboundEvent.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(200).IsRequired();
+            entity.Property(inboundEvent => inboundEvent.ExternalEventId).HasColumnName("external_event_id").HasMaxLength(300);
+            entity.Property(inboundEvent => inboundEvent.ObjectType).HasColumnName("object_type").HasMaxLength(100);
+            entity.Property(inboundEvent => inboundEvent.ExternalObjectId).HasColumnName("external_object_id").HasMaxLength(300);
+            entity.Property(inboundEvent => inboundEvent.PayloadJson).HasColumnName("payload_json");
+            entity.Property(inboundEvent => inboundEvent.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(inboundEvent => inboundEvent.ReceivedAt).HasColumnName("received_at");
+            entity.Property(inboundEvent => inboundEvent.ProcessedAt).HasColumnName("processed_at");
+            entity.Property(inboundEvent => inboundEvent.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(inboundEvent => inboundEvent.TenantId);
+            entity.HasIndex(inboundEvent => inboundEvent.ApplicationId);
+            entity.HasIndex(inboundEvent => inboundEvent.IntegrationConnectionId);
+            entity.HasIndex(inboundEvent => new { inboundEvent.TenantId, inboundEvent.ApplicationId, inboundEvent.IdempotencyKey }).IsUnique();
+            entity.HasIndex(inboundEvent => new { inboundEvent.TenantId, inboundEvent.ApplicationId, inboundEvent.EventType, inboundEvent.ReceivedAt });
+            entity.HasIndex(inboundEvent => new { inboundEvent.TenantId, inboundEvent.ApplicationId, inboundEvent.ObjectType, inboundEvent.ExternalObjectId });
+            entity.HasOne(inboundEvent => inboundEvent.Tenant)
+                .WithMany()
+                .HasForeignKey(inboundEvent => inboundEvent.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(inboundEvent => inboundEvent.Application)
+                .WithMany()
+                .HasForeignKey(inboundEvent => inboundEvent.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(inboundEvent => inboundEvent.IntegrationConnection)
+                .WithMany()
+                .HasForeignKey(inboundEvent => inboundEvent.IntegrationConnectionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<TeamEntity>(entity =>

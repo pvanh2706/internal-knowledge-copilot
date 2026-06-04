@@ -31,6 +31,7 @@ public sealed class DataResetService(
         "evaluation_run_results",
         "evaluation_runs",
         "evaluation_cases",
+        "integration_inbound_events",
         "external_acl_snapshots",
         "external_objects",
         "retrieval_hints",

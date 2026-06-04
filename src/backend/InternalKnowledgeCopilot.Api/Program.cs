@@ -1,7 +1,10 @@
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
+using InternalKnowledgeCopilot.Api.Infrastructure.AccessControl;
+using InternalKnowledgeCopilot.Api.Infrastructure.ActionExecution;
 using InternalKnowledgeCopilot.Api.Infrastructure.BackgroundJobs;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
+using InternalKnowledgeCopilot.Api.Infrastructure.Connectors;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
 using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
@@ -19,6 +22,7 @@ using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
+using InternalKnowledgeCopilot.Api.Modules.Integrations;
 using InternalKnowledgeCopilot.Api.Modules.Tenants;
 using InternalKnowledgeCopilot.Api.Modules.Wiki;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -78,8 +82,14 @@ builder.Services.AddScoped<IAiFeedbackService, AiFeedbackService>();
 builder.Services.AddScoped<IEvaluationService, EvaluationService>();
 builder.Services.AddScoped<IKnowledgeIndexRebuildService, KnowledgeIndexRebuildService>();
 builder.Services.AddScoped<IKnowledgeSourceService, KnowledgeSourceService>();
+builder.Services.AddSingleton<IIntegrationSecretHasher, IntegrationSecretHasher>();
+builder.Services.AddScoped<IIntegrationService, IntegrationService>();
 builder.Services.AddScoped<IWikiService, WikiService>();
 builder.Services.AddScoped<IDataResetService, DataResetService>();
+builder.Services.AddHttpClient<IExternalContentClient, InternalHttpExternalConnector>();
+builder.Services.AddHttpClient<IExternalObjectContextClient, InternalHttpExternalConnector>();
+builder.Services.AddHttpClient<IExternalAccessResolver, InternalHttpExternalConnector>();
+builder.Services.AddHttpClient<IExternalActionExecutor, InternalHttpExternalConnector>();
 builder.Services.AddHttpClient<IKnowledgeVectorStore, ChromaKnowledgeVectorStore>((serviceProvider, client) =>
 {
     var chromaOptions = serviceProvider.GetRequiredService<IOptions<ChromaOptions>>().Value;
