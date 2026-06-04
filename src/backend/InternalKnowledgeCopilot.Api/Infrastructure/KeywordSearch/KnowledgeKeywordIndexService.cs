@@ -77,8 +77,30 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
             query = query.Where(chunk => chunk.TenantId == filter.TenantId);
         }
 
+        if (filter.ApplicationId is not null)
+        {
+            query = query.Where(chunk => chunk.ApplicationId == filter.ApplicationId);
+        }
+
+        if (filter.KnowledgeSourceId is not null)
+        {
+            query = query.Where(chunk => chunk.KnowledgeSourceId == filter.KnowledgeSourceId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.ExternalObjectType))
+        {
+            var objectType = filter.ExternalObjectType.Trim().ToLowerInvariant();
+            query = query.Where(chunk => chunk.ExternalObjectType == objectType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.ExternalObjectId))
+        {
+            var externalObjectId = filter.ExternalObjectId.Trim();
+            query = query.Where(chunk => chunk.ExternalObjectId == externalObjectId);
+        }
+
         var sourceTypes = filter.SourceTypes
-            .Select(value => Enum.TryParse<KnowledgeSourceType>(value, true, out var sourceType) ? sourceType : (KnowledgeSourceType?)null)
+            .Select(value => KnowledgeSourceTypeMetadata.TryParse(value, out var sourceType) ? sourceType : (KnowledgeSourceType?)null)
             .Where(sourceType => sourceType is not null)
             .Select(sourceType => sourceType!.Value)
             .ToArray();
@@ -105,9 +127,13 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
         var folderIds = filter.FolderIds.Distinct().ToArray();
         if (filter.IncludeCompanyVisible)
         {
+            var includesExternalObjects = sourceTypes.Contains(KnowledgeSourceType.ExternalObject);
             query = folderIds.Length == 0
-                ? query.Where(chunk => chunk.VisibilityScope == "company")
-                : query.Where(chunk => chunk.VisibilityScope == "company" || (chunk.FolderId != null && folderIds.Contains(chunk.FolderId.Value)));
+                ? query.Where(chunk => chunk.VisibilityScope == "company" || (includesExternalObjects && chunk.SourceType == KnowledgeSourceType.ExternalObject))
+                : query.Where(chunk =>
+                    chunk.VisibilityScope == "company" ||
+                    (chunk.FolderId != null && folderIds.Contains(chunk.FolderId.Value)) ||
+                    (includesExternalObjects && chunk.SourceType == KnowledgeSourceType.ExternalObject));
         }
         else
         {
@@ -151,11 +177,16 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
         {
             ChunkId = chunk.Id,
             TenantId = GetGuid(chunk.Metadata, "tenant_id") ?? Guid.Empty,
+            ApplicationId = GetGuid(chunk.Metadata, "application_id"),
+            KnowledgeSourceId = GetGuid(chunk.Metadata, "knowledge_source_id"),
             SourceType = sourceType,
             SourceId = sourceId,
             DocumentId = GetGuid(chunk.Metadata, "document_id"),
             DocumentVersionId = GetGuid(chunk.Metadata, "document_version_id"),
             WikiPageId = GetGuid(chunk.Metadata, "wiki_page_id"),
+            ExternalObjectRecordId = GetGuid(chunk.Metadata, "external_object_record_id"),
+            ExternalObjectType = NormalizeOptional(GetString(chunk.Metadata, "external_object_type"))?.ToLowerInvariant(),
+            ExternalObjectId = NormalizeOptional(GetString(chunk.Metadata, "external_object_id")),
             FolderId = GetGuid(chunk.Metadata, "folder_id"),
             VisibilityScope = GetString(chunk.Metadata, "visibility_scope")?.ToLowerInvariant() ?? "folder",
             Status = GetString(chunk.Metadata, "status")?.ToLowerInvariant() ?? string.Empty,
@@ -179,11 +210,16 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
             {
                 ["chunk_id"] = chunk.ChunkId,
                 ["tenant_id"] = chunk.TenantId.ToString(),
-                ["source_type"] = chunk.SourceType.ToString().ToLowerInvariant(),
+                ["application_id"] = chunk.ApplicationId?.ToString() ?? string.Empty,
+                ["knowledge_source_id"] = chunk.KnowledgeSourceId?.ToString() ?? string.Empty,
+                ["source_type"] = KnowledgeSourceTypeMetadata.ToMetadataValue(chunk.SourceType),
                 ["source_id"] = chunk.SourceId,
                 ["document_id"] = chunk.DocumentId?.ToString() ?? string.Empty,
                 ["document_version_id"] = chunk.DocumentVersionId?.ToString() ?? string.Empty,
                 ["wiki_page_id"] = chunk.WikiPageId?.ToString() ?? string.Empty,
+                ["external_object_record_id"] = chunk.ExternalObjectRecordId?.ToString() ?? string.Empty,
+                ["external_object_type"] = chunk.ExternalObjectType ?? string.Empty,
+                ["external_object_id"] = chunk.ExternalObjectId ?? string.Empty,
                 ["folder_id"] = chunk.FolderId?.ToString() ?? string.Empty,
                 ["visibility_scope"] = chunk.VisibilityScope,
                 ["status"] = chunk.Status,
@@ -210,6 +246,11 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
     {
         var value = GetString(metadata, key);
         return int.TryParse(value, out var number) ? number : null;
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static string NormalizeForSearch(string? text)

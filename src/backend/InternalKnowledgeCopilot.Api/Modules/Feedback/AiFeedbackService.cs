@@ -455,6 +455,18 @@ public sealed class AiFeedbackService(
             """;
         var embedding = await embeddingService.CreateEmbeddingAsync(text, cancellationToken);
         var folderPath = correction.Folder?.Path ?? string.Empty;
+        var localSource = await dbContext.KnowledgeSources
+            .AsNoTracking()
+            .Include(source => source.Application)
+            .FirstOrDefaultAsync(
+                source =>
+                    source.TenantId == correction.TenantId &&
+                    source.SourceType == KnowledgeSourceKind.Local &&
+                    source.ExternalSourceId == TenantDefaults.DefaultLocalKnowledgeSourceExternalId &&
+                    source.DeletedAt == null &&
+                    source.Application != null &&
+                    source.Application.DeletedAt == null,
+                cancellationToken);
         var chunks = new[]
         {
             new KnowledgeChunkRecord(
@@ -465,6 +477,8 @@ public sealed class AiFeedbackService(
                 {
                     ["chunk_id"] = correction.Id.ToString(),
                     ["tenant_id"] = correction.TenantId.ToString(),
+                    ["application_id"] = localSource?.ApplicationId.ToString() ?? string.Empty,
+                    ["knowledge_source_id"] = localSource?.Id.ToString() ?? string.Empty,
                     ["source_type"] = "correction",
                     ["source_id"] = correction.Id.ToString(),
                     ["correction_id"] = correction.Id.ToString(),

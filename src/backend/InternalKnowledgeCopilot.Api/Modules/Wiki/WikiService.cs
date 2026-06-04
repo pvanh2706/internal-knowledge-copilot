@@ -281,6 +281,16 @@ public sealed class WikiService(
         var relatedDocuments = ParseRelatedDocuments(draft.RelatedDocumentsJson);
         var missingInformation = ParseStringList(draft.MissingInformationJson);
         var vectorChunks = new List<KnowledgeChunkRecord>(chunks.Count);
+        var knowledgeSource = page.KnowledgeSourceId is null
+            ? null
+            : await dbContext.KnowledgeSources
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    source =>
+                        source.TenantId == page.TenantId &&
+                        source.Id == page.KnowledgeSourceId &&
+                        source.DeletedAt == null,
+                    cancellationToken);
         foreach (var chunk in chunks)
         {
             var chunkId = $"{page.Id:N}-{chunk.Index}";
@@ -292,6 +302,8 @@ public sealed class WikiService(
                 {
                     ["chunk_id"] = chunkId,
                     ["tenant_id"] = page.TenantId.ToString(),
+                    ["application_id"] = knowledgeSource?.ApplicationId.ToString() ?? string.Empty,
+                    ["knowledge_source_id"] = page.KnowledgeSourceId?.ToString() ?? string.Empty,
                     ["source_type"] = "wiki",
                     ["source_id"] = page.Id.ToString(),
                     ["wiki_page_id"] = page.Id.ToString(),

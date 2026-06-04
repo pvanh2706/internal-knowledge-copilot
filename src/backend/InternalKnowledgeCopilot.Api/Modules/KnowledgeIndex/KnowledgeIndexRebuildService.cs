@@ -157,7 +157,7 @@ public sealed class KnowledgeIndexRebuildService(
 
         metadata["chunk_id"] = chunk.ChunkId;
         metadata["tenant_id"] = chunk.TenantId.ToString();
-        metadata["source_type"] = chunk.SourceType.ToString().ToLowerInvariant();
+        metadata["source_type"] = KnowledgeSourceTypeMetadata.ToMetadataValue(chunk.SourceType);
         metadata["source_id"] = chunk.SourceId;
         metadata["visibility_scope"] = chunk.VisibilityScope;
         metadata["status"] = chunk.Status;
@@ -165,10 +165,15 @@ public sealed class KnowledgeIndexRebuildService(
         metadata["folder_path"] = chunk.FolderPath;
         metadata["chunk_index"] = chunk.ChunkIndex;
 
+        AddOptional(metadata, "application_id", chunk.ApplicationId);
+        AddOptional(metadata, "knowledge_source_id", chunk.KnowledgeSourceId);
         AddOptional(metadata, "document_id", chunk.DocumentId);
         AddOptional(metadata, "document_version_id", chunk.DocumentVersionId);
         AddOptional(metadata, "wiki_page_id", chunk.WikiPageId);
         AddOptional(metadata, "correction_id", chunk.CorrectionId);
+        AddOptional(metadata, "external_object_record_id", chunk.ExternalObjectRecordId);
+        AddOptional(metadata, "external_object_type", chunk.ExternalObjectType);
+        AddOptional(metadata, "external_object_id", chunk.ExternalObjectId);
         AddOptional(metadata, "folder_id", chunk.FolderId);
         AddOptional(metadata, "section_title", chunk.SectionTitle);
         AddOptional(metadata, "section_index", chunk.SectionIndex);
@@ -216,7 +221,7 @@ public sealed class KnowledgeIndexRebuildService(
 
     private static KnowledgeSourceType ParseSourceType(IReadOnlyDictionary<string, object> metadata)
     {
-        return Enum.TryParse<KnowledgeSourceType>(GetMetadataString(metadata, "source_type"), true, out var sourceType)
+        return KnowledgeSourceTypeMetadata.TryParse(GetMetadataString(metadata, "source_type"), out var sourceType)
             ? sourceType
             : KnowledgeSourceType.Document;
     }

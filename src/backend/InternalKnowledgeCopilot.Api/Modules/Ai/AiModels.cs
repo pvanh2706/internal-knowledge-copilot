@@ -6,7 +6,11 @@ public sealed record AskQuestionRequest(
     string Question,
     AiScopeType ScopeType,
     Guid? FolderId,
-    Guid? DocumentId);
+    Guid? DocumentId,
+    Guid? ApplicationId = null,
+    Guid? KnowledgeSourceId = null,
+    string? ExternalObjectType = null,
+    string? ExternalObjectId = null);
 
 public sealed record AskQuestionResponse(
     Guid InteractionId,
@@ -38,7 +42,12 @@ public sealed record RetrievedKnowledgeChunk(
     string? SectionTitle,
     int? SectionIndex,
     string Text,
-    double? Distance);
+    double? Distance,
+    Guid? ApplicationId = null,
+    Guid? KnowledgeSourceId = null,
+    Guid? ExternalObjectRecordId = null,
+    string? ExternalObjectType = null,
+    string? ExternalObjectId = null);
 
 public sealed record RetrievalExplainResponse(
     string Question,
@@ -60,7 +69,11 @@ public sealed record RetrievalFilterResponse(
     bool IncludeCompanyVisible,
     int VisibleFolderCount,
     int FilteredFolderCount,
-    Guid? DocumentId);
+    Guid? DocumentId,
+    Guid? ApplicationId,
+    Guid? KnowledgeSourceId,
+    string? ExternalObjectType,
+    string? ExternalObjectId);
 
 public sealed record RetrievalCandidateStatsResponse(
     int VectorCandidateCount,

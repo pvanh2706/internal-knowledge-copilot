@@ -160,6 +160,26 @@ public sealed class ChromaKnowledgeVectorStore(HttpClient httpClient, IOptions<C
             conditions.Add(new Dictionary<string, object> { ["tenant_id"] = filter.TenantId.Value.ToString() });
         }
 
+        if (filter.ApplicationId is not null)
+        {
+            conditions.Add(new Dictionary<string, object> { ["application_id"] = filter.ApplicationId.Value.ToString() });
+        }
+
+        if (filter.KnowledgeSourceId is not null)
+        {
+            conditions.Add(new Dictionary<string, object> { ["knowledge_source_id"] = filter.KnowledgeSourceId.Value.ToString() });
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.ExternalObjectType))
+        {
+            conditions.Add(new Dictionary<string, object> { ["external_object_type"] = filter.ExternalObjectType.Trim().ToLowerInvariant() });
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.ExternalObjectId))
+        {
+            conditions.Add(new Dictionary<string, object> { ["external_object_id"] = filter.ExternalObjectId.Trim() });
+        }
+
         AddStringSetCondition(conditions, "source_type", filter.SourceTypes);
         AddStringSetCondition(conditions, "status", filter.Statuses);
 
@@ -169,22 +189,35 @@ public sealed class ChromaKnowledgeVectorStore(HttpClient httpClient, IOptions<C
         }
 
         var folderIds = filter.FolderIds.Select(folderId => folderId.ToString()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var includesExternalObjects = filter.SourceTypes.Any(IsExternalObjectSourceType);
         if (filter.IncludeCompanyVisible)
         {
             if (folderIds.Length == 0)
             {
-                conditions.Add(new Dictionary<string, object> { ["visibility_scope"] = "company" });
+                conditions.Add(includesExternalObjects
+                    ? new Dictionary<string, object>
+                    {
+                        ["$or"] = new object[]
+                        {
+                            new Dictionary<string, object> { ["visibility_scope"] = "company" },
+                            BuildExternalObjectSourceTypeCondition(),
+                        },
+                    }
+                    : new Dictionary<string, object> { ["visibility_scope"] = "company" });
             }
             else
             {
-                conditions.Add(new Dictionary<string, object>
+                var visibilityConditions = new List<object>
                 {
-                    ["$or"] = new object[]
-                    {
-                        new Dictionary<string, object> { ["visibility_scope"] = "company" },
-                        BuildFieldCondition("folder_id", folderIds),
-                    },
-                });
+                    new Dictionary<string, object> { ["visibility_scope"] = "company" },
+                    BuildFieldCondition("folder_id", folderIds),
+                };
+                if (includesExternalObjects)
+                {
+                    visibilityConditions.Add(BuildExternalObjectSourceTypeCondition());
+                }
+
+                conditions.Add(new Dictionary<string, object> { ["$or"] = visibilityConditions.ToArray() });
             }
         }
         else
@@ -221,6 +254,17 @@ public sealed class ChromaKnowledgeVectorStore(HttpClient httpClient, IOptions<C
         return values.Length == 1
             ? new Dictionary<string, object> { [fieldName] = values[0] }
             : new Dictionary<string, object> { [fieldName] = new Dictionary<string, object> { ["$in"] = values } };
+    }
+
+    private static Dictionary<string, object> BuildExternalObjectSourceTypeCondition()
+    {
+        return BuildFieldCondition("source_type", ["external_object", "externalobject"]);
+    }
+
+    private static bool IsExternalObjectSourceType(string sourceType)
+    {
+        var normalized = sourceType.Trim().Replace("_", string.Empty).Replace("-", string.Empty);
+        return string.Equals(normalized, "externalobject", StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<List<string>> ReadNestedStrings(JsonElement root, string propertyName)

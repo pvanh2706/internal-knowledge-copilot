@@ -1,5 +1,7 @@
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
+using InternalKnowledgeCopilot.Api.Infrastructure.AccessControl;
+using InternalKnowledgeCopilot.Api.Infrastructure.Connectors;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
@@ -92,6 +94,7 @@ public sealed class AiQuestionServiceTests
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
+            new AllowingExternalAccessResolver(),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(userId, new AskQuestionRequest("payment error", AiScopeType.All, null, null));
@@ -164,6 +167,7 @@ public sealed class AiQuestionServiceTests
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
+            new AllowingExternalAccessResolver(),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(userId, new AskQuestionRequest("secret wiki", AiScopeType.All, null, null));
@@ -251,6 +255,7 @@ public sealed class AiQuestionServiceTests
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
+            new AllowingExternalAccessResolver(),
             new FixedAnswerGenerationService(new AiAnswerDraft(
                 "Answer from selected source.",
                 false,
@@ -378,6 +383,7 @@ public sealed class AiQuestionServiceTests
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
+            new AllowingExternalAccessResolver(),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(userId, new AskQuestionRequest("payment error", AiScopeType.All, null, null));
@@ -420,6 +426,7 @@ public sealed class AiQuestionServiceTests
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
+            new AllowingExternalAccessResolver(),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(seed.UserId, new AskQuestionRequest("provider logs chargeback", AiScopeType.All, null, null));
@@ -452,6 +459,7 @@ public sealed class AiQuestionServiceTests
             new MockEmbeddingService(),
             new FakeKnowledgeVectorStore([]),
             keywordIndexService,
+            new AllowingExternalAccessResolver(),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(seed.UserId, new AskQuestionRequest("chargeback provider logs", AiScopeType.All, null, null));
@@ -494,6 +502,7 @@ public sealed class AiQuestionServiceTests
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
+            new AllowingExternalAccessResolver(),
             new MockAnswerGenerationService());
 
         var response = await service.ExplainRetrievalAsync(
@@ -543,6 +552,7 @@ public sealed class AiQuestionServiceTests
             new MockEmbeddingService(),
             new FakeKnowledgeVectorStore(vectorResults),
             new KnowledgeKeywordIndexService(dbContext),
+            new AllowingExternalAccessResolver(),
             answerService);
 
         await service.AskAsync(seed.UserId, new AskQuestionRequest("payment audit evidence", AiScopeType.All, null, null));
@@ -552,6 +562,93 @@ public sealed class AiQuestionServiceTests
         Assert.All(
             answerService.CapturedChunks.GroupBy(chunk => chunk.DocumentId),
             group => Assert.True(group.Count() <= 3));
+    }
+
+    [Fact]
+    public async Task AskAsync_RejectsExternalChunk_WhenRealtimeRevalidationDeniesAccess()
+    {
+        await using var dbContext = CreateDbContext();
+        var now = DateTimeOffset.UtcNow;
+        var tenantId = Guid.Empty;
+        var applicationId = Guid.NewGuid();
+        var externalObjectRecordId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        dbContext.Users.Add(new UserEntity
+        {
+            Id = userId,
+            TenantId = tenantId,
+            Email = "external-user@example.local",
+            DisplayName = "External User",
+            PasswordHash = "hash",
+            Role = UserRole.User,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.ExternalObjects.Add(new ExternalObjectEntity
+        {
+            Id = externalObjectRecordId,
+            TenantId = tenantId,
+            ApplicationId = applicationId,
+            ObjectType = "deal",
+            ExternalObjectId = "D-100",
+            Title = "Sensitive deal",
+            Status = ExternalObjectStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        dbContext.ExternalAclSnapshots.Add(new ExternalAclSnapshotEntity
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            ApplicationId = applicationId,
+            ExternalObjectRecordId = externalObjectRecordId,
+            ObjectType = "deal",
+            ExternalObjectId = "D-100",
+            SubjectType = "user",
+            SubjectId = userId.ToString(),
+            Permission = ExternalAclPermission.View,
+            SyncedAt = now,
+        });
+        dbContext.IntegrationConnections.Add(new IntegrationConnectionEntity
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            ApplicationId = applicationId,
+            Name = "CRM",
+            BaseUrl = "https://crm.example.local",
+            AuthMode = IntegrationAuthMode.None,
+            Status = IntegrationConnectionStatus.Active,
+            SecretReference = "crm",
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var vectorStore = new FakeKnowledgeVectorStore([
+            CreateExternalVectorResult(
+                "external-deal",
+                applicationId,
+                externalObjectRecordId,
+                "deal",
+                "D-100",
+                "Sensitive deal",
+                "deal secret must not be exposed"),
+        ]);
+        var service = new AiQuestionService(
+            dbContext,
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
+            new MockEmbeddingService(),
+            vectorStore,
+            new KnowledgeKeywordIndexService(dbContext),
+            new DenyingExternalAccessResolver(),
+            new MockAnswerGenerationService());
+
+        var response = await service.AskAsync(userId, new AskQuestionRequest("deal secret", AiScopeType.All, null, null));
+
+        Assert.Empty(response.Citations);
+        Assert.DoesNotContain("deal secret", response.Answer, StringComparison.OrdinalIgnoreCase);
     }
 
     private static KnowledgeChunkRecord CreateKeywordChunk(string id, Guid folderId, Guid documentId, Guid versionId, string title, string folderPath, string text)
@@ -724,6 +821,38 @@ public sealed class AiQuestionServiceTests
             0.01);
     }
 
+    private static KnowledgeVectorSearchResult CreateExternalVectorResult(
+        string id,
+        Guid applicationId,
+        Guid externalObjectRecordId,
+        string objectType,
+        string externalObjectId,
+        string title,
+        string text)
+    {
+        return new KnowledgeVectorSearchResult(
+            id,
+            text,
+            new Dictionary<string, object?>
+            {
+                ["chunk_id"] = id,
+                ["tenant_id"] = Guid.Empty.ToString(),
+                ["application_id"] = applicationId.ToString(),
+                ["source_type"] = "external_object",
+                ["source_id"] = externalObjectRecordId.ToString(),
+                ["external_object_record_id"] = externalObjectRecordId.ToString(),
+                ["external_object_type"] = objectType,
+                ["external_object_id"] = externalObjectId,
+                ["visibility_scope"] = "external",
+                ["status"] = "active",
+                ["title"] = title,
+                ["folder_path"] = string.Empty,
+                ["section_title"] = "External context",
+                ["section_index"] = 0,
+            },
+            0.01);
+    }
+
     private static AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -780,6 +909,28 @@ public sealed class AiQuestionServiceTests
         public Task<AiAnswerDraft> GenerateAsync(string question, IReadOnlyList<RetrievedKnowledgeChunk> chunks, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(draft);
+        }
+    }
+
+    private sealed class AllowingExternalAccessResolver : IExternalAccessResolver
+    {
+        public Task<ExternalAccessCheckResponse> CheckAccessAsync(
+            ExternalConnectorContext context,
+            ExternalAccessCheckRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExternalAccessCheckResponse(true, null, DateTimeOffset.UtcNow));
+        }
+    }
+
+    private sealed class DenyingExternalAccessResolver : IExternalAccessResolver
+    {
+        public Task<ExternalAccessCheckResponse> CheckAccessAsync(
+            ExternalConnectorContext context,
+            ExternalAccessCheckRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExternalAccessCheckResponse(false, "permission_revoked", DateTimeOffset.UtcNow));
         }
     }
 

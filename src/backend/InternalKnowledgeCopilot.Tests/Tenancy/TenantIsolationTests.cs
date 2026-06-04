@@ -2,7 +2,9 @@ using System.Security.Claims;
 using System.Text.Json;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
+using InternalKnowledgeCopilot.Api.Infrastructure.AccessControl;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
+using InternalKnowledgeCopilot.Api.Infrastructure.Connectors;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
@@ -117,6 +119,7 @@ public sealed class TenantIsolationTests
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
+            new AllowingExternalAccessResolver(),
             new MockAnswerGenerationService());
 
         var response = await service.AskAsync(
@@ -576,6 +579,17 @@ public sealed class TenantIsolationTests
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow,
             });
+        }
+    }
+
+    private sealed class AllowingExternalAccessResolver : IExternalAccessResolver
+    {
+        public Task<ExternalAccessCheckResponse> CheckAccessAsync(
+            ExternalConnectorContext context,
+            ExternalAccessCheckRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExternalAccessCheckResponse(true, null, DateTimeOffset.UtcNow));
         }
     }
 

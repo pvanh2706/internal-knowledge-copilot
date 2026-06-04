@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
+using InternalKnowledgeCopilot.Api.Infrastructure.AccessControl;
+using InternalKnowledgeCopilot.Api.Infrastructure.Connectors;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
@@ -28,6 +30,7 @@ public sealed class AiQuestionService(
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore,
     IKnowledgeKeywordIndexService keywordIndexService,
+    IExternalAccessResolver externalAccessResolver,
     IAnswerGenerationService answerGenerationService) : IAiQuestionService
 {
     private const int SearchLimit = 50;
@@ -69,6 +72,7 @@ public sealed class AiQuestionService(
             knowledgeFilter,
             cancellationToken);
         var chunks = await FilterAllowedChunksAsync(
+            userId,
             MergeCandidateResults(vectorResults, keywordResults),
             visibleFolderIds,
             request,
@@ -114,9 +118,14 @@ public sealed class AiQuestionService(
             AiInteractionId = interactionId,
             SourceType = chunk.SourceType,
             SourceId = chunk.SourceId,
+            ApplicationId = chunk.ApplicationId,
+            KnowledgeSourceId = chunk.KnowledgeSourceId,
             DocumentId = chunk.DocumentId,
             DocumentVersionId = chunk.DocumentVersionId,
             WikiPageId = chunk.WikiPageId,
+            ExternalObjectRecordId = chunk.ExternalObjectRecordId,
+            ExternalObjectType = chunk.ExternalObjectType,
+            ExternalObjectId = chunk.ExternalObjectId,
             Title = chunk.Title,
             FolderPath = chunk.FolderPath,
             SectionTitle = chunk.SectionTitle,
@@ -169,6 +178,7 @@ public sealed class AiQuestionService(
             cancellationToken);
         var mergedCandidates = MergeCandidateResultsWithSources(vectorResults, keywordResults);
         var filterResult = await AnalyzeCandidateAccessAsync(
+            userId,
             mergedCandidates.Select(candidate => candidate.Result).ToList(),
             visibleFolderIds,
             request,
@@ -195,7 +205,11 @@ public sealed class AiQuestionService(
                 knowledgeFilter.IncludeCompanyVisible,
                 visibleFolderIds.Count,
                 knowledgeFilter.FolderIds.Count,
-                knowledgeFilter.DocumentId),
+                knowledgeFilter.DocumentId,
+                knowledgeFilter.ApplicationId,
+                knowledgeFilter.KnowledgeSourceId,
+                knowledgeFilter.ExternalObjectType,
+                knowledgeFilter.ExternalObjectId),
             new RetrievalCandidateStatsResponse(
                 vectorResults.Count,
                 keywordResults.Count,
@@ -274,6 +288,47 @@ public sealed class AiQuestionService(
 
     private async Task ValidateScopeAsync(Guid userId, AskQuestionRequest request, CancellationToken cancellationToken)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
+        if ((string.IsNullOrWhiteSpace(request.ExternalObjectType) && !string.IsNullOrWhiteSpace(request.ExternalObjectId)) ||
+            (!string.IsNullOrWhiteSpace(request.ExternalObjectType) && string.IsNullOrWhiteSpace(request.ExternalObjectId)))
+        {
+            throw new ArgumentException("external_object_scope_incomplete");
+        }
+
+        if (request.ApplicationId is not null)
+        {
+            var applicationExists = await dbContext.Applications
+                .AsNoTracking()
+                .AnyAsync(
+                    application =>
+                        application.TenantId == tenantId &&
+                        application.Id == request.ApplicationId &&
+                        application.Status == ApplicationStatus.Active &&
+                        application.DeletedAt == null,
+                    cancellationToken);
+            if (!applicationExists)
+            {
+                throw new KeyNotFoundException("application_not_found");
+            }
+        }
+
+        if (request.KnowledgeSourceId is not null)
+        {
+            var sourceExists = await dbContext.KnowledgeSources
+                .AsNoTracking()
+                .AnyAsync(
+                    source =>
+                        source.TenantId == tenantId &&
+                        source.Id == request.KnowledgeSourceId &&
+                        source.DeletedAt == null &&
+                        (request.ApplicationId == null || source.ApplicationId == request.ApplicationId),
+                    cancellationToken);
+            if (!sourceExists)
+            {
+                throw new KeyNotFoundException("knowledge_source_not_found");
+            }
+        }
+
         if (request.ScopeType == AiScopeType.Folder)
         {
             if (request.FolderId is null)
@@ -294,7 +349,6 @@ public sealed class AiQuestionService(
                 throw new ArgumentException("document_required");
             }
 
-            var tenantId = tenantContext.GetRequiredTenantId();
             var document = await dbContext.Documents
                 .AsNoTracking()
                 .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == request.DocumentId && item.DeletedAt == null, cancellationToken);
@@ -313,14 +367,24 @@ public sealed class AiQuestionService(
 
     private static KnowledgeQueryFilter BuildKnowledgeQueryFilter(Guid tenantId, IReadOnlySet<Guid> visibleFolderIds, AskQuestionRequest request)
     {
-        var sourceTypes = new[] { "correction", "document", "wiki" };
-        var statuses = new[] { "approved", "published" };
+        var sourceTypes = new[] { "correction", "document", "wiki", "external_object" };
+        var statuses = new[] { "approved", "published", "active" };
+        var externalObjectType = string.IsNullOrWhiteSpace(request.ExternalObjectType)
+            ? null
+            : request.ExternalObjectType.Trim().ToLowerInvariant();
+        var externalObjectId = string.IsNullOrWhiteSpace(request.ExternalObjectId)
+            ? null
+            : request.ExternalObjectId.Trim();
 
         return request.ScopeType switch
         {
             AiScopeType.Folder => new KnowledgeQueryFilter
             {
                 TenantId = tenantId,
+                ApplicationId = request.ApplicationId,
+                KnowledgeSourceId = request.KnowledgeSourceId,
+                ExternalObjectType = externalObjectType,
+                ExternalObjectId = externalObjectId,
                 FolderIds = request.FolderId is null ? [] : [request.FolderId.Value],
                 IncludeCompanyVisible = false,
                 SourceTypes = sourceTypes,
@@ -329,6 +393,10 @@ public sealed class AiQuestionService(
             AiScopeType.Document => new KnowledgeQueryFilter
             {
                 TenantId = tenantId,
+                ApplicationId = request.ApplicationId,
+                KnowledgeSourceId = request.KnowledgeSourceId,
+                ExternalObjectType = externalObjectType,
+                ExternalObjectId = externalObjectId,
                 FolderIds = visibleFolderIds.ToArray(),
                 DocumentId = request.DocumentId,
                 IncludeCompanyVisible = true,
@@ -338,6 +406,10 @@ public sealed class AiQuestionService(
             _ => new KnowledgeQueryFilter
             {
                 TenantId = tenantId,
+                ApplicationId = request.ApplicationId,
+                KnowledgeSourceId = request.KnowledgeSourceId,
+                ExternalObjectType = externalObjectType,
+                ExternalObjectId = externalObjectId,
                 FolderIds = visibleFolderIds.ToArray(),
                 IncludeCompanyVisible = true,
                 SourceTypes = sourceTypes,
@@ -347,16 +419,18 @@ public sealed class AiQuestionService(
     }
 
     private async Task<List<RetrievedKnowledgeChunk>> FilterAllowedChunksAsync(
+        Guid userId,
         IReadOnlyList<KnowledgeVectorSearchResult> vectorResults,
         IReadOnlySet<Guid> visibleFolderIds,
         AskQuestionRequest request,
         CancellationToken cancellationToken)
     {
-        var filterResult = await AnalyzeCandidateAccessAsync(vectorResults, visibleFolderIds, request, cancellationToken);
+        var filterResult = await AnalyzeCandidateAccessAsync(userId, vectorResults, visibleFolderIds, request, cancellationToken);
         return filterResult.Allowed;
     }
 
     private async Task<ChunkFilterResult> AnalyzeCandidateAccessAsync(
+        Guid userId,
         IReadOnlyList<KnowledgeVectorSearchResult> vectorResults,
         IReadOnlySet<Guid> visibleFolderIds,
         AskQuestionRequest request,
@@ -381,7 +455,7 @@ public sealed class AiQuestionService(
                 continue;
             }
 
-            if (!IsVisibleByFolder(chunk, visibleFolderIds))
+            if (chunk.SourceType != KnowledgeSourceType.ExternalObject && !IsVisibleByFolder(chunk, visibleFolderIds))
             {
                 rejected.Add(new RejectedKnowledgeChunk(result, chunk, "Rejected because its folder is not visible to the current user."));
                 continue;
@@ -445,6 +519,7 @@ public sealed class AiQuestionService(
                 ))
             .Select(correction => new CorrectionVisibility(correction.Id, correction.VisibilityScope, correction.FolderId, correction.DocumentId))
             .ToDictionaryAsync(correction => correction.Id, cancellationToken);
+        var externalAccessDecisions = await EvaluateExternalCandidateAccessAsync(userId, tenantId, candidates, cancellationToken);
 
         var allowed = new List<RetrievedKnowledgeChunk>();
         foreach (var candidate in candidates)
@@ -455,6 +530,7 @@ public sealed class AiQuestionService(
                 KnowledgeSourceType.Correction => IsAllowedCorrectionChunk(chunk, visibleCorrections, request),
                 KnowledgeSourceType.Wiki => IsAllowedWikiChunk(chunk, visibleWikiPages, request),
                 KnowledgeSourceType.Document => chunk.DocumentVersionId is not null && currentVersionIdSet.Contains(chunk.DocumentVersionId.Value),
+                KnowledgeSourceType.ExternalObject => externalAccessDecisions.TryGetValue(GetExternalAccessKey(chunk), out var decision) && decision.IsAllowed,
                 _ => false,
             };
 
@@ -464,10 +540,235 @@ public sealed class AiQuestionService(
                 continue;
             }
 
-            rejected.Add(new RejectedKnowledgeChunk(candidate.Result, chunk, GetSqlRejectionDecision(chunk)));
+            var rejectionDecision = chunk.SourceType == KnowledgeSourceType.ExternalObject &&
+                externalAccessDecisions.TryGetValue(GetExternalAccessKey(chunk), out var externalDecision)
+                ? externalDecision.Decision
+                : GetSqlRejectionDecision(chunk);
+            rejected.Add(new RejectedKnowledgeChunk(candidate.Result, chunk, rejectionDecision));
         }
 
         return new ChunkFilterResult(allowed, rejected);
+    }
+
+    private async Task<IReadOnlyDictionary<string, ExternalAccessDecision>> EvaluateExternalCandidateAccessAsync(
+        Guid userId,
+        Guid tenantId,
+        IReadOnlyList<CandidateChunk> candidates,
+        CancellationToken cancellationToken)
+    {
+        var externalChunks = candidates
+            .Select(candidate => candidate.Chunk)
+            .Where(chunk => chunk.SourceType == KnowledgeSourceType.ExternalObject)
+            .ToList();
+        if (externalChunks.Count == 0)
+        {
+            return new Dictionary<string, ExternalAccessDecision>();
+        }
+
+        var decisions = new Dictionary<string, ExternalAccessDecision>(StringComparer.OrdinalIgnoreCase);
+        var validKeys = externalChunks
+            .Where(chunk => chunk.ApplicationId is not null &&
+                !string.IsNullOrWhiteSpace(chunk.ExternalObjectType) &&
+                !string.IsNullOrWhiteSpace(chunk.ExternalObjectId))
+            .Select(chunk => new ExternalObjectAccessKey(chunk.ApplicationId!.Value, chunk.ExternalObjectType!, chunk.ExternalObjectId!))
+            .Distinct()
+            .ToArray();
+
+        foreach (var chunk in externalChunks.Where(chunk =>
+            chunk.ApplicationId is null ||
+            string.IsNullOrWhiteSpace(chunk.ExternalObjectType) ||
+            string.IsNullOrWhiteSpace(chunk.ExternalObjectId)))
+        {
+            decisions[GetExternalAccessKey(chunk)] = new ExternalAccessDecision(
+                false,
+                "Rejected because external object metadata is incomplete.");
+        }
+
+        if (validKeys.Length == 0)
+        {
+            return decisions;
+        }
+
+        var applicationIds = validKeys.Select(key => key.ApplicationId).Distinct().ToArray();
+        var objectTypes = validKeys.Select(key => key.ObjectType).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var externalObjectIds = validKeys.Select(key => key.ExternalObjectId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var now = DateTimeOffset.UtcNow;
+        var subjectSet = await GetExternalSubjectSetAsync(userId, tenantId, cancellationToken);
+
+        var externalObjects = await dbContext.ExternalObjects
+            .AsNoTracking()
+            .Where(externalObject =>
+                externalObject.TenantId == tenantId &&
+                applicationIds.Contains(externalObject.ApplicationId) &&
+                objectTypes.Contains(externalObject.ObjectType) &&
+                externalObjectIds.Contains(externalObject.ExternalObjectId) &&
+                externalObject.Status == ExternalObjectStatus.Active &&
+                externalObject.DeletedAt == null)
+            .ToListAsync(cancellationToken);
+        var objectByKey = externalObjects
+            .GroupBy(externalObject => GetExternalAccessKey(externalObject.ApplicationId, externalObject.ObjectType, externalObject.ExternalObjectId), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        var aclSnapshots = await dbContext.ExternalAclSnapshots
+            .AsNoTracking()
+            .Where(snapshot =>
+                snapshot.TenantId == tenantId &&
+                applicationIds.Contains(snapshot.ApplicationId) &&
+                objectTypes.Contains(snapshot.ObjectType) &&
+                externalObjectIds.Contains(snapshot.ExternalObjectId) &&
+                (snapshot.ValidFrom == null || snapshot.ValidFrom <= now) &&
+                (snapshot.ValidTo == null || snapshot.ValidTo >= now))
+            .ToListAsync(cancellationToken);
+        var aclSnapshotsByKey = aclSnapshots
+            .GroupBy(snapshot => GetExternalAccessKey(snapshot.ApplicationId, snapshot.ObjectType, snapshot.ExternalObjectId), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var connections = await dbContext.IntegrationConnections
+            .AsNoTracking()
+            .Where(connection =>
+                connection.TenantId == tenantId &&
+                applicationIds.Contains(connection.ApplicationId) &&
+                connection.Status == IntegrationConnectionStatus.Active &&
+                connection.DeletedAt == null)
+            .OrderBy(connection => connection.CreatedAt)
+            .ToListAsync(cancellationToken);
+        var connectionByApplication = connections
+            .GroupBy(connection => connection.ApplicationId)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        foreach (var key in validKeys)
+        {
+            var accessKey = GetExternalAccessKey(key.ApplicationId, key.ObjectType, key.ExternalObjectId);
+            if (!objectByKey.TryGetValue(accessKey, out var externalObject))
+            {
+                decisions[accessKey] = new ExternalAccessDecision(
+                    false,
+                    "Rejected because the external object is not active or no longer exists.");
+                continue;
+            }
+
+            var chunksForObject = externalChunks.Where(chunk => string.Equals(GetExternalAccessKey(chunk), accessKey, StringComparison.OrdinalIgnoreCase));
+            if (chunksForObject.Any(chunk => chunk.ExternalObjectRecordId is not null && chunk.ExternalObjectRecordId != externalObject.Id))
+            {
+                decisions[accessKey] = new ExternalAccessDecision(
+                    false,
+                    "Rejected because external object record metadata does not match the source object.");
+                continue;
+            }
+
+            var hasSnapshotAccess = aclSnapshotsByKey.TryGetValue(accessKey, out var snapshots)
+                && snapshots.Any(snapshot => IsAclSnapshotAllowed(snapshot, subjectSet, ExternalAclPermission.View));
+            if (!hasSnapshotAccess)
+            {
+                decisions[accessKey] = new ExternalAccessDecision(
+                    false,
+                    "Rejected because no current ACL snapshot grants view access to this user.");
+                continue;
+            }
+
+            connectionByApplication.TryGetValue(key.ApplicationId, out var connection);
+            decisions[accessKey] = await RevalidateExternalAccessAsync(
+                tenantId,
+                userId,
+                key,
+                connection,
+                cancellationToken);
+        }
+
+        return decisions;
+    }
+
+    private async Task<ExternalSubjectSet> GetExternalSubjectSetAsync(Guid userId, Guid tenantId, CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users
+            .AsNoTracking()
+            .Where(item => item.TenantId == tenantId && item.Id == userId && item.DeletedAt == null)
+            .Select(item => new { item.PrimaryTeamId })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return new ExternalSubjectSet(userId.ToString(), user?.PrimaryTeamId?.ToString(), tenantId.ToString());
+    }
+
+    private async Task<ExternalAccessDecision> RevalidateExternalAccessAsync(
+        Guid tenantId,
+        Guid userId,
+        ExternalObjectAccessKey key,
+        IntegrationConnectionEntity? connection,
+        CancellationToken cancellationToken)
+    {
+        if (connection is null)
+        {
+            return new ExternalAccessDecision(
+                true,
+                "Allowed by current ACL snapshot; no realtime connector is configured.");
+        }
+
+        if (!Uri.TryCreate(connection.BaseUrl, UriKind.Absolute, out var baseUrl))
+        {
+            return new ExternalAccessDecision(
+                false,
+                "Rejected because realtime external access revalidation is misconfigured.");
+        }
+
+        try
+        {
+            var response = await externalAccessResolver.CheckAccessAsync(
+                new ExternalConnectorContext(
+                    tenantId,
+                    key.ApplicationId,
+                    baseUrl,
+                    connection.AuthMode,
+                    connection.SecretReference,
+                    ApiKey: null),
+                new ExternalAccessCheckRequest(
+                    key.ObjectType,
+                    key.ExternalObjectId,
+                    "user",
+                    userId.ToString(),
+                    ExternalAclPermission.View),
+                cancellationToken);
+
+            return response.IsAllowed
+                ? new ExternalAccessDecision(true, "Allowed by ACL snapshot and realtime external access revalidation.")
+                : new ExternalAccessDecision(false, "Rejected because realtime external access revalidation denied this user.");
+        }
+        catch
+        {
+            return new ExternalAccessDecision(false, "Rejected because realtime external access revalidation failed.");
+        }
+    }
+
+    private static bool IsAclSnapshotAllowed(
+        ExternalAclSnapshotEntity snapshot,
+        ExternalSubjectSet subjectSet,
+        ExternalAclPermission requiredPermission)
+    {
+        return PermissionAllows(snapshot.Permission, requiredPermission) && SubjectMatches(snapshot, subjectSet);
+    }
+
+    private static bool PermissionAllows(ExternalAclPermission actual, ExternalAclPermission required)
+    {
+        return required switch
+        {
+            ExternalAclPermission.View => actual is ExternalAclPermission.View or ExternalAclPermission.Edit or ExternalAclPermission.Owner,
+            ExternalAclPermission.Edit => actual is ExternalAclPermission.Edit or ExternalAclPermission.Owner,
+            ExternalAclPermission.Owner => actual == ExternalAclPermission.Owner,
+            _ => false,
+        };
+    }
+
+    private static bool SubjectMatches(ExternalAclSnapshotEntity snapshot, ExternalSubjectSet subjectSet)
+    {
+        var subjectType = snapshot.SubjectType.Trim().ToLowerInvariant();
+        return subjectType switch
+        {
+            "user" => string.Equals(snapshot.SubjectId, subjectSet.UserId, StringComparison.OrdinalIgnoreCase),
+            "team" => !string.IsNullOrWhiteSpace(subjectSet.TeamId) &&
+                string.Equals(snapshot.SubjectId, subjectSet.TeamId, StringComparison.OrdinalIgnoreCase),
+            "tenant" => string.Equals(snapshot.SubjectId, subjectSet.TenantId, StringComparison.OrdinalIgnoreCase),
+            "everyone" => snapshot.SubjectId == "*",
+            _ => false,
+        };
     }
 
     private static List<RetrievedKnowledgeChunk> RerankAndPackContext(
@@ -675,6 +976,7 @@ public sealed class AiQuestionService(
         {
             KnowledgeSourceType.Correction => 100,
             KnowledgeSourceType.Wiki => 45,
+            KnowledgeSourceType.ExternalObject => 35,
             KnowledgeSourceType.Document => 20,
             _ => 0,
         };
@@ -705,6 +1007,16 @@ public sealed class AiQuestionService(
         if (chunk.WikiPageId is not null)
         {
             return $"wiki:{chunk.WikiPageId}";
+        }
+
+        if (chunk.ExternalObjectRecordId is not null)
+        {
+            return $"external:{chunk.ExternalObjectRecordId}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(chunk.ExternalObjectType) && !string.IsNullOrWhiteSpace(chunk.ExternalObjectId))
+        {
+            return $"external:{chunk.ApplicationId}:{chunk.ExternalObjectType}:{chunk.ExternalObjectId}";
         }
 
         return $"{chunk.SourceType}:{chunk.SourceId}";
@@ -769,6 +1081,7 @@ public sealed class AiQuestionService(
             KnowledgeSourceType.Correction => "Rejected because the correction is not approved, not visible, or outside the requested scope.",
             KnowledgeSourceType.Wiki => "Rejected because the wiki page is archived, not visible, or outside the requested scope.",
             KnowledgeSourceType.Document => "Rejected because the document chunk is not the current indexed version, was deleted, or is outside visible folders.",
+            KnowledgeSourceType.ExternalObject => "Rejected because external object access could not be verified.",
             _ => "Rejected because the source type is not supported by retrieval.",
         };
     }
@@ -776,7 +1089,7 @@ public sealed class AiQuestionService(
     private static RetrievedKnowledgeChunk? ToRetrievedChunk(KnowledgeVectorSearchResult result)
     {
         var sourceTypeText = GetString(result.Metadata, "source_type");
-        if (!Enum.TryParse<KnowledgeSourceType>(sourceTypeText, true, out var sourceType))
+        if (!KnowledgeSourceTypeMetadata.TryParse(sourceTypeText, out var sourceType))
         {
             return null;
         }
@@ -800,7 +1113,25 @@ public sealed class AiQuestionService(
             GetString(result.Metadata, "section_title"),
             GetInt(result.Metadata, "section_index"),
             result.Text,
-            result.Distance);
+            result.Distance,
+            GetGuid(result.Metadata, "application_id"),
+            GetGuid(result.Metadata, "knowledge_source_id"),
+            GetGuid(result.Metadata, "external_object_record_id"),
+            NormalizeOptional(GetString(result.Metadata, "external_object_type"))?.ToLowerInvariant(),
+            NormalizeOptional(GetString(result.Metadata, "external_object_id")));
+    }
+
+    private static string GetExternalAccessKey(RetrievedKnowledgeChunk chunk)
+    {
+        return GetExternalAccessKey(
+            chunk.ApplicationId ?? Guid.Empty,
+            chunk.ExternalObjectType ?? string.Empty,
+            chunk.ExternalObjectId ?? string.Empty);
+    }
+
+    private static string GetExternalAccessKey(Guid applicationId, string objectType, string externalObjectId)
+    {
+        return $"{applicationId:N}:{objectType.Trim().ToLowerInvariant()}:{externalObjectId.Trim()}";
     }
 
     private static string GetCandidateId(KnowledgeVectorSearchResult result)
@@ -856,6 +1187,11 @@ public sealed class AiQuestionService(
         return int.TryParse(value, out var number) ? number : null;
     }
 
+    private static string? NormalizeOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
     private static string ToExcerpt(string text)
     {
         var normalized = string.Join(' ', text.Split([' ', '\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries));
@@ -905,6 +1241,12 @@ public sealed class AiQuestionService(
     private sealed record ChunkFilterResult(List<RetrievedKnowledgeChunk> Allowed, List<RejectedKnowledgeChunk> Rejected);
 
     private sealed record RejectedKnowledgeChunk(KnowledgeVectorSearchResult Result, RetrievedKnowledgeChunk? Chunk, string Decision);
+
+    private sealed record ExternalAccessDecision(bool IsAllowed, string Decision);
+
+    private sealed record ExternalObjectAccessKey(Guid ApplicationId, string ObjectType, string ExternalObjectId);
+
+    private sealed record ExternalSubjectSet(string UserId, string? TeamId, string TenantId);
 
     private sealed record ChunkScoreExplanation(double Score, IReadOnlyList<string> MatchedKeywords, IReadOnlyList<string> Reasons);
 

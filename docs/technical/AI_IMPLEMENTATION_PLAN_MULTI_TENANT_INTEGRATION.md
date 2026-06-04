@@ -167,7 +167,7 @@ If a command cannot be run, record the reason in the progress log.
 - [x] Phase 2 - Tenantize existing data and query flows
 - [x] Phase 3 - Knowledge sources, external objects, and ACL snapshots
 - [x] Phase 4 - Integration contracts and connector boundaries
-- [ ] Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation
+- [x] Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation
 - [ ] Phase 6 - Workflow Copilot for CRM events
 - [ ] Phase 7 - AI action approval and execution
 - [ ] Phase 8 - Frontend surfaces and embedded usage
@@ -452,25 +452,32 @@ Modules/KnowledgeIndex/KnowledgeIndexRebuildService.cs
 
 Checklist:
 
-- [ ] Extend `KnowledgeQueryFilter` with tenant id, application id, knowledge source id, external object type, and external object id.
-- [ ] Extend vector chunk metadata with tenant/application/source fields.
-- [ ] Extend `KnowledgeChunkEntity` and `KnowledgeChunkIndexEntity` with tenant/application/source metadata.
-- [ ] Update document ingestion to write tenant/application/source metadata.
-- [ ] Update wiki indexing to write tenant/application/source metadata.
-- [ ] Update Chroma upsert/query metadata mapping.
-- [ ] Update keyword index filtering by tenant/application/source.
-- [ ] Update `AiQuestionService` retrieval flow to always include tenant filter.
-- [ ] Add candidate permission revalidation hook through `IExternalAccessResolver`.
-- [ ] Revalidate high-risk citations before exposing excerpts from external systems.
-- [ ] Preserve local `FolderPermissionService` checks for local documents/wiki.
-- [ ] Add tests proving tenant A cannot retrieve tenant B chunks from vector or keyword search.
-- [ ] Add tests proving stale ACL snapshots can be rejected by realtime revalidation.
+- [x] Extend `KnowledgeQueryFilter` with tenant id, application id, knowledge source id, external object type, and external object id.
+- [x] Extend vector chunk metadata with tenant/application/source fields.
+- [x] Extend `KnowledgeChunkEntity` and `KnowledgeChunkIndexEntity` with tenant/application/source metadata.
+- [x] Update document ingestion to write tenant/application/source metadata.
+- [x] Update wiki indexing to write tenant/application/source metadata.
+- [x] Update Chroma upsert/query metadata mapping.
+- [x] Update keyword index filtering by tenant/application/source.
+- [x] Update `AiQuestionService` retrieval flow to always include tenant filter.
+- [x] Add candidate permission revalidation hook through `IExternalAccessResolver`.
+- [x] Revalidate high-risk citations before exposing excerpts from external systems.
+- [x] Preserve local `FolderPermissionService` checks for local documents/wiki.
+- [x] Add tests proving tenant A cannot retrieve tenant B chunks from vector or keyword search.
+- [x] Add tests proving stale ACL snapshots can be rejected by realtime revalidation.
 
 Acceptance criteria:
 
 - AI Q&A only uses chunks within the user's tenant and allowed application scope.
 - External-source citations can be revalidated before response generation or before final response persistence.
 - Existing local folder/document scoped questions still work.
+
+Implementation notes:
+
+- Added application, knowledge source, and external-object metadata to chunk ledger, keyword index, vector metadata, and AI interaction sources.
+- Extended Chroma and keyword filtering with tenant/application/source/object constraints while preserving local folder/company visibility behavior.
+- Added external-object retrieval support with ACL snapshot checks and realtime `IExternalAccessResolver` revalidation before external excerpts can reach answer generation.
+- Verification passed: `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 80/80; `dotnet ef database update` applied all migrations through `20260604093517_AddRetrievalSourceMetadata` on a fresh design-time SQLite database.
 
 ## 14. Phase 6 - Workflow Copilot for CRM Events
 
@@ -677,9 +684,9 @@ Use these slices for AI-assisted construction. Each slice should end with tests 
 
 ### Slice 6 - External-Aware Retrieval
 
-- [ ] Extend vector/keyword metadata.
-- [ ] Add source/application filters.
-- [ ] Add permission revalidation hook.
+- [x] Extend vector/keyword metadata.
+- [x] Add source/application filters.
+- [x] Add permission revalidation hook.
 
 ### Slice 7 - CRM Workflow Recommendation
 
@@ -757,3 +764,4 @@ Add entries here after each implementation batch.
 | 2026-06-04 | Codex | Phase 2 - Tenantize existing data and query flows | Added tenant ids to existing domain tables, tenant-scoped indexes, default-tenant backfill migration, tenant-aware auth/JWT, scoped query/write paths, tenant-aware indexing/rebuild/reset behavior, and cross-tenant backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 68/68 | Existing MVP flows now resolve and enforce tenant context. Next batch: Phase 3 - Knowledge Sources, External Objects, and ACL Snapshots |
 | 2026-06-04 | Codex | Phase 3 - Knowledge sources, external objects, and ACL snapshots | Added tenant/application-scoped knowledge sources, external objects, ACL snapshots, Admin/Reviewer inspection APIs, default local source mapping for documents/wiki, and idempotent sync tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 72/72; `dotnet ef database update` applied all migrations through `20260604085007_AddKnowledgeSourcesAndExternalObjects` on a fresh design-time SQLite database | External knowledge can now be represented without duplicate object rows, and ACL replacement is scoped to the target tenant/application/object. Next batch: Phase 4 - Integration Contracts and Connector Boundaries |
 | 2026-06-04 | Codex | Phase 4 - Integration contracts and connector boundaries | Added integration connections, internal API-key auth, inbound event/document/object/permission sync contracts, durable idempotent inbound event storage, connector interfaces, internal HTTP connector, and focused backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 77/77; `dotnet ef database update` applied all migrations through `20260604091137_AddIntegrationContracts` on a fresh design-time SQLite database | Internal applications can now push sync/events without duplicate rows, and connector boundaries remain independent of CRM-specific logic. Next batch: Phase 5 - Tenant-Aware Retrieval, Indexing, and Permission Revalidation |
+| 2026-06-04 | Codex | Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation | Added application/source/external-object metadata to retrieval indexes, extended vector and keyword filters, preserved local folder permission checks, added external ACL snapshot plus realtime revalidation before answer generation, and added retrieval isolation tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 80/80; `dotnet ef database update` applied all migrations through `20260604093517_AddRetrievalSourceMetadata` on a fresh design-time SQLite database | Retrieval is now tenant-scoped, optionally application/source/object-scoped, and external citations can be rejected when source-system revalidation denies access. Next batch: Phase 6 - Workflow Copilot for CRM Events |

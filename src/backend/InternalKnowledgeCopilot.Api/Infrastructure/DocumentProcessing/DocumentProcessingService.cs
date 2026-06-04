@@ -32,6 +32,8 @@ public sealed class DocumentProcessingService(
         var version = await dbContext.DocumentVersions
             .Include(item => item.Document)
                 .ThenInclude(document => document!.Folder)
+            .Include(item => item.Document)
+                .ThenInclude(document => document!.KnowledgeSource)
             .FirstOrDefaultAsync(item => item.Id == documentVersionId, cancellationToken);
 
         if (version is null || version.Document is null)
@@ -62,6 +64,8 @@ public sealed class DocumentProcessingService(
         var understanding = await documentUnderstandingService.AnalyzeAsync(version.Document.Title, normalized.Text, sections, cancellationToken);
         var chunks = chunker.Chunk(normalized.Text, sections);
         var vectorChunks = new List<KnowledgeChunkRecord>(chunks.Count);
+        var applicationId = version.Document.KnowledgeSource?.ApplicationId;
+        var knowledgeSourceId = version.Document.KnowledgeSourceId;
         foreach (var chunk in chunks)
         {
             var chunkId = $"{version.Id:N}-{chunk.Index}";
@@ -73,6 +77,8 @@ public sealed class DocumentProcessingService(
                 {
                     ["chunk_id"] = chunkId,
                     ["tenant_id"] = version.TenantId.ToString(),
+                    ["application_id"] = applicationId?.ToString() ?? string.Empty,
+                    ["knowledge_source_id"] = knowledgeSourceId?.ToString() ?? string.Empty,
                     ["source_type"] = "document",
                     ["source_id"] = version.Id.ToString(),
                     ["document_id"] = version.DocumentId.ToString(),

@@ -4,5 +4,6 @@ public enum KnowledgeSourceType
 {
     Document,
     Wiki,
-    Correction
+    Correction,
+    ExternalObject
 }

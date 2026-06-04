@@ -8,6 +8,10 @@ public sealed class KnowledgeChunkEntity
 
     public Guid TenantId { get; set; }
 
+    public Guid? ApplicationId { get; set; }
+
+    public Guid? KnowledgeSourceId { get; set; }
+
     public KnowledgeSourceType SourceType { get; set; }
 
     public required string SourceId { get; set; }
@@ -19,6 +23,12 @@ public sealed class KnowledgeChunkEntity
     public Guid? WikiPageId { get; set; }
 
     public Guid? CorrectionId { get; set; }
+
+    public Guid? ExternalObjectRecordId { get; set; }
+
+    public string? ExternalObjectType { get; set; }
+
+    public string? ExternalObjectId { get; set; }
 
     public Guid? FolderId { get; set; }
 
