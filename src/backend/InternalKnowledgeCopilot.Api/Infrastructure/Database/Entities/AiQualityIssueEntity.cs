@@ -6,6 +6,8 @@ public sealed class AiQualityIssueEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid AiFeedbackId { get; set; }
 
     public AiFeedbackEntity? AiFeedback { get; set; }

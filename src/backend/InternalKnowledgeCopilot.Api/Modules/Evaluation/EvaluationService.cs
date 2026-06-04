@@ -5,6 +5,7 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Ai;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,6 +24,7 @@ public interface IEvaluationService
 
 public sealed class EvaluationService(
     AppDbContext dbContext,
+    ITenantContext tenantContext,
     IAiQuestionService aiQuestionService,
     IAuditLogService auditLogService) : IEvaluationService
 {
@@ -35,8 +37,10 @@ public sealed class EvaluationService(
 
     public async Task<IReadOnlyList<EvaluationCaseResponse>> GetCasesAsync(CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var cases = await dbContext.EvaluationCases
             .AsNoTracking()
+            .Where(evaluationCase => evaluationCase.TenantId == tenantId)
             .OrderByDescending(evaluationCase => evaluationCase.CreatedAt)
             .ToListAsync(cancellationToken);
 
@@ -45,10 +49,12 @@ public sealed class EvaluationService(
 
     public async Task<IReadOnlyList<EvaluationRunResponse>> GetRunsAsync(CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var runs = await dbContext.EvaluationRuns
             .AsNoTracking()
             .Include(run => run.Results)
             .ThenInclude(result => result.EvaluationCase)
+            .Where(run => run.TenantId == tenantId)
             .OrderByDescending(run => run.CreatedAt)
             .Take(20)
             .ToListAsync(cancellationToken);
@@ -62,9 +68,10 @@ public sealed class EvaluationService(
         CreateEvaluationCaseFromFeedbackRequest request,
         CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var feedback = await dbContext.AiFeedback
             .Include(item => item.AiInteraction)
-            .FirstOrDefaultAsync(item => item.Id == feedbackId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == feedbackId, cancellationToken);
 
         if (feedback?.AiInteraction is null)
         {
@@ -97,6 +104,7 @@ public sealed class EvaluationService(
         var evaluationCase = new EvaluationCaseEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             SourceFeedbackId = feedback.Id,
             Question = feedback.AiInteraction.Question,
             ExpectedAnswer = expectedAnswer,
@@ -125,9 +133,10 @@ public sealed class EvaluationService(
 
     public async Task<EvaluationRunResponse> RunAsync(Guid reviewerId, RunEvaluationRequest request, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var casesQuery = dbContext.EvaluationCases
             .AsNoTracking()
-            .Where(evaluationCase => evaluationCase.IsActive);
+            .Where(evaluationCase => evaluationCase.TenantId == tenantId && evaluationCase.IsActive);
 
         if (request.CaseId is not null)
         {
@@ -155,13 +164,14 @@ public sealed class EvaluationService(
         foreach (var evaluationCase in cases)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            resultEntities.Add(await RunCaseAsync(runId, reviewerId, evaluationCase, cancellationToken));
+            resultEntities.Add(await RunCaseAsync(tenantId, runId, reviewerId, evaluationCase, cancellationToken));
         }
 
         var passedCases = resultEntities.Count(result => result.Passed);
         var run = new EvaluationRunEntity
         {
             Id = runId,
+            TenantId = tenantId,
             Name = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name.Trim(),
             TotalCases = resultEntities.Count,
             PassedCases = passedCases,
@@ -186,12 +196,13 @@ public sealed class EvaluationService(
             .AsNoTracking()
             .Include(item => item.Results)
             .ThenInclude(result => result.EvaluationCase)
-            .FirstAsync(item => item.Id == run.Id, cancellationToken);
+            .FirstAsync(item => item.TenantId == tenantId && item.Id == run.Id, cancellationToken);
 
         return ToRunResponse(savedRun);
     }
 
     private async Task<EvaluationRunResultEntity> RunCaseAsync(
+        Guid tenantId,
         Guid runId,
         Guid reviewerId,
         EvaluationCaseEntity evaluationCase,
@@ -215,6 +226,7 @@ public sealed class EvaluationService(
             return new EvaluationRunResultEntity
             {
                 Id = Guid.NewGuid(),
+                TenantId = tenantId,
                 EvaluationRunId = runId,
                 EvaluationCaseId = evaluationCase.Id,
                 AiInteractionId = response.InteractionId,
@@ -230,6 +242,7 @@ public sealed class EvaluationService(
             return new EvaluationRunResultEntity
             {
                 Id = Guid.NewGuid(),
+                TenantId = tenantId,
                 EvaluationRunId = runId,
                 EvaluationCaseId = evaluationCase.Id,
                 ActualAnswer = string.Empty,

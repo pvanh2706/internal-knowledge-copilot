@@ -2,6 +2,7 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Ai;
 using InternalKnowledgeCopilot.Api.Modules.Evaluation;
 using Microsoft.EntityFrameworkCore;
@@ -182,7 +183,7 @@ public sealed class EvaluationServiceTests
 
     private static EvaluationService CreateService(AppDbContext dbContext, IAiQuestionService aiQuestionService)
     {
-        return new EvaluationService(dbContext, aiQuestionService, new NoopAuditLogService());
+        return new EvaluationService(dbContext, CreateTenantContext(), aiQuestionService, new NoopAuditLogService());
     }
 
     private static AppDbContext CreateDbContext()
@@ -192,6 +193,13 @@ public sealed class EvaluationServiceTests
             .Options;
 
         return new AppDbContext(options);
+    }
+
+    private static TenantContext CreateTenantContext()
+    {
+        var tenantContext = new TenantContext();
+        tenantContext.SetTenant(Guid.Empty, "test");
+        return tenantContext;
     }
 
     private sealed class FakeAiQuestionService(string answer, bool needsClarification = false) : IAiQuestionService

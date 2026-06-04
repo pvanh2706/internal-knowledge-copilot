@@ -39,6 +39,18 @@ public sealed class ChromaKnowledgeVectorStore(HttpClient httpClient, IOptions<C
         await EnsureCollectionAsync(cancellationToken);
     }
 
+    public async Task DeleteTenantDataAsync(Guid tenantId, CancellationToken cancellationToken = default)
+    {
+        await EnsureCollectionAsync(cancellationToken);
+
+        var payload = new DeleteRecordsRequest(new Dictionary<string, object>
+        {
+            ["tenant_id"] = tenantId.ToString(),
+        });
+        var response = await httpClient.PostAsJsonAsync($"{BuildCollectionPath(collectionId!)}/delete", payload, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task UpsertChunksAsync(IReadOnlyList<KnowledgeChunkRecord> chunks, CancellationToken cancellationToken = default)
     {
         if (chunks.Count == 0)
@@ -126,6 +138,9 @@ public sealed class ChromaKnowledgeVectorStore(HttpClient httpClient, IOptions<C
         [property: JsonPropertyName("documents")] string[] Documents,
         [property: JsonPropertyName("metadatas")] Dictionary<string, object>[] Metadatas);
 
+    private sealed record DeleteRecordsRequest(
+        [property: JsonPropertyName("where")] object Where);
+
     private sealed record QueryRecordsRequest(
         [property: JsonPropertyName("query_embeddings")] float[][] QueryEmbeddings,
         [property: JsonPropertyName("n_results")] int NResults,
@@ -140,6 +155,11 @@ public sealed class ChromaKnowledgeVectorStore(HttpClient httpClient, IOptions<C
         }
 
         var conditions = new List<object>();
+        if (filter.TenantId is not null)
+        {
+            conditions.Add(new Dictionary<string, object> { ["tenant_id"] = filter.TenantId.Value.ToString() });
+        }
+
         AddStringSetCondition(conditions, "source_type", filter.SourceTypes);
         AddStringSetCondition(conditions, "status", filter.Statuses);
 

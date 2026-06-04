@@ -3,6 +3,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Ai;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
@@ -86,7 +87,8 @@ public sealed class AiQuestionServiceTests
         ]);
         var service = new AiQuestionService(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
@@ -157,7 +159,8 @@ public sealed class AiQuestionServiceTests
         ]);
         var service = new AiQuestionService(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
@@ -243,7 +246,8 @@ public sealed class AiQuestionServiceTests
         ]);
         var service = new AiQuestionService(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
@@ -369,7 +373,8 @@ public sealed class AiQuestionServiceTests
         ]);
         var service = new AiQuestionService(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
@@ -410,7 +415,8 @@ public sealed class AiQuestionServiceTests
         ]);
         var service = new AiQuestionService(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
@@ -441,7 +447,8 @@ public sealed class AiQuestionServiceTests
 
         var service = new AiQuestionService(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new MockEmbeddingService(),
             new FakeKnowledgeVectorStore([]),
             keywordIndexService,
@@ -482,7 +489,8 @@ public sealed class AiQuestionServiceTests
         ]);
         var service = new AiQuestionService(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
@@ -530,7 +538,8 @@ public sealed class AiQuestionServiceTests
         var answerService = new CapturingAnswerGenerationService();
         var service = new AiQuestionService(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new MockEmbeddingService(),
             new FakeKnowledgeVectorStore(vectorResults),
             new KnowledgeKeywordIndexService(dbContext),
@@ -724,6 +733,13 @@ public sealed class AiQuestionServiceTests
         return new AppDbContext(options);
     }
 
+    private static TenantContext CreateTenantContext()
+    {
+        var tenantContext = new TenantContext();
+        tenantContext.SetTenant(Guid.Empty, "test");
+        return tenantContext;
+    }
+
     private sealed class FakeKnowledgeVectorStore(IReadOnlyList<KnowledgeVectorSearchResult> results) : IKnowledgeVectorStore
     {
         public KnowledgeQueryFilter? LastFilter { get; private set; }
@@ -734,6 +750,11 @@ public sealed class AiQuestionServiceTests
         }
 
         public Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteTenantDataAsync(Guid tenantId, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

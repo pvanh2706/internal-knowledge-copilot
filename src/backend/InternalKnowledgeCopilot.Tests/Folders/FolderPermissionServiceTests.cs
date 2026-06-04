@@ -1,6 +1,7 @@
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -68,7 +69,7 @@ public sealed class FolderPermissionServiceTests
         });
         await dbContext.SaveChangesAsync();
 
-        var service = new FolderPermissionService(dbContext);
+        var service = new FolderPermissionService(dbContext, CreateTenantContext());
 
         var visibleIds = await service.GetVisibleFolderIdsAsync(userId);
 
@@ -106,7 +107,7 @@ public sealed class FolderPermissionServiceTests
         });
         await dbContext.SaveChangesAsync();
 
-        var service = new FolderPermissionService(dbContext);
+        var service = new FolderPermissionService(dbContext, CreateTenantContext());
 
         var visibleIds = await service.GetVisibleFolderIdsAsync(reviewerId);
 
@@ -120,5 +121,12 @@ public sealed class FolderPermissionServiceTests
             .Options;
 
         return new AppDbContext(options);
+    }
+
+    private static TenantContext CreateTenantContext()
+    {
+        var tenantContext = new TenantContext();
+        tenantContext.SetTenant(Guid.Empty, "test");
+        return tenantContext;
     }
 }

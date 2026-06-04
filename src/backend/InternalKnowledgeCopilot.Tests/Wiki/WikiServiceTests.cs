@@ -6,6 +6,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using InternalKnowledgeCopilot.Api.Modules.Wiki;
@@ -102,7 +103,8 @@ public sealed class WikiServiceTests
     {
         return new WikiService(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new MockWikiDraftGenerationService(),
             new TextChunker(),
             new SectionDetector(),
@@ -216,6 +218,13 @@ public sealed class WikiServiceTests
         return new AppDbContext(options);
     }
 
+    private static TenantContext CreateTenantContext()
+    {
+        var tenantContext = new TenantContext();
+        tenantContext.SetTenant(Guid.Empty, "test");
+        return tenantContext;
+    }
+
     private sealed record SeededDocument(Guid ReviewerId, Guid FolderId, Guid DocumentId, Guid VersionId);
 
     private sealed record RelatedSeededDocument(Guid DocumentId, Guid VersionId);
@@ -234,6 +243,11 @@ public sealed class WikiServiceTests
         }
 
         public Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteTenantDataAsync(Guid tenantId, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

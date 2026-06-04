@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -10,12 +11,12 @@ namespace InternalKnowledgeCopilot.Api.Modules.Auth;
 
 public interface IJwtTokenService
 {
-    string CreateAccessToken(UserEntity user);
+    string CreateAccessToken(UserEntity user, Guid tenantId, string tenantCode);
 }
 
 public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
 {
-    public string CreateAccessToken(UserEntity user)
+    public string CreateAccessToken(UserEntity user, Guid tenantId, string tenantCode)
     {
         var jwtOptions = options.Value;
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
@@ -27,6 +28,8 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Name, user.DisplayName),
             new(ClaimTypes.Role, user.Role.ToString()),
+            new(TenantClaimTypes.TenantId, tenantId.ToString()),
+            new(TenantClaimTypes.TenantCode, tenantCode),
         };
 
         var token = new JwtSecurityToken(

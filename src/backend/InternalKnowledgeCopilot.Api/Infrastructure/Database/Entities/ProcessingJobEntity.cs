@@ -6,6 +6,8 @@ public sealed class ProcessingJobEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public required string JobType { get; set; }
 
     public required string TargetType { get; set; }

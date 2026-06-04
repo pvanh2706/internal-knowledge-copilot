@@ -7,6 +7,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ public interface IAiQuestionService
 
 public sealed class AiQuestionService(
     AppDbContext dbContext,
+    ITenantContext tenantContext,
     IFolderPermissionService folderPermissionService,
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore,
@@ -50,11 +52,12 @@ public sealed class AiQuestionService(
 
         await ValidateScopeAsync(userId, request, cancellationToken);
 
+        var tenantId = tenantContext.GetRequiredTenantId();
         var queryUnderstanding = UnderstandQuery(question);
         var visibleFolderIds = await folderPermissionService.GetVisibleFolderIdsAsync(userId, cancellationToken);
         var stopwatch = Stopwatch.StartNew();
         var queryEmbedding = await embeddingService.CreateEmbeddingAsync(question, cancellationToken);
-        var knowledgeFilter = BuildKnowledgeQueryFilter(visibleFolderIds, request);
+        var knowledgeFilter = BuildKnowledgeQueryFilter(tenantId, visibleFolderIds, request);
         var vectorResults = await vectorStore.QueryAsync(
             queryEmbedding,
             SearchLimit,
@@ -85,6 +88,7 @@ public sealed class AiQuestionService(
         var interaction = new AiInteractionEntity
         {
             Id = interactionId,
+            TenantId = tenantId,
             UserId = userId,
             Question = question,
             Answer = answerDraft.Answer,
@@ -106,6 +110,7 @@ public sealed class AiQuestionService(
         dbContext.AiInteractionSources.AddRange(citedChunks.Select((chunk, index) => new AiInteractionSourceEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             AiInteractionId = interactionId,
             SourceType = chunk.SourceType,
             SourceId = chunk.SourceId,
@@ -147,10 +152,11 @@ public sealed class AiQuestionService(
 
         await ValidateScopeAsync(userId, request, cancellationToken);
 
+        var tenantId = tenantContext.GetRequiredTenantId();
         var queryUnderstanding = UnderstandQuery(question);
         var visibleFolderIds = await folderPermissionService.GetVisibleFolderIdsAsync(userId, cancellationToken);
         var queryEmbedding = await embeddingService.CreateEmbeddingAsync(question, cancellationToken);
-        var knowledgeFilter = BuildKnowledgeQueryFilter(visibleFolderIds, request);
+        var knowledgeFilter = BuildKnowledgeQueryFilter(tenantId, visibleFolderIds, request);
         var vectorResults = await vectorStore.QueryAsync(
             queryEmbedding,
             SearchLimit,
@@ -288,9 +294,10 @@ public sealed class AiQuestionService(
                 throw new ArgumentException("document_required");
             }
 
+            var tenantId = tenantContext.GetRequiredTenantId();
             var document = await dbContext.Documents
                 .AsNoTracking()
-                .FirstOrDefaultAsync(item => item.Id == request.DocumentId && item.DeletedAt == null, cancellationToken);
+                .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == request.DocumentId && item.DeletedAt == null, cancellationToken);
 
             if (document is null)
             {
@@ -304,7 +311,7 @@ public sealed class AiQuestionService(
         }
     }
 
-    private static KnowledgeQueryFilter BuildKnowledgeQueryFilter(IReadOnlySet<Guid> visibleFolderIds, AskQuestionRequest request)
+    private static KnowledgeQueryFilter BuildKnowledgeQueryFilter(Guid tenantId, IReadOnlySet<Guid> visibleFolderIds, AskQuestionRequest request)
     {
         var sourceTypes = new[] { "correction", "document", "wiki" };
         var statuses = new[] { "approved", "published" };
@@ -313,6 +320,7 @@ public sealed class AiQuestionService(
         {
             AiScopeType.Folder => new KnowledgeQueryFilter
             {
+                TenantId = tenantId,
                 FolderIds = request.FolderId is null ? [] : [request.FolderId.Value],
                 IncludeCompanyVisible = false,
                 SourceTypes = sourceTypes,
@@ -320,6 +328,7 @@ public sealed class AiQuestionService(
             },
             AiScopeType.Document => new KnowledgeQueryFilter
             {
+                TenantId = tenantId,
                 FolderIds = visibleFolderIds.ToArray(),
                 DocumentId = request.DocumentId,
                 IncludeCompanyVisible = true,
@@ -328,6 +337,7 @@ public sealed class AiQuestionService(
             },
             _ => new KnowledgeQueryFilter
             {
+                TenantId = tenantId,
                 FolderIds = visibleFolderIds.ToArray(),
                 IncludeCompanyVisible = true,
                 SourceTypes = sourceTypes,
@@ -352,6 +362,7 @@ public sealed class AiQuestionService(
         AskQuestionRequest request,
         CancellationToken cancellationToken)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var candidates = new List<CandidateChunk>();
         var rejected = new List<RejectedKnowledgeChunk>();
 
@@ -399,8 +410,10 @@ public sealed class AiQuestionService(
             .Include(version => version.Document)
             .Where(version =>
                 documentVersionIds.Contains(version.Id) &&
+                version.TenantId == tenantId &&
                 version.Status == DocumentVersionStatus.Indexed &&
                 version.Document != null &&
+                version.Document.TenantId == tenantId &&
                 version.Document.CurrentVersionId == version.Id &&
                 version.Document.DeletedAt == null &&
                 visibleFolderIds.Contains(version.Document.FolderId))
@@ -412,6 +425,7 @@ public sealed class AiQuestionService(
             .AsNoTracking()
             .Where(page =>
                 wikiPageIds.Contains(page.Id) &&
+                page.TenantId == tenantId &&
                 page.ArchivedAt == null &&
                 (
                     (page.VisibilityScope == VisibilityScope.Company && page.IsCompanyPublicConfirmed) ||
@@ -423,6 +437,7 @@ public sealed class AiQuestionService(
             .AsNoTracking()
             .Where(correction =>
                 correctionIds.Contains(correction.Id) &&
+                correction.TenantId == tenantId &&
                 correction.Status == KnowledgeCorrectionStatus.Approved &&
                 (
                     (correction.VisibilityScope == VisibilityScope.Company) ||

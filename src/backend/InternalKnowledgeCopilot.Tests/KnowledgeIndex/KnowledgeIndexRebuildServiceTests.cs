@@ -5,6 +5,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeIndex;
 using Microsoft.EntityFrameworkCore;
@@ -129,6 +130,7 @@ public sealed class KnowledgeIndexRebuildServiceTests
     {
         return new KnowledgeIndexRebuildService(
             dbContext,
+            CreateTenantContext(),
             new MockEmbeddingService(),
             vectorStore,
             new KnowledgeKeywordIndexService(dbContext),
@@ -144,6 +146,13 @@ public sealed class KnowledgeIndexRebuildServiceTests
         return new AppDbContext(options);
     }
 
+    private static TenantContext CreateTenantContext()
+    {
+        var tenantContext = new TenantContext();
+        tenantContext.SetTenant(Guid.Empty, "test");
+        return tenantContext;
+    }
+
     private sealed class FakeKnowledgeVectorStore : IKnowledgeVectorStore
     {
         public int ResetCount { get; private set; }
@@ -156,6 +165,12 @@ public sealed class KnowledgeIndexRebuildServiceTests
         }
 
         public Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+        {
+            ResetCount += 1;
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteTenantDataAsync(Guid tenantId, CancellationToken cancellationToken = default)
         {
             ResetCount += 1;
             return Task.CompletedTask;

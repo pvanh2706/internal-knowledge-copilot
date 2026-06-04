@@ -19,22 +19,33 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
 
         var hasTenantHeader = httpContext.Request.Headers.TryGetValue(TenantCodeHeaderName, out var headerValues)
             && !StringValues.IsNullOrEmpty(headerValues);
-        var rawTenantCode = hasTenantHeader
-            ? headerValues.FirstOrDefault()
-            : TenantDefaults.DefaultTenantCode;
-        var tenantCode = NormalizeCode(rawTenantCode);
+        var headerTenantCode = hasTenantHeader ? NormalizeCode(headerValues.FirstOrDefault()) : null;
+        if (hasTenantHeader && string.IsNullOrWhiteSpace(headerTenantCode))
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await httpContext.Response.WriteAsJsonAsync(
+                new ApiError("tenant_code_required", "Tenant code is required."),
+                httpContext.RequestAborted);
+            return;
+        }
 
+        var claimTenantCode = NormalizeCode(httpContext.User.FindFirst(TenantClaimTypes.TenantCode)?.Value);
+        if (!string.IsNullOrWhiteSpace(claimTenantCode)
+            && hasTenantHeader
+            && !string.Equals(headerTenantCode, claimTenantCode, StringComparison.OrdinalIgnoreCase))
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
+            await httpContext.Response.WriteAsJsonAsync(
+                new ApiError("tenant_mismatch", "Tenant header does not match the authenticated token."),
+                httpContext.RequestAborted);
+            return;
+        }
+
+        var tenantCode = string.IsNullOrWhiteSpace(claimTenantCode)
+            ? headerTenantCode ?? TenantDefaults.DefaultTenantCode
+            : claimTenantCode;
         if (string.IsNullOrWhiteSpace(tenantCode))
         {
-            if (hasTenantHeader)
-            {
-                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-                await httpContext.Response.WriteAsJsonAsync(
-                    new ApiError("tenant_code_required", "Tenant code is required."),
-                    httpContext.RequestAborted);
-                return;
-            }
-
             await next(httpContext);
             return;
         }

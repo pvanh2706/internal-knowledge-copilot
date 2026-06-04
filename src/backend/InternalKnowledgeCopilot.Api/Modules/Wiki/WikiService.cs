@@ -6,6 +6,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,7 @@ public interface IWikiService
 
 public sealed class WikiService(
     AppDbContext dbContext,
+    ITenantContext tenantContext,
     IFolderPermissionService folderPermissionService,
     IWikiDraftGenerationService draftGenerationService,
     ITextChunker chunker,
@@ -40,12 +42,18 @@ public sealed class WikiService(
 {
     public async Task<WikiDraftDetailResponse> GenerateDraftAsync(Guid reviewerId, GenerateWikiDraftRequest request, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var version = await dbContext.DocumentVersions
             .Include(item => item.Document)
                 .ThenInclude(document => document!.Folder)
-            .FirstOrDefaultAsync(item => item.Id == request.DocumentVersionId && item.DocumentId == request.DocumentId, cancellationToken);
+            .FirstOrDefaultAsync(
+                item =>
+                    item.TenantId == tenantId &&
+                    item.Id == request.DocumentVersionId &&
+                    item.DocumentId == request.DocumentId,
+                cancellationToken);
 
-        if (version?.Document is null || version.Document.DeletedAt is not null)
+        if (version?.Document is null || version.Document.TenantId != tenantId || version.Document.DeletedAt is not null)
         {
             throw new KeyNotFoundException("document_version_not_found");
         }
@@ -75,12 +83,13 @@ public sealed class WikiService(
             throw new InvalidOperationException("extracted_text_empty");
         }
 
-        var relatedDocuments = await FindRelatedDocumentsAsync(reviewerId, version, sourceText, cancellationToken);
+        var relatedDocuments = await FindRelatedDocumentsAsync(reviewerId, tenantId, version, sourceText, cancellationToken);
         var generated = await draftGenerationService.GenerateAsync(version.Document.Title, sourceText, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var draft = new WikiDraftEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             SourceDocumentId = version.DocumentId,
             SourceDocumentVersionId = version.Id,
             Title = version.Document.Title,
@@ -116,10 +125,12 @@ public sealed class WikiService(
 
     public async Task<IReadOnlyList<WikiDraftListItemResponse>> GetDraftsAsync(CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var drafts = await dbContext.WikiDrafts
             .AsNoTracking()
             .Include(draft => draft.SourceDocument)
                 .ThenInclude(document => document!.Folder)
+            .Where(draft => draft.TenantId == tenantId)
             .OrderBy(draft => draft.Status == WikiStatus.Published)
             .ThenBy(draft => draft.Id)
             .ToListAsync(cancellationToken);
@@ -129,11 +140,12 @@ public sealed class WikiService(
 
     public async Task<WikiDraftDetailResponse> GetDraftAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var draft = await dbContext.WikiDrafts
             .AsNoTracking()
             .Include(item => item.SourceDocument)
                 .ThenInclude(document => document!.Folder)
-            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id, cancellationToken);
 
         if (draft is null)
         {
@@ -145,12 +157,13 @@ public sealed class WikiService(
 
     public async Task<WikiPageResponse> PublishAsync(Guid draftId, Guid reviewerId, PublishWikiDraftRequest request, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var draft = await dbContext.WikiDrafts
             .Include(item => item.SourceDocument)
                 .ThenInclude(document => document!.Folder)
-            .FirstOrDefaultAsync(item => item.Id == draftId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == draftId, cancellationToken);
 
-        if (draft?.SourceDocument is null)
+        if (draft?.SourceDocument is null || draft.SourceDocument.TenantId != tenantId)
         {
             throw new KeyNotFoundException("wiki_draft_not_found");
         }
@@ -178,7 +191,7 @@ public sealed class WikiService(
             ? string.Empty
             : await dbContext.Folders
                 .AsNoTracking()
-                .Where(folder => folder.Id == folderId.Value && folder.DeletedAt == null)
+                .Where(folder => folder.TenantId == tenantId && folder.Id == folderId.Value && folder.DeletedAt == null)
                 .Select(folder => folder.Path)
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -191,6 +204,7 @@ public sealed class WikiService(
         var page = new WikiPageEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             SourceDraftId = draft.Id,
             SourceDocumentId = draft.SourceDocumentId,
             SourceDocumentVersionId = draft.SourceDocumentVersionId,
@@ -227,10 +241,11 @@ public sealed class WikiService(
             throw new ArgumentException("reject_reason_required");
         }
 
+        var tenantId = tenantContext.GetRequiredTenantId();
         var draft = await dbContext.WikiDrafts
             .Include(item => item.SourceDocument)
                 .ThenInclude(document => document!.Folder)
-            .FirstOrDefaultAsync(item => item.Id == draftId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == draftId, cancellationToken);
 
         if (draft is null)
         {
@@ -271,6 +286,7 @@ public sealed class WikiService(
                 new Dictionary<string, object>
                 {
                     ["chunk_id"] = chunkId,
+                    ["tenant_id"] = page.TenantId.ToString(),
                     ["source_type"] = "wiki",
                     ["source_id"] = page.Id.ToString(),
                     ["wiki_page_id"] = page.Id.ToString(),
@@ -334,6 +350,7 @@ public sealed class WikiService(
 
     private async Task<IReadOnlyList<WikiRelatedDocumentResponse>> FindRelatedDocumentsAsync(
         Guid reviewerId,
+        Guid tenantId,
         DocumentVersionEntity sourceVersion,
         string sourceText,
         CancellationToken cancellationToken)
@@ -355,6 +372,7 @@ public sealed class WikiService(
                 30,
                 new KnowledgeQueryFilter
                 {
+                    TenantId = tenantId,
                     FolderIds = visibleFolderIds.ToArray(),
                     IncludeCompanyVisible = true,
                     SourceTypes = ["document", "wiki"],
@@ -384,6 +402,7 @@ public sealed class WikiService(
                 .Include(document => document.Folder)
                 .Where(document =>
                     candidateIds.Contains(document.Id) &&
+                    document.TenantId == tenantId &&
                     document.DeletedAt == null &&
                     document.Status == DocumentStatus.Approved &&
                     document.CurrentVersionId != null &&

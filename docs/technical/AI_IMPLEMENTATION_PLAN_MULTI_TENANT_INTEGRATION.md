@@ -164,7 +164,7 @@ If a command cannot be run, record the reason in the progress log.
 
 - [x] Phase 0 - Preflight and baseline verification
 - [x] Phase 1 - Tenant and application foundation
-- [ ] Phase 2 - Tenantize existing data and query flows
+- [x] Phase 2 - Tenantize existing data and query flows
 - [ ] Phase 3 - Knowledge sources, external objects, and ACL snapshots
 - [ ] Phase 4 - Integration contracts and connector boundaries
 - [ ] Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation
@@ -295,24 +295,24 @@ ai_provider_settings
 
 Checklist:
 
-- [ ] Add `TenantId` to the entity classes above.
-- [ ] Create a migration that backfills existing rows into the default tenant.
-- [ ] Update unique indexes to include `TenantId` where needed, especially email, team name, folder path, and provider settings.
-- [ ] Update `DevelopmentSeeder` to create tenant-scoped demo users, teams, folders, documents, and settings.
-- [ ] Update login flow to resolve tenant before authenticating.
-- [ ] Add tenant claims to JWT.
-- [ ] Add tenant-aware helpers for controllers and services.
-- [ ] Update `UsersController` and `UsersService` logic to filter by tenant.
-- [ ] Update `TeamsController` logic to filter by tenant.
-- [ ] Update `FoldersController` and `FolderPermissionService` to filter by tenant.
-- [ ] Update `DocumentsController` and document queries to filter by tenant.
-- [ ] Update `WikiService` and wiki queries to filter by tenant.
-- [ ] Update `AiQuestionService` to store and filter interactions by tenant.
-- [ ] Update `FeedbackController` and `AiFeedbackService` to filter by tenant.
-- [ ] Update `EvaluationService` to isolate cases/runs/results by tenant.
-- [ ] Update `AuditLogService` to store tenant id.
-- [ ] Update `DataResetService` to avoid cross-tenant resets unless explicitly requested by internal admin.
-- [ ] Add cross-tenant tests for users, folders, documents, wiki, AI Q&A, feedback, evaluation, and audit.
+- [x] Add `TenantId` to the entity classes above.
+- [x] Create a migration that backfills existing rows into the default tenant.
+- [x] Update unique indexes to include `TenantId` where needed, especially email, team name, folder path, and provider settings.
+- [x] Update `DevelopmentSeeder` to create tenant-scoped demo users, teams, folders, documents, and settings.
+- [x] Update login flow to resolve tenant before authenticating.
+- [x] Add tenant claims to JWT.
+- [x] Add tenant-aware helpers for controllers and services.
+- [x] Update `UsersController` and `UsersService` logic to filter by tenant.
+- [x] Update `TeamsController` logic to filter by tenant.
+- [x] Update `FoldersController` and `FolderPermissionService` to filter by tenant.
+- [x] Update `DocumentsController` and document queries to filter by tenant.
+- [x] Update `WikiService` and wiki queries to filter by tenant.
+- [x] Update `AiQuestionService` to store and filter interactions by tenant.
+- [x] Update `FeedbackController` and `AiFeedbackService` to filter by tenant.
+- [x] Update `EvaluationService` to isolate cases/runs/results by tenant.
+- [x] Update `AuditLogService` to store tenant id.
+- [x] Update `DataResetService` to avoid cross-tenant resets unless explicitly requested by internal admin.
+- [x] Add cross-tenant tests for users, folders, documents, wiki, AI Q&A, feedback, evaluation, and audit.
 
 Acceptance criteria:
 
@@ -320,6 +320,16 @@ Acceptance criteria:
 - Existing single-tenant usage still works through the default tenant.
 - All existing tests pass or are updated intentionally for tenant-aware behavior.
 - New cross-tenant isolation tests pass.
+
+Phase 2 review notes (2026-06-04):
+
+- Tenantized existing MVP entities and indexes, including users, teams, folders, documents, wiki, AI interactions, feedback, evaluation, audit logs, knowledge index tables, processing jobs, and AI provider settings.
+- Added migration `20260604042515_TenantizeExistingData`; it ensures a default tenant exists, backfills existing rows to the tenant with `code='default'`, and recreates tenant-scoped indexes.
+- Login now resolves tenant before authenticating and JWTs include `tenant_id` and `tenant_code` claims.
+- Request services/controllers now use `ITenantContext` for tenant-scoped reads and writes; background processing sets tenant context from each processing job before indexing.
+- Retrieval, keyword search, ledger rebuild, wiki indexing, correction indexing, and data reset now carry or filter `tenant_id`.
+- Added focused cross-tenant isolation tests for read models, AI citation filtering, feedback submission guards, and tenant header/JWT mismatch handling.
+- Verification passed: `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 68/68.
 
 ## 11. Phase 3 - Knowledge Sources, External Objects, and ACL Snapshots
 
@@ -731,3 +741,4 @@ Add entries here after each implementation batch.
 | 2026-06-04 | Codex | Planning | Created this implementation plan | Not run; documentation-only change | Ready for Phase 0 |
 | 2026-06-04 | Codex | Phase 0 - Preflight | Verified repo baseline, tests, EF snapshot, service registration, auth claims, permission flow, retrieval flow, and indexing flow | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 55/55; `npm test` passed 1/1; `npm run build` passed | Dirty file documented: only this untracked plan file. Next batch selected: Phase 1 / Slice 1 - Foundation Only |
 | 2026-06-04 | Codex | Phase 1 - Tenant and application foundation | Added tenant/application domain, EF mapping, migration, default seed data, tenant resolver, admin services/controllers, and focused backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 64/64; `npm test` passed 1/1; `npm run build` passed; `dotnet ef migrations list` confirmed `20260604035437_AddTenantsAndApplications` latest | Existing tables are not tenantized yet. Next batch: Phase 2 - Tenantize Existing Data and Query Flows |
+| 2026-06-04 | Codex | Phase 2 - Tenantize existing data and query flows | Added tenant ids to existing domain tables, tenant-scoped indexes, default-tenant backfill migration, tenant-aware auth/JWT, scoped query/write paths, tenant-aware indexing/rebuild/reset behavior, and cross-tenant backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 68/68 | Existing MVP flows now resolve and enforce tenant context. Next batch: Phase 3 - Knowledge Sources, External Objects, and ACL Snapshots |

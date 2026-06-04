@@ -4,6 +4,8 @@ public sealed class FolderEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid? ParentId { get; set; }
 
     public FolderEntity? Parent { get; set; }

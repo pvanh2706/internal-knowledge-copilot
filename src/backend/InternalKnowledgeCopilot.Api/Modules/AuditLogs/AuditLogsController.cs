@@ -1,5 +1,6 @@
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ namespace InternalKnowledgeCopilot.Api.Modules.AuditLogs;
 [ApiController]
 [Route("api/audit-logs")]
 [Authorize(Roles = nameof(UserRole.Admin))]
-public sealed class AuditLogsController(AppDbContext dbContext) : ControllerBase
+public sealed class AuditLogsController(AppDbContext dbContext, ITenantContext tenantContext) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<AuditLogResponse>>> GetLogs(
@@ -19,9 +20,11 @@ public sealed class AuditLogsController(AppDbContext dbContext) : ControllerBase
         [FromQuery] string? entityType,
         CancellationToken cancellationToken)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var query = dbContext.AuditLogs
             .AsNoTracking()
             .Include(log => log.ActorUser)
+            .Where(log => log.TenantId == tenantId)
             .AsQueryable();
 
         if (from is not null)

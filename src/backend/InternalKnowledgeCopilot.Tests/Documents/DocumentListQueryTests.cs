@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Documents;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.AspNetCore.Http;
@@ -79,7 +80,8 @@ public sealed class DocumentListQueryTests
 
         var controller = new DocumentsController(
             dbContext,
-            new FolderPermissionService(dbContext),
+            CreateTenantContext(),
+            new FolderPermissionService(dbContext, CreateTenantContext()),
             new NoopFileUploadValidator(),
             new NoopFileStorageService(),
             new NoopAuditLogService())
@@ -159,5 +161,12 @@ public sealed class DocumentListQueryTests
         {
             return Task.CompletedTask;
         }
+    }
+
+    private static TenantContext CreateTenantContext()
+    {
+        var tenantContext = new TenantContext();
+        tenantContext.SetTenant(Guid.Empty, "test");
+        return tenantContext;
     }
 }

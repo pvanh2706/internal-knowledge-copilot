@@ -1,5 +1,6 @@
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace InternalKnowledgeCopilot.Api.Modules.Folders;
@@ -11,7 +12,7 @@ public interface IFolderPermissionService
     Task<IReadOnlySet<Guid>> GetVisibleFolderIdsAsync(Guid userId, CancellationToken cancellationToken = default);
 }
 
-public sealed class FolderPermissionService(AppDbContext dbContext) : IFolderPermissionService
+public sealed class FolderPermissionService(AppDbContext dbContext, ITenantContext tenantContext) : IFolderPermissionService
 {
     public async Task<bool> CanViewFolderAsync(Guid userId, Guid folderId, CancellationToken cancellationToken = default)
     {
@@ -21,9 +22,10 @@ public sealed class FolderPermissionService(AppDbContext dbContext) : IFolderPer
 
     public async Task<IReadOnlySet<Guid>> GetVisibleFolderIdsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var user = await dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == userId && item.DeletedAt == null && item.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == userId && item.DeletedAt == null && item.IsActive, cancellationToken);
 
         if (user is null)
         {
@@ -34,7 +36,7 @@ public sealed class FolderPermissionService(AppDbContext dbContext) : IFolderPer
         {
             var allFolderIds = await dbContext.Folders
                 .AsNoTracking()
-                .Where(folder => folder.DeletedAt == null)
+                .Where(folder => folder.TenantId == tenantId && folder.DeletedAt == null)
                 .Select(folder => folder.Id)
                 .ToListAsync(cancellationToken);
 
@@ -43,7 +45,12 @@ public sealed class FolderPermissionService(AppDbContext dbContext) : IFolderPer
 
         var visibleByUser = await dbContext.UserFolderPermissions
             .AsNoTracking()
-            .Where(permission => permission.UserId == userId && permission.CanView && permission.Folder!.DeletedAt == null)
+            .Where(permission =>
+                permission.TenantId == tenantId &&
+                permission.UserId == userId &&
+                permission.CanView &&
+                permission.Folder!.TenantId == tenantId &&
+                permission.Folder.DeletedAt == null)
             .Select(permission => permission.FolderId)
             .ToListAsync(cancellationToken);
 
@@ -53,7 +60,12 @@ public sealed class FolderPermissionService(AppDbContext dbContext) : IFolderPer
         {
             var visibleByTeam = await dbContext.FolderPermissions
                 .AsNoTracking()
-                .Where(permission => permission.TeamId == user.PrimaryTeamId && permission.CanView && permission.Folder!.DeletedAt == null)
+                .Where(permission =>
+                    permission.TenantId == tenantId &&
+                    permission.TeamId == user.PrimaryTeamId &&
+                    permission.CanView &&
+                    permission.Folder!.TenantId == tenantId &&
+                    permission.Folder.DeletedAt == null)
                 .Select(permission => permission.FolderId)
                 .ToListAsync(cancellationToken);
 

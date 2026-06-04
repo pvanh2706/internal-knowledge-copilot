@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,21 +10,29 @@ namespace InternalKnowledgeCopilot.Api.Modules.Auth;
 
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(AppDbContext dbContext, IPasswordHasher passwordHasher, IJwtTokenService jwtTokenService) : ControllerBase
+public sealed class AuthController(
+    AppDbContext dbContext,
+    ITenantContext tenantContext,
+    IPasswordHasher passwordHasher,
+    IJwtTokenService jwtTokenService) : ControllerBase
 {
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var user = await dbContext.Users.FirstOrDefaultAsync(item => item.Email == email && item.DeletedAt == null, cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var tenantCode = tenantContext.TenantCode ?? TenantDefaults.DefaultTenantCode;
+        var user = await dbContext.Users.FirstOrDefaultAsync(
+            item => item.TenantId == tenantId && item.Email == email && item.DeletedAt == null,
+            cancellationToken);
 
         if (user is null || !user.IsActive || !passwordHasher.VerifyPassword(user.PasswordHash, request.Password))
         {
             return Unauthorized(new ApiError("invalid_credentials", "Email hoặc mật khẩu không đúng."));
         }
 
-        var accessToken = jwtTokenService.CreateAccessToken(user);
+        var accessToken = jwtTokenService.CreateAccessToken(user, tenantId, tenantCode);
         return Ok(new LoginResponse(
             accessToken,
             user.MustChangePassword,
@@ -40,7 +49,10 @@ public sealed class AuthController(AppDbContext dbContext, IPasswordHasher passw
             return Unauthorized(new ApiError("invalid_token", "Token không hợp lệ."));
         }
 
-        var user = await dbContext.Users.FirstOrDefaultAsync(item => item.Id == userId && item.DeletedAt == null, cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var user = await dbContext.Users.FirstOrDefaultAsync(
+            item => item.TenantId == tenantId && item.Id == userId && item.DeletedAt == null,
+            cancellationToken);
         if (user is null || !user.IsActive)
         {
             return Unauthorized(new ApiError("invalid_token", "Token không hợp lệ."));

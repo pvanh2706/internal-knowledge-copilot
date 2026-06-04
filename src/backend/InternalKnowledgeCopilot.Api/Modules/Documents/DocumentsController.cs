@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,7 @@ namespace InternalKnowledgeCopilot.Api.Modules.Documents;
 [Authorize]
 public sealed class DocumentsController(
     AppDbContext dbContext,
+    ITenantContext tenantContext,
     IFolderPermissionService folderPermissionService,
     IFileUploadValidator fileUploadValidator,
     IFileStorageService fileStorageService,
@@ -36,12 +38,13 @@ public sealed class DocumentsController(
         }
 
         var visibleFolderIds = await folderPermissionService.GetVisibleFolderIdsAsync(userId.Value, cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
         var query = dbContext.Documents
             .AsNoTracking()
             .Include(document => document.Folder)
             .Include(document => document.CreatedByUser)
             .Include(document => document.Versions)
-            .Where(document => document.DeletedAt == null && visibleFolderIds.Contains(document.FolderId));
+            .Where(document => document.TenantId == tenantId && document.DeletedAt == null && visibleFolderIds.Contains(document.FolderId));
 
         if (folderId is not null)
         {
@@ -110,9 +113,11 @@ public sealed class DocumentsController(
         }
 
         var now = DateTimeOffset.UtcNow;
+        var tenantId = tenantContext.GetRequiredTenantId();
         var document = new DocumentEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             FolderId = request.FolderId,
             Title = title,
             Description = request.Description?.Trim(),
@@ -122,13 +127,13 @@ public sealed class DocumentsController(
             UpdatedAt = now,
         };
 
-        var version = await CreateVersionAsync(document.Id, 1, request.File!, userId.Value, now, cancellationToken);
+        var version = await CreateVersionAsync(tenantId, document.Id, 1, request.File!, userId.Value, now, cancellationToken);
         dbContext.Documents.Add(document);
         dbContext.DocumentVersions.Add(version);
         await dbContext.SaveChangesAsync(cancellationToken);
         await auditLogService.RecordAsync(userId.Value, "DocumentUploaded", "Document", document.Id, new { document.Title, document.FolderId }, cancellationToken);
 
-        return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, await BuildDetailResponseAsync(document.Id, cancellationToken));
+        return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, await BuildDetailResponseAsync(tenantId, document.Id, cancellationToken));
     }
 
     [HttpPost("{id:guid}/versions")]
@@ -141,9 +146,10 @@ public sealed class DocumentsController(
             return Unauthorized(new ApiError("invalid_token", "Token không hợp lệ."));
         }
 
+        var tenantId = tenantContext.GetRequiredTenantId();
         var document = await dbContext.Documents
             .Include(item => item.Versions)
-            .FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt == null, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
 
         if (document is null)
         {
@@ -163,7 +169,7 @@ public sealed class DocumentsController(
 
         var nextVersionNumber = document.Versions.Count == 0 ? 1 : document.Versions.Max(version => version.VersionNumber) + 1;
         var now = DateTimeOffset.UtcNow;
-        var version = await CreateVersionAsync(document.Id, nextVersionNumber, request.File!, userId.Value, now, cancellationToken);
+        var version = await CreateVersionAsync(tenantId, document.Id, nextVersionNumber, request.File!, userId.Value, now, cancellationToken);
         dbContext.DocumentVersions.Add(version);
         if (document.CurrentVersionId is null)
         {
@@ -174,7 +180,7 @@ public sealed class DocumentsController(
         await dbContext.SaveChangesAsync(cancellationToken);
         await auditLogService.RecordAsync(userId.Value, "DocumentVersionUploaded", "Document", document.Id, new { VersionId = version.Id, version.VersionNumber }, cancellationToken);
 
-        return Ok(await BuildDetailResponseAsync(document.Id, cancellationToken));
+        return Ok(await BuildDetailResponseAsync(tenantId, document.Id, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
@@ -186,9 +192,10 @@ public sealed class DocumentsController(
             return Unauthorized(new ApiError("invalid_token", "Token không hợp lệ."));
         }
 
+        var tenantId = tenantContext.GetRequiredTenantId();
         var document = await dbContext.Documents
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt == null, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
 
         if (document is null)
         {
@@ -200,7 +207,7 @@ public sealed class DocumentsController(
             return Forbid();
         }
 
-        return Ok(await BuildDetailResponseAsync(id, cancellationToken));
+        return Ok(await BuildDetailResponseAsync(tenantId, id, cancellationToken));
     }
 
     [HttpGet("{id:guid}/download")]
@@ -212,9 +219,10 @@ public sealed class DocumentsController(
             return Unauthorized(new ApiError("invalid_token", "Token không hợp lệ."));
         }
 
+        var tenantId = tenantContext.GetRequiredTenantId();
         var document = await dbContext.Documents
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt == null, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
 
         if (document is null)
         {
@@ -234,7 +242,7 @@ public sealed class DocumentsController(
 
         var version = await dbContext.DocumentVersions
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.DocumentId == id && item.Id == targetVersionId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.DocumentId == id && item.Id == targetVersionId, cancellationToken);
 
         if (version is null)
         {
@@ -264,9 +272,10 @@ public sealed class DocumentsController(
             return Unauthorized(new ApiError("invalid_token", "Token không hợp lệ."));
         }
 
+        var tenantId = tenantContext.GetRequiredTenantId();
         var document = await dbContext.Documents
             .Include(item => item.Versions)
-            .FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt == null, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
 
         if (document is null)
         {
@@ -291,6 +300,7 @@ public sealed class DocumentsController(
         dbContext.ProcessingJobs.Add(new ProcessingJobEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             JobType = "ExtractAndEmbedDocument",
             TargetType = "DocumentVersion",
             TargetId = version.Id,
@@ -319,9 +329,10 @@ public sealed class DocumentsController(
             return BadRequest(new ApiError("reject_reason_required", "Lý do reject là bắt buộc."));
         }
 
+        var tenantId = tenantContext.GetRequiredTenantId();
         var document = await dbContext.Documents
             .Include(item => item.Versions)
-            .FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt == null, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
 
         if (document is null)
         {
@@ -353,7 +364,7 @@ public sealed class DocumentsController(
         return NoContent();
     }
 
-    private async Task<DocumentVersionEntity> CreateVersionAsync(Guid documentId, int versionNumber, IFormFile file, Guid userId, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task<DocumentVersionEntity> CreateVersionAsync(Guid tenantId, Guid documentId, int versionNumber, IFormFile file, Guid userId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var versionId = Guid.NewGuid();
         var storedPath = await fileStorageService.SaveDocumentVersionAsync(documentId, versionId, file, cancellationToken);
@@ -361,6 +372,7 @@ public sealed class DocumentsController(
         return new DocumentVersionEntity
         {
             Id = versionId,
+            TenantId = tenantId,
             DocumentId = documentId,
             VersionNumber = versionNumber,
             OriginalFileName = Path.GetFileName(file.FileName),
@@ -375,7 +387,7 @@ public sealed class DocumentsController(
         };
     }
 
-    private async Task<DocumentDetailResponse> BuildDetailResponseAsync(Guid documentId, CancellationToken cancellationToken)
+    private async Task<DocumentDetailResponse> BuildDetailResponseAsync(Guid tenantId, Guid documentId, CancellationToken cancellationToken)
     {
         var document = await dbContext.Documents
             .AsNoTracking()
@@ -384,7 +396,7 @@ public sealed class DocumentsController(
                 .ThenInclude(version => version.UploadedByUser)
             .Include(item => item.Versions)
                 .ThenInclude(version => version.ReviewedByUser)
-            .FirstAsync(item => item.Id == documentId, cancellationToken);
+            .FirstAsync(item => item.TenantId == tenantId && item.Id == documentId, cancellationToken);
 
         var versions = document.Versions
             .OrderByDescending(version => version.VersionNumber)

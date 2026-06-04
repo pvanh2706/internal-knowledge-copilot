@@ -72,6 +72,7 @@ public sealed class DocumentProcessingService(
                 new Dictionary<string, object>
                 {
                     ["chunk_id"] = chunkId,
+                    ["tenant_id"] = version.TenantId.ToString(),
                     ["source_type"] = "document",
                     ["source_id"] = version.Id.ToString(),
                     ["document_id"] = version.DocumentId.ToString(),

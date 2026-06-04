@@ -6,6 +6,8 @@ public sealed class WikiDraftEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid SourceDocumentId { get; set; }
 
     public DocumentEntity? SourceDocument { get; set; }

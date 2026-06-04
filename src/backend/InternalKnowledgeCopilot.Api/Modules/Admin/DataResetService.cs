@@ -1,6 +1,7 @@
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -20,6 +21,7 @@ public sealed class DataResetService(
     AppDbContext dbContext,
     IKnowledgeVectorStore vectorStore,
     IAuditLogService auditLogService,
+    ITenantContext tenantContext,
     IOptions<DataResetOptions> dataResetOptions,
     IOptions<AppStorageOptions> storageOptions,
     IWebHostEnvironment environment) : IDataResetService
@@ -66,14 +68,18 @@ public sealed class DataResetService(
             throw new InvalidOperationException("invalid_confirmation_phrase");
         }
 
-        var databaseRowsDeleted = await ResetDatabaseAsync(cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var tenantStorageTargets = request.ResetStorage
+            ? await GetTenantStorageTargetsAsync(tenantId, cancellationToken)
+            : [];
+        var databaseRowsDeleted = await ResetDatabaseAsync(tenantId, cancellationToken);
         var storageItemsDeleted = request.ResetStorage
-            ? ResetStorage()
+            ? ResetStorage(tenantStorageTargets)
             : 0;
         var vectorStoreReset = false;
         if (request.ResetVectorStore)
         {
-            await vectorStore.ResetCollectionAsync(cancellationToken);
+            await vectorStore.DeleteTenantDataAsync(tenantId, cancellationToken);
             vectorStoreReset = true;
         }
 
@@ -88,6 +94,7 @@ public sealed class DataResetService(
                 DatabaseRowsDeleted = databaseRowsDeleted,
                 StorageItemsDeleted = storageItemsDeleted,
                 VectorStoreReset = vectorStoreReset,
+                TenantId = tenantId,
                 UsersTeamsAndAiSettingsPreserved = true,
             },
             cancellationToken);
@@ -100,7 +107,7 @@ public sealed class DataResetService(
             UsersTeamsAndAiSettingsPreserved: true);
     }
 
-    private async Task<int> ResetDatabaseAsync(CancellationToken cancellationToken)
+    private async Task<int> ResetDatabaseAsync(Guid tenantId, CancellationToken cancellationToken)
     {
         var connection = dbContext.Database.GetDbConnection();
         var shouldCloseConnection = connection.State != System.Data.ConnectionState.Open;
@@ -117,7 +124,7 @@ public sealed class DataResetService(
             var deletedRows = 0;
             foreach (var tableName in ResetTableNames)
             {
-                var sql = string.Concat("DELETE FROM ", tableName, ";");
+                var sql = $"DELETE FROM {tableName} WHERE tenant_id = '{tenantId:D}';";
                 var affectedRows = await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
                 if (affectedRows > 0)
                 {
@@ -144,7 +151,28 @@ public sealed class DataResetService(
         }
     }
 
-    private int ResetStorage()
+    private async Task<IReadOnlyList<string>> GetTenantStorageTargetsAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.DocumentVersions
+            .AsNoTracking()
+            .Where(version => version.TenantId == tenantId)
+            .Select(version => new
+            {
+                version.StoredFilePath,
+                version.ExtractedTextPath,
+                version.NormalizedTextPath,
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .SelectMany(row => new[] { row.StoredFilePath, row.ExtractedTextPath, row.NormalizedTextPath })
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private int ResetStorage(IReadOnlyList<string> tenantStorageTargets)
     {
         var rootPath = Path.GetFullPath(storageOptions.Value.RootPath);
         EnsureSafeStorageRoot(rootPath);
@@ -155,20 +183,29 @@ public sealed class DataResetService(
             return 0;
         }
 
-        var fileCount = Directory.EnumerateFiles(rootPath, "*", SearchOption.AllDirectories).Count();
-        var directoryCount = Directory.EnumerateDirectories(rootPath, "*", SearchOption.AllDirectories).Count();
+        var targetDirectories = tenantStorageTargets
+            .Select(path => TryResolveUnderRoot(rootPath, path, out var resolvedPath) ? Path.GetDirectoryName(resolvedPath) : null)
+            .Where(directory => !string.IsNullOrWhiteSpace(directory) && IsSafeTenantStorageDirectory(rootPath, directory))
+            .Select(directory => Path.GetFullPath(directory!))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(directory => directory.Length)
+            .ToList();
 
-        foreach (var file in Directory.EnumerateFiles(rootPath))
+        var deletedItems = 0;
+        foreach (var directory in targetDirectories)
         {
-            File.Delete(file);
-        }
+            if (!Directory.Exists(directory))
+            {
+                continue;
+            }
 
-        foreach (var directory in Directory.EnumerateDirectories(rootPath))
-        {
+            deletedItems += Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Count();
+            deletedItems += Directory.EnumerateDirectories(directory, "*", SearchOption.AllDirectories).Count() + 1;
             Directory.Delete(directory, recursive: true);
         }
 
-        return fileCount + directoryCount;
+        deletedItems += DeleteEmptyParentDirectories(rootPath, targetDirectories);
+        return deletedItems;
     }
 
     private static void EnsureSafeStorageRoot(string rootPath)
@@ -179,5 +216,69 @@ public sealed class DataResetService(
         {
             throw new InvalidOperationException("unsafe_storage_root");
         }
+    }
+
+    private static bool TryResolveUnderRoot(string rootPath, string storedPath, out string resolvedPath)
+    {
+        resolvedPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(storedPath))
+        {
+            return false;
+        }
+
+        var rootWithSeparator = EnsureTrailingSeparator(Path.GetFullPath(rootPath));
+        var candidatePath = Path.GetFullPath(storedPath);
+        if (!candidatePath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        resolvedPath = candidatePath;
+        return true;
+    }
+
+    private static bool IsSafeTenantStorageDirectory(string rootPath, string? directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return false;
+        }
+
+        var fullRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
+        var fullDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        return !string.Equals(fullRoot, fullDirectory, StringComparison.OrdinalIgnoreCase)
+            && fullDirectory.StartsWith(EnsureTrailingSeparator(fullRoot), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int DeleteEmptyParentDirectories(string rootPath, IReadOnlyList<string> targetDirectories)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
+        var deletedDirectories = 0;
+        var parentDirectories = targetDirectories
+            .Select(Path.GetDirectoryName)
+            .Where(directory => IsSafeTenantStorageDirectory(root, directory))
+            .Select(directory => Path.GetFullPath(directory!))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(directory => directory.Length);
+
+        foreach (var directory in parentDirectories)
+        {
+            if (!Directory.Exists(directory) || Directory.EnumerateFileSystemEntries(directory).Any())
+            {
+                continue;
+            }
+
+            Directory.Delete(directory, recursive: false);
+            deletedDirectories += 1;
+        }
+
+        return deletedDirectories;
+    }
+
+    private static string EnsureTrailingSeparator(string path)
+    {
+        return path.EndsWith(Path.DirectorySeparatorChar)
+            ? path
+            : path + Path.DirectorySeparatorChar;
     }
 }

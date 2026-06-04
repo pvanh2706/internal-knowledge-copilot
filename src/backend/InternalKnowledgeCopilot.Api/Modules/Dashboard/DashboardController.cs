@@ -1,5 +1,6 @@
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ namespace InternalKnowledgeCopilot.Api.Modules.Dashboard;
 [ApiController]
 [Route("api/dashboard")]
 [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
-public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
+public sealed class DashboardController(AppDbContext dbContext, ITenantContext tenantContext) : ControllerBase
 {
     [HttpGet("summary")]
     public async Task<ActionResult<DashboardSummaryResponse>> GetSummary(
@@ -19,9 +20,10 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
         [FromQuery] Guid? folderId,
         CancellationToken cancellationToken)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var folderScopeQuery = dbContext.Folders
             .AsNoTracking()
-            .Where(folder => folder.DeletedAt == null);
+            .Where(folder => folder.TenantId == tenantId && folder.DeletedAt == null);
 
         if (folderId is not null)
         {
@@ -32,7 +34,7 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
         {
             var teamFolderIds = dbContext.FolderPermissions
                 .AsNoTracking()
-                .Where(permission => permission.TeamId == teamId && permission.CanView)
+                .Where(permission => permission.TenantId == tenantId && permission.TeamId == teamId && permission.CanView)
                 .Select(permission => permission.FolderId);
 
             folderScopeQuery = folderScopeQuery.Where(folder => teamFolderIds.Contains(folder.Id));
@@ -42,7 +44,7 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
 
         var documentsQuery = dbContext.Documents
             .AsNoTracking()
-            .Where(document => document.DeletedAt == null && scopedFolderIds.Contains(document.FolderId));
+            .Where(document => document.TenantId == tenantId && document.DeletedAt == null && scopedFolderIds.Contains(document.FolderId));
 
         if (from is not null)
         {
@@ -61,7 +63,7 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
 
         var wikiQuery = dbContext.WikiDrafts
             .AsNoTracking()
-            .Where(draft => scopedFolderIds.Contains(draft.SourceDocument!.FolderId));
+            .Where(draft => draft.TenantId == tenantId && scopedFolderIds.Contains(draft.SourceDocument!.FolderId));
 
         if (from is not null)
         {
@@ -78,7 +80,9 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
             .Select(group => new NamedCountResponse(group.Key.ToString(), group.Count()))
             .ToListAsync(cancellationToken);
 
-        var aiQuery = dbContext.AiInteractions.AsNoTracking();
+        var aiQuery = dbContext.AiInteractions
+            .AsNoTracking()
+            .Where(interaction => interaction.TenantId == tenantId);
         if (from is not null)
         {
             aiQuery = aiQuery.Where(interaction => interaction.CreatedAt >= from);
@@ -91,7 +95,9 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
 
         var aiQuestionCount = await aiQuery.CountAsync(cancellationToken);
 
-        var feedbackQuery = dbContext.AiFeedback.AsNoTracking();
+        var feedbackQuery = dbContext.AiFeedback
+            .AsNoTracking()
+            .Where(feedback => feedback.TenantId == tenantId);
         if (from is not null)
         {
             feedbackQuery = feedbackQuery.Where(feedback => feedback.CreatedAt >= from);
@@ -108,7 +114,9 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
             feedback => feedback.Value == AiFeedbackValue.Incorrect && feedback.ReviewStatus != FeedbackReviewStatus.Resolved,
             cancellationToken);
 
-        var sourceQuery = dbContext.AiInteractionSources.AsNoTracking();
+        var sourceQuery = dbContext.AiInteractionSources
+            .AsNoTracking()
+            .Where(source => source.TenantId == tenantId);
         if (from is not null)
         {
             sourceQuery = sourceQuery.Where(source => source.CreatedAt >= from);
@@ -123,7 +131,7 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
         {
             var scopedDocumentIds = dbContext.Documents
                 .AsNoTracking()
-                .Where(document => document.DeletedAt == null && scopedFolderIds.Contains(document.FolderId))
+                .Where(document => document.TenantId == tenantId && document.DeletedAt == null && scopedFolderIds.Contains(document.FolderId))
                 .Select(document => document.Id);
 
             sourceQuery = sourceQuery.Where(source => source.DocumentId != null && scopedDocumentIds.Contains(source.DocumentId.Value));
@@ -152,7 +160,7 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
 
         var evaluationCaseQuery = dbContext.EvaluationCases
             .AsNoTracking()
-            .Where(evaluationCase => evaluationCase.IsActive);
+            .Where(evaluationCase => evaluationCase.TenantId == tenantId && evaluationCase.IsActive);
 
         if (from is not null)
         {
@@ -168,7 +176,7 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
         {
             var scopedDocumentIds = dbContext.Documents
                 .AsNoTracking()
-                .Where(document => document.DeletedAt == null && scopedFolderIds.Contains(document.FolderId))
+                .Where(document => document.TenantId == tenantId && document.DeletedAt == null && scopedFolderIds.Contains(document.FolderId))
                 .Select(document => document.Id);
 
             evaluationCaseQuery = evaluationCaseQuery.Where(evaluationCase =>
@@ -178,7 +186,9 @@ public sealed class DashboardController(AppDbContext dbContext) : ControllerBase
         }
 
         var evaluationCaseCount = await evaluationCaseQuery.CountAsync(cancellationToken);
-        var latestEvaluationRunQuery = dbContext.EvaluationRuns.AsNoTracking();
+        var latestEvaluationRunQuery = dbContext.EvaluationRuns
+            .AsNoTracking()
+            .Where(run => run.TenantId == tenantId);
         if (from is not null)
         {
             latestEvaluationRunQuery = latestEvaluationRunQuery.Where(run => run.CreatedAt >= from);

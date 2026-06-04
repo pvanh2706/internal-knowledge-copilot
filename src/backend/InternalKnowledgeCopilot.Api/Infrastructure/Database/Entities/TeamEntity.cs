@@ -4,6 +4,8 @@ public sealed class TeamEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public required string Name { get; set; }
 
     public string? Description { get; set; }

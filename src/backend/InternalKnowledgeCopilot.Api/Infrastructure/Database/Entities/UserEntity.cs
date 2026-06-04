@@ -6,6 +6,8 @@ public sealed class UserEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public required string Email { get; set; }
 
     public required string DisplayName { get; set; }

@@ -27,8 +27,9 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
         IReadOnlyList<KnowledgeChunkRecord> chunks,
         CancellationToken cancellationToken = default)
     {
+        var tenantId = chunks.Select(chunk => GetGuid(chunk.Metadata, "tenant_id")).FirstOrDefault(value => value is not null) ?? Guid.Empty;
         var existing = await dbContext.KnowledgeChunkIndexes
-            .Where(chunk => chunk.SourceType == sourceType && chunk.SourceId == sourceId)
+            .Where(chunk => chunk.TenantId == tenantId && chunk.SourceType == sourceType && chunk.SourceId == sourceId)
             .ToListAsync(cancellationToken);
         dbContext.KnowledgeChunkIndexes.RemoveRange(existing);
 
@@ -71,6 +72,11 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
         IQueryable<KnowledgeChunkIndexEntity> query,
         KnowledgeQueryFilter filter)
     {
+        if (filter.TenantId is not null)
+        {
+            query = query.Where(chunk => chunk.TenantId == filter.TenantId);
+        }
+
         var sourceTypes = filter.SourceTypes
             .Select(value => Enum.TryParse<KnowledgeSourceType>(value, true, out var sourceType) ? sourceType : (KnowledgeSourceType?)null)
             .Where(sourceType => sourceType is not null)
@@ -144,6 +150,7 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
         return new KnowledgeChunkIndexEntity
         {
             ChunkId = chunk.Id,
+            TenantId = GetGuid(chunk.Metadata, "tenant_id") ?? Guid.Empty,
             SourceType = sourceType,
             SourceId = sourceId,
             DocumentId = GetGuid(chunk.Metadata, "document_id"),
@@ -171,6 +178,7 @@ public sealed class KnowledgeKeywordIndexService(AppDbContext dbContext) : IKnow
             new Dictionary<string, object?>
             {
                 ["chunk_id"] = chunk.ChunkId,
+                ["tenant_id"] = chunk.TenantId.ToString(),
                 ["source_type"] = chunk.SourceType.ToString().ToLowerInvariant(),
                 ["source_id"] = chunk.SourceId,
                 ["document_id"] = chunk.DocumentId?.ToString() ?? string.Empty,

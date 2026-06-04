@@ -3,6 +3,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -28,30 +29,32 @@ public sealed class AiProviderSettingsService(
     AppDbContext dbContext,
     IOptions<AiProviderOptions> fallbackOptions,
     OpenAiCompatibleClient openAiClient,
+    ITenantContext tenantContext,
     IAuditLogService auditLogService) : IAiProviderSettingsService
 {
-    private const int SingletonId = 1;
-
     public AiProviderOptions GetCurrent()
     {
-        var entity = dbContext.AiProviderSettings.AsNoTracking().FirstOrDefault(setting => setting.Id == SingletonId);
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var entity = dbContext.AiProviderSettings.AsNoTracking().FirstOrDefault(setting => setting.TenantId == tenantId);
         return MergeWithFallback(entity);
     }
 
     public async Task<AiProviderOptions> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var entity = await dbContext.AiProviderSettings
             .AsNoTracking()
-            .FirstOrDefaultAsync(setting => setting.Id == SingletonId, cancellationToken);
+            .FirstOrDefaultAsync(setting => setting.TenantId == tenantId, cancellationToken);
 
         return MergeWithFallback(entity);
     }
 
     public async Task<AiProviderSettingsResponse> GetForAdminAsync(CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var entity = await dbContext.AiProviderSettings
             .AsNoTracking()
-            .FirstOrDefaultAsync(setting => setting.Id == SingletonId, cancellationToken);
+            .FirstOrDefaultAsync(setting => setting.TenantId == tenantId, cancellationToken);
 
         var options = MergeWithFallback(entity);
         return ToResponse(options, entity?.UpdatedAt, HasApiKey(options), HasEmbeddingApiKey(options));
@@ -62,15 +65,17 @@ public sealed class AiProviderSettingsService(
         UpdateAiProviderSettingsRequest request,
         CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var normalized = Normalize(request);
         var existing = await dbContext.AiProviderSettings
-            .FirstOrDefaultAsync(setting => setting.Id == SingletonId, cancellationToken);
+            .FirstOrDefaultAsync(setting => setting.TenantId == tenantId, cancellationToken);
 
         if (existing is null)
         {
             existing = new AiProviderSettingEntity
             {
-                Id = SingletonId,
+                Id = await GetNextSettingIdAsync(cancellationToken),
+                TenantId = tenantId,
                 Name = normalized.Name,
                 BaseUrl = normalized.BaseUrl,
                 ApiKey = normalized.ApiKey,
@@ -153,6 +158,15 @@ public sealed class AiProviderSettingsService(
 
         var options = MergeWithFallback(existing);
         return ToResponse(options, existing.UpdatedAt, HasApiKey(options), HasEmbeddingApiKey(options));
+    }
+
+    private async Task<int> GetNextSettingIdAsync(CancellationToken cancellationToken)
+    {
+        var maxId = await dbContext.AiProviderSettings
+            .AsNoTracking()
+            .MaxAsync(setting => (int?)setting.Id, cancellationToken);
+
+        return (maxId ?? 0) + 1;
     }
 
     public async Task<TestAiProviderSettingsResponse> TestAsync(CancellationToken cancellationToken = default)

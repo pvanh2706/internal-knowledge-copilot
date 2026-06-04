@@ -3,6 +3,7 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,15 +14,20 @@ namespace InternalKnowledgeCopilot.Api.Modules.Users;
 [ApiController]
 [Route("api/users")]
 [Authorize(Roles = nameof(UserRole.Admin))]
-public sealed class UsersController(AppDbContext dbContext, IPasswordHasher passwordHasher, IAuditLogService auditLogService) : ControllerBase
+public sealed class UsersController(
+    AppDbContext dbContext,
+    ITenantContext tenantContext,
+    IPasswordHasher passwordHasher,
+    IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<UserListItemResponse>>> GetUsers(CancellationToken cancellationToken)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var users = await dbContext.Users
             .AsNoTracking()
             .Include(user => user.PrimaryTeam)
-            .Where(user => user.DeletedAt == null)
+            .Where(user => user.TenantId == tenantId && user.DeletedAt == null)
             .OrderBy(user => user.Email)
             .Select(user => new UserListItemResponse(
                 user.Id,
@@ -41,7 +47,8 @@ public sealed class UsersController(AppDbContext dbContext, IPasswordHasher pass
     public async Task<ActionResult<UserListItemResponse>> CreateUser(CreateUserRequest request, CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var exists = await dbContext.Users.AnyAsync(user => user.Email == email, cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var exists = await dbContext.Users.AnyAsync(user => user.TenantId == tenantId && user.Email == email, cancellationToken);
         if (exists)
         {
             return Conflict(new ApiError("email_exists", "Email đã tồn tại."));
@@ -49,7 +56,7 @@ public sealed class UsersController(AppDbContext dbContext, IPasswordHasher pass
 
         if (request.PrimaryTeamId is not null)
         {
-            var teamExists = await dbContext.Teams.AnyAsync(team => team.Id == request.PrimaryTeamId && team.DeletedAt == null, cancellationToken);
+            var teamExists = await dbContext.Teams.AnyAsync(team => team.TenantId == tenantId && team.Id == request.PrimaryTeamId && team.DeletedAt == null, cancellationToken);
             if (!teamExists)
             {
                 return BadRequest(new ApiError("team_not_found", "Team không tồn tại."));
@@ -60,6 +67,7 @@ public sealed class UsersController(AppDbContext dbContext, IPasswordHasher pass
         var user = new UserEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             Email = email,
             DisplayName = request.DisplayName.Trim(),
             PasswordHash = passwordHasher.HashPassword(request.InitialPassword),
@@ -82,7 +90,8 @@ public sealed class UsersController(AppDbContext dbContext, IPasswordHasher pass
     [HttpPatch("{id:guid}")]
     public async Task<IActionResult> UpdateUser(Guid id, UpdateUserRequest request, CancellationToken cancellationToken)
     {
-        var user = await dbContext.Users.FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt == null, cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var user = await dbContext.Users.FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
         if (user is null)
         {
             return NotFound(new ApiError("user_not_found", "Không tìm thấy user."));
@@ -90,7 +99,7 @@ public sealed class UsersController(AppDbContext dbContext, IPasswordHasher pass
 
         if (request.PrimaryTeamId is not null)
         {
-            var teamExists = await dbContext.Teams.AnyAsync(team => team.Id == request.PrimaryTeamId && team.DeletedAt == null, cancellationToken);
+            var teamExists = await dbContext.Teams.AnyAsync(team => team.TenantId == tenantId && team.Id == request.PrimaryTeamId && team.DeletedAt == null, cancellationToken);
             if (!teamExists)
             {
                 return BadRequest(new ApiError("team_not_found", "Team không tồn tại."));

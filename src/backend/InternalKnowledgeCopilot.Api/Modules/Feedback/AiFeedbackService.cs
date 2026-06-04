@@ -6,6 +6,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,6 +33,7 @@ public interface IAiFeedbackService
 
 public sealed class AiFeedbackService(
     AppDbContext dbContext,
+    ITenantContext tenantContext,
     IAuditLogService auditLogService,
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore,
@@ -40,8 +42,9 @@ public sealed class AiFeedbackService(
 {
     public async Task<FeedbackResponse> SubmitAsync(Guid interactionId, Guid userId, SubmitFeedbackRequest request, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var interactionExists = await dbContext.AiInteractions
-            .AnyAsync(interaction => interaction.Id == interactionId && interaction.UserId == userId, cancellationToken);
+            .AnyAsync(interaction => interaction.TenantId == tenantId && interaction.Id == interactionId && interaction.UserId == userId, cancellationToken);
 
         if (!interactionExists)
         {
@@ -50,13 +53,14 @@ public sealed class AiFeedbackService(
 
         var now = DateTimeOffset.UtcNow;
         var feedback = await dbContext.AiFeedback
-            .FirstOrDefaultAsync(item => item.AiInteractionId == interactionId && item.UserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.AiInteractionId == interactionId && item.UserId == userId, cancellationToken);
 
         if (feedback is null)
         {
             feedback = new AiFeedbackEntity
             {
                 Id = Guid.NewGuid(),
+                TenantId = tenantId,
                 AiInteractionId = interactionId,
                 UserId = userId,
                 CreatedAt = now,
@@ -86,12 +90,13 @@ public sealed class AiFeedbackService(
 
     public async Task<IReadOnlyList<IncorrectFeedbackResponse>> GetIncorrectAsync(CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var items = await dbContext.AiFeedback
             .AsNoTracking()
             .Include(feedback => feedback.User)
             .Include(feedback => feedback.AiInteraction)
                 .ThenInclude(interaction => interaction!.Sources)
-            .Where(feedback => feedback.Value == AiFeedbackValue.Incorrect)
+            .Where(feedback => feedback.TenantId == tenantId && feedback.Value == AiFeedbackValue.Incorrect)
             .OrderBy(feedback => feedback.ReviewStatus == FeedbackReviewStatus.Resolved)
             .ThenBy(feedback => feedback.Id)
             .ToListAsync(cancellationToken);
@@ -121,8 +126,9 @@ public sealed class AiFeedbackService(
 
     public async Task<FeedbackResponse> UpdateReviewStatusAsync(Guid feedbackId, Guid reviewerId, UpdateFeedbackReviewStatusRequest request, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var feedback = await dbContext.AiFeedback
-            .FirstOrDefaultAsync(item => item.Id == feedbackId && item.Value == AiFeedbackValue.Incorrect, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == feedbackId && item.Value == AiFeedbackValue.Incorrect, cancellationToken);
 
         if (feedback is null)
         {
@@ -143,17 +149,19 @@ public sealed class AiFeedbackService(
 
     public async Task<IReadOnlyList<QualityIssueResponse>> GetQualityIssuesAsync(CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var issues = await dbContext.AiQualityIssues
             .AsNoTracking()
             .Include(issue => issue.AiFeedback)
             .Include(issue => issue.AiInteraction)
+            .Where(issue => issue.TenantId == tenantId)
             .OrderBy(issue => issue.Status == AiQualityIssueStatus.Resolved)
             .ThenByDescending(issue => issue.CreatedAt)
             .ToListAsync(cancellationToken);
         var issueIds = issues.Select(issue => issue.Id).ToHashSet();
         var corrections = await dbContext.KnowledgeCorrections
             .AsNoTracking()
-            .Where(correction => issueIds.Contains(correction.QualityIssueId))
+            .Where(correction => correction.TenantId == tenantId && issueIds.Contains(correction.QualityIssueId))
             .OrderByDescending(correction => correction.CreatedAt)
             .ToListAsync(cancellationToken);
         var correctionsByIssue = corrections
@@ -165,11 +173,12 @@ public sealed class AiFeedbackService(
 
     public async Task ClassifyIssueAsync(Guid issueId, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var issue = await dbContext.AiQualityIssues
             .Include(item => item.AiFeedback)
             .Include(item => item.AiInteraction)
                 .ThenInclude(interaction => interaction!.Sources)
-            .FirstOrDefaultAsync(item => item.Id == issueId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == issueId, cancellationToken);
 
         if (issue?.AiFeedback is null || issue.AiInteraction is null)
         {
@@ -191,11 +200,12 @@ public sealed class AiFeedbackService(
 
     public async Task<KnowledgeCorrectionResponse> CreateCorrectionAsync(Guid issueId, Guid reviewerId, CreateCorrectionRequest request, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var issue = await dbContext.AiQualityIssues
             .Include(item => item.AiFeedback)
             .Include(item => item.AiInteraction)
                 .ThenInclude(interaction => interaction!.Sources)
-            .FirstOrDefaultAsync(item => item.Id == issueId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == issueId, cancellationToken);
 
         if (issue?.AiFeedback is null || issue.AiInteraction is null)
         {
@@ -216,10 +226,21 @@ public sealed class AiFeedbackService(
             throw new InvalidOperationException("folder_required");
         }
 
+        if (folderId is not null)
+        {
+            var folderExists = await dbContext.Folders
+                .AnyAsync(folder => folder.TenantId == tenantId && folder.Id == folderId && folder.DeletedAt == null, cancellationToken);
+            if (!folderExists)
+            {
+                throw new KeyNotFoundException("folder_not_found");
+            }
+        }
+
         var now = DateTimeOffset.UtcNow;
         var correction = new KnowledgeCorrectionEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = issue.TenantId,
             QualityIssueId = issue.Id,
             AiFeedbackId = issue.AiFeedbackId,
             AiInteractionId = issue.AiInteractionId,
@@ -240,6 +261,7 @@ public sealed class AiFeedbackService(
         dbContext.RetrievalHints.Add(new RetrievalHintEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = issue.TenantId,
             CorrectionId = correction.Id,
             HintText = issue.AiInteraction.Question,
             CreatedAt = now,
@@ -252,11 +274,12 @@ public sealed class AiFeedbackService(
 
     public async Task<KnowledgeCorrectionResponse> ApproveCorrectionAsync(Guid correctionId, Guid reviewerId, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var correction = await dbContext.KnowledgeCorrections
             .Include(item => item.QualityIssue)
             .Include(item => item.AiFeedback)
             .Include(item => item.Folder)
-            .FirstOrDefaultAsync(item => item.Id == correctionId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == correctionId, cancellationToken);
 
         if (correction?.QualityIssue is null || correction.AiFeedback is null)
         {
@@ -291,8 +314,9 @@ public sealed class AiFeedbackService(
 
     public async Task<KnowledgeCorrectionResponse> RejectCorrectionAsync(Guid correctionId, Guid reviewerId, RejectCorrectionRequest request, CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var correction = await dbContext.KnowledgeCorrections
-            .FirstOrDefaultAsync(item => item.Id == correctionId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == correctionId, cancellationToken);
 
         if (correction is null)
         {
@@ -315,7 +339,7 @@ public sealed class AiFeedbackService(
     private async Task EnsureQualityIssueAsync(AiFeedbackEntity feedback, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var existingIssue = await dbContext.AiQualityIssues
-            .AnyAsync(issue => issue.AiFeedbackId == feedback.Id, cancellationToken);
+            .AnyAsync(issue => issue.TenantId == feedback.TenantId && issue.AiFeedbackId == feedback.Id, cancellationToken);
         if (existingIssue)
         {
             return;
@@ -324,6 +348,7 @@ public sealed class AiFeedbackService(
         var issue = new AiQualityIssueEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = feedback.TenantId,
             AiFeedbackId = feedback.Id,
             AiInteractionId = feedback.AiInteractionId,
             Status = AiQualityIssueStatus.New,
@@ -335,6 +360,7 @@ public sealed class AiFeedbackService(
         dbContext.ProcessingJobs.Add(new ProcessingJobEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = feedback.TenantId,
             JobType = "ClassifyAiFailure",
             TargetType = "AiQualityIssue",
             TargetId = issue.Id,
@@ -413,7 +439,7 @@ public sealed class AiFeedbackService(
 
         return await dbContext.Documents
             .AsNoTracking()
-            .Where(document => document.Id == documentId && document.DeletedAt == null)
+            .Where(document => document.TenantId == interaction.TenantId && document.Id == documentId && document.DeletedAt == null)
             .Select(document => (Guid?)document.FolderId)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -438,6 +464,7 @@ public sealed class AiFeedbackService(
                 new Dictionary<string, object>
                 {
                     ["chunk_id"] = correction.Id.ToString(),
+                    ["tenant_id"] = correction.TenantId.ToString(),
                     ["source_type"] = "correction",
                     ["source_id"] = correction.Id.ToString(),
                     ["correction_id"] = correction.Id.ToString(),

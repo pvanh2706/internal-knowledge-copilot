@@ -6,6 +6,8 @@ public interface IKnowledgeVectorStore
 
     Task ResetCollectionAsync(CancellationToken cancellationToken = default);
 
+    Task DeleteTenantDataAsync(Guid tenantId, CancellationToken cancellationToken = default);
+
     Task UpsertChunksAsync(IReadOnlyList<KnowledgeChunkRecord> chunks, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<KnowledgeVectorSearchResult>> QueryAsync(

@@ -2,6 +2,7 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -31,8 +32,6 @@ public sealed class ProcessingJobWorker(IServiceScopeFactory scopeFactory, IOpti
     {
         using var scope = scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var processingService = scope.ServiceProvider.GetRequiredService<IDocumentProcessingService>();
-        var feedbackService = scope.ServiceProvider.GetRequiredService<IAiFeedbackService>();
         var maxAttempts = Math.Max(1, options.Value.MaxAttempts);
 
         var job = await dbContext.ProcessingJobs
@@ -44,6 +43,23 @@ public sealed class ProcessingJobWorker(IServiceScopeFactory scopeFactory, IOpti
         {
             return;
         }
+
+        var tenant = await dbContext.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == job.TenantId && item.DeletedAt == null, cancellationToken);
+        if (tenant is null)
+        {
+            job.Status = ProcessingJobStatus.Failed;
+            job.ErrorMessage = "tenant_not_found";
+            job.FinishedAt = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
+        tenantContext.SetTenant(tenant.Id, tenant.Code);
+        var processingService = scope.ServiceProvider.GetRequiredService<IDocumentProcessingService>();
+        var feedbackService = scope.ServiceProvider.GetRequiredService<IAiFeedbackService>();
 
         job.Status = ProcessingJobStatus.Running;
         job.Attempts += 1;
@@ -81,7 +97,7 @@ public sealed class ProcessingJobWorker(IServiceScopeFactory scopeFactory, IOpti
 
             if (!hasAttemptsRemaining && job.JobType == "ExtractAndEmbedDocument" && job.TargetType == "DocumentVersion")
             {
-                var version = await dbContext.DocumentVersions.FirstOrDefaultAsync(item => item.Id == job.TargetId, cancellationToken);
+                var version = await dbContext.DocumentVersions.FirstOrDefaultAsync(item => item.TenantId == job.TenantId && item.Id == job.TargetId, cancellationToken);
                 if (version is not null)
                 {
                     version.Status = DocumentVersionStatus.ProcessingFailed;

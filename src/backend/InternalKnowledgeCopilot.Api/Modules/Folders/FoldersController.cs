@@ -3,6 +3,7 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,11 @@ namespace InternalKnowledgeCopilot.Api.Modules.Folders;
 [ApiController]
 [Route("api/folders")]
 [Authorize]
-public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionService permissionService, IAuditLogService auditLogService) : ControllerBase
+public sealed class FoldersController(
+    AppDbContext dbContext,
+    ITenantContext tenantContext,
+    IFolderPermissionService permissionService,
+    IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet("tree")]
     public async Task<ActionResult<IReadOnlyList<FolderTreeItemResponse>>> GetTree(CancellationToken cancellationToken)
@@ -24,9 +29,10 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         }
 
         var visibleIds = await permissionService.GetVisibleFolderIdsAsync(userId.Value, cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
         var folders = await dbContext.Folders
             .AsNoTracking()
-            .Where(folder => folder.DeletedAt == null && visibleIds.Contains(folder.Id))
+            .Where(folder => folder.TenantId == tenantId && folder.DeletedAt == null && visibleIds.Contains(folder.Id))
             .OrderBy(folder => folder.Path)
             .Select(folder => new FolderFlatItem(folder.Id, folder.ParentId, folder.Name, folder.Path))
             .ToListAsync(cancellationToken);
@@ -38,9 +44,10 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
     public async Task<ActionResult<FolderDetailResponse>> GetDetail(Guid id, CancellationToken cancellationToken)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var folder = await dbContext.Folders
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt == null, cancellationToken);
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
 
         if (folder is null)
         {
@@ -50,7 +57,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         var permissions = await dbContext.FolderPermissions
             .AsNoTracking()
             .Include(permission => permission.Team)
-            .Where(permission => permission.FolderId == id)
+            .Where(permission => permission.TenantId == tenantId && permission.FolderId == id)
             .OrderBy(permission => permission.Team!.Name)
             .Select(permission => new FolderPermissionResponse(permission.TeamId, permission.Team!.Name, permission.CanView))
             .ToListAsync(cancellationToken);
@@ -68,6 +75,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
             return Unauthorized(new ApiError("invalid_token", "Token không hợp lệ."));
         }
 
+        var tenantId = tenantContext.GetRequiredTenantId();
         var name = request.Name.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -76,7 +84,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
 
         var parent = request.ParentId is null
             ? null
-            : await dbContext.Folders.FirstOrDefaultAsync(folder => folder.Id == request.ParentId && folder.DeletedAt == null, cancellationToken);
+            : await dbContext.Folders.FirstOrDefaultAsync(folder => folder.TenantId == tenantId && folder.Id == request.ParentId && folder.DeletedAt == null, cancellationToken);
 
         if (request.ParentId is not null && parent is null)
         {
@@ -84,7 +92,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         }
 
         var path = BuildPath(parent?.Path, name);
-        var exists = await dbContext.Folders.AnyAsync(folder => folder.Path == path && folder.DeletedAt == null, cancellationToken);
+        var exists = await dbContext.Folders.AnyAsync(folder => folder.TenantId == tenantId && folder.Path == path && folder.DeletedAt == null, cancellationToken);
         if (exists)
         {
             return Conflict(new ApiError("folder_exists", "Folder đã tồn tại trong cùng vị trí."));
@@ -94,6 +102,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         var folderEntity = new FolderEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             ParentId = request.ParentId,
             Name = name,
             Path = path,
@@ -116,7 +125,8 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
     public async Task<IActionResult> Update(Guid id, UpdateFolderRequest request, CancellationToken cancellationToken)
     {
-        var folder = await dbContext.Folders.FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt == null, cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var folder = await dbContext.Folders.FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
         if (folder is null)
         {
             return NotFound(new ApiError("folder_not_found", "Không tìm thấy folder."));
@@ -135,7 +145,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
 
         var parent = request.ParentId is null
             ? null
-            : await dbContext.Folders.FirstOrDefaultAsync(item => item.Id == request.ParentId && item.DeletedAt == null, cancellationToken);
+            : await dbContext.Folders.FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == request.ParentId && item.DeletedAt == null, cancellationToken);
 
         if (request.ParentId is not null && parent is null)
         {
@@ -149,7 +159,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
 
         var oldPath = folder.Path;
         var newPath = BuildPath(parent?.Path, name);
-        var pathExists = await dbContext.Folders.AnyAsync(item => item.Id != id && item.Path == newPath && item.DeletedAt == null, cancellationToken);
+        var pathExists = await dbContext.Folders.AnyAsync(item => item.TenantId == tenantId && item.Id != id && item.Path == newPath && item.DeletedAt == null, cancellationToken);
         if (pathExists)
         {
             return Conflict(new ApiError("folder_exists", "Folder đã tồn tại trong cùng vị trí."));
@@ -162,6 +172,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
 
         var descendants = await dbContext.Folders
             .Where(item => item.Id != id && item.Path.StartsWith(oldPath + "/"))
+            .Where(item => item.TenantId == tenantId)
             .ToListAsync(cancellationToken);
 
         foreach (var descendant in descendants)
@@ -179,7 +190,8 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var folder = await dbContext.Folders.FirstOrDefaultAsync(item => item.Id == id && item.DeletedAt == null, cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var folder = await dbContext.Folders.FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
         if (folder is null)
         {
             return NotFound(new ApiError("folder_not_found", "Không tìm thấy folder."));
@@ -188,6 +200,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         var now = DateTimeOffset.UtcNow;
         var foldersToDelete = await dbContext.Folders
             .Where(item => item.Id == id || item.Path.StartsWith(folder.Path + "/"))
+            .Where(item => item.TenantId == tenantId)
             .ToListAsync(cancellationToken);
 
         foreach (var item in foldersToDelete)
@@ -205,7 +218,8 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Reviewer)}")]
     public async Task<IActionResult> UpdatePermissions(Guid id, UpdateFolderPermissionsRequest request, CancellationToken cancellationToken)
     {
-        var folderExists = await dbContext.Folders.AnyAsync(folder => folder.Id == id && folder.DeletedAt == null, cancellationToken);
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var folderExists = await dbContext.Folders.AnyAsync(folder => folder.TenantId == tenantId && folder.Id == id && folder.DeletedAt == null, cancellationToken);
         if (!folderExists)
         {
             return NotFound(new ApiError("folder_not_found", "Không tìm thấy folder."));
@@ -214,6 +228,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         var teamIds = request.TeamPermissions.Select(permission => permission.TeamId).ToHashSet();
         var existingTeamIds = await dbContext.Teams
             .Where(team => teamIds.Contains(team.Id) && team.DeletedAt == null)
+            .Where(team => team.TenantId == tenantId)
             .Select(team => team.Id)
             .ToListAsync(cancellationToken);
 
@@ -223,7 +238,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
         }
 
         var currentPermissions = await dbContext.FolderPermissions
-            .Where(permission => permission.FolderId == id)
+            .Where(permission => permission.TenantId == tenantId && permission.FolderId == id)
             .ToListAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
@@ -235,6 +250,7 @@ public sealed class FoldersController(AppDbContext dbContext, IFolderPermissionS
                 dbContext.FolderPermissions.Add(new FolderPermissionEntity
                 {
                     Id = Guid.NewGuid(),
+                    TenantId = tenantId,
                     FolderId = id,
                     TeamId = requestedPermission.TeamId,
                     CanView = requestedPermission.CanView,

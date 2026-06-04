@@ -33,8 +33,9 @@ public sealed class KnowledgeChunkLedgerService(AppDbContext dbContext) : IKnowl
         IReadOnlyList<KnowledgeChunkRecord> chunks,
         CancellationToken cancellationToken = default)
     {
+        var tenantId = chunks.Select(chunk => GetGuid(chunk.Metadata, "tenant_id")).FirstOrDefault(value => value is not null) ?? Guid.Empty;
         var existing = await dbContext.KnowledgeChunks
-            .Where(chunk => chunk.SourceType == sourceType && chunk.SourceId == sourceId)
+            .Where(chunk => chunk.TenantId == tenantId && chunk.SourceType == sourceType && chunk.SourceId == sourceId)
             .ToListAsync(cancellationToken);
         dbContext.KnowledgeChunks.RemoveRange(existing);
 
@@ -76,6 +77,7 @@ public sealed class KnowledgeChunkLedgerService(AppDbContext dbContext) : IKnowl
         return new KnowledgeChunkEntity
         {
             ChunkId = chunk.Id,
+            TenantId = GetGuid(chunk.Metadata, "tenant_id") ?? Guid.Empty,
             SourceType = sourceType,
             SourceId = sourceId,
             DocumentId = GetGuid(chunk.Metadata, "document_id"),

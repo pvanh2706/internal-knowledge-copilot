@@ -4,6 +4,8 @@ public sealed class AuditLogEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid? ActorUserId { get; set; }
 
     public UserEntity? ActorUser { get; set; }

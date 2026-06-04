@@ -4,6 +4,8 @@ public sealed class UserFolderPermissionEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid UserId { get; set; }
 
     public UserEntity? User { get; set; }

@@ -4,6 +4,8 @@ public sealed class EvaluationRunResultEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid EvaluationRunId { get; set; }
 
     public EvaluationRunEntity? EvaluationRun { get; set; }

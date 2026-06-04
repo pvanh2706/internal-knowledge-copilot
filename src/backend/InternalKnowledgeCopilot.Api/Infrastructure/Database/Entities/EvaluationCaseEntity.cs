@@ -6,6 +6,8 @@ public sealed class EvaluationCaseEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid? SourceFeedbackId { get; set; }
 
     public AiFeedbackEntity? SourceFeedback { get; set; }

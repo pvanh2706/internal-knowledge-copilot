@@ -6,6 +6,8 @@ public sealed class AiInteractionSourceEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid AiInteractionId { get; set; }
 
     public AiInteractionEntity? AiInteraction { get; set; }

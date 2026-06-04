@@ -5,6 +5,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,7 @@ public interface IKnowledgeIndexRebuildService
 
 public sealed class KnowledgeIndexRebuildService(
     AppDbContext dbContext,
+    ITenantContext tenantContext,
     IEmbeddingService embeddingService,
     IKnowledgeVectorStore vectorStore,
     IKnowledgeKeywordIndexService keywordIndexService,
@@ -32,8 +34,10 @@ public sealed class KnowledgeIndexRebuildService(
 
     public async Task<KnowledgeIndexSummaryResponse> GetSummaryAsync(CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var ledgerSourceCountRows = await dbContext.KnowledgeChunks
             .AsNoTracking()
+            .Where(chunk => chunk.TenantId == tenantId)
             .GroupBy(chunk => chunk.SourceType)
             .Select(group => new { SourceType = group.Key, Count = group.Count() })
             .ToListAsync(cancellationToken);
@@ -43,8 +47,8 @@ public sealed class KnowledgeIndexRebuildService(
             .ToList();
 
         return new KnowledgeIndexSummaryResponse(
-            await dbContext.KnowledgeChunks.AsNoTracking().CountAsync(cancellationToken),
-            await dbContext.KnowledgeChunkIndexes.AsNoTracking().CountAsync(cancellationToken),
+            await dbContext.KnowledgeChunks.AsNoTracking().CountAsync(chunk => chunk.TenantId == tenantId, cancellationToken),
+            await dbContext.KnowledgeChunkIndexes.AsNoTracking().CountAsync(chunk => chunk.TenantId == tenantId, cancellationToken),
             ledgerSourceCounts);
     }
 
@@ -53,10 +57,12 @@ public sealed class KnowledgeIndexRebuildService(
         RebuildKnowledgeIndexRequest request,
         CancellationToken cancellationToken = default)
     {
+        var tenantId = tenantContext.GetRequiredTenantId();
         var startedAt = DateTimeOffset.UtcNow;
         var batchSize = Math.Clamp(request.BatchSize <= 0 ? DefaultBatchSize : request.BatchSize, 1, MaxBatchSize);
         var ledgerChunks = await dbContext.KnowledgeChunks
             .AsNoTracking()
+            .Where(chunk => chunk.TenantId == tenantId)
             .OrderBy(chunk => chunk.SourceType)
             .ThenBy(chunk => chunk.SourceId)
             .ThenBy(chunk => chunk.ChunkIndex)
@@ -65,7 +71,7 @@ public sealed class KnowledgeIndexRebuildService(
 
         if (request.ResetVectorStore)
         {
-            await vectorStore.ResetCollectionAsync(cancellationToken);
+            await vectorStore.DeleteTenantDataAsync(tenantId, cancellationToken);
         }
 
         var records = new List<KnowledgeChunkRecord>(ledgerChunks.Count);
@@ -150,6 +156,7 @@ public sealed class KnowledgeIndexRebuildService(
         }
 
         metadata["chunk_id"] = chunk.ChunkId;
+        metadata["tenant_id"] = chunk.TenantId.ToString();
         metadata["source_type"] = chunk.SourceType.ToString().ToLowerInvariant();
         metadata["source_id"] = chunk.SourceId;
         metadata["visibility_scope"] = chunk.VisibilityScope;

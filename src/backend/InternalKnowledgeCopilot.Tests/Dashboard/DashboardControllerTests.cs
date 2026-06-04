@@ -1,6 +1,7 @@
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Dashboard;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
@@ -63,7 +64,7 @@ public sealed class DashboardControllerTests
             });
         await dbContext.SaveChangesAsync();
 
-        var controller = new DashboardController(dbContext);
+        var controller = new DashboardController(dbContext, CreateTenantContext());
 
         var response = await controller.GetSummary(null, null, null, null, CancellationToken.None);
 
@@ -73,5 +74,12 @@ public sealed class DashboardControllerTests
         Assert.Equal(3, summary.LatestEvaluationPassedCases);
         Assert.Equal(75, summary.LatestEvaluationPassRate);
         Assert.Equal(now.AddDays(-1).AddMinutes(5), summary.LatestEvaluationRunAt);
+    }
+
+    private static TenantContext CreateTenantContext()
+    {
+        var tenantContext = new TenantContext();
+        tenantContext.SetTenant(Guid.Empty, "test");
+        return tenantContext;
     }
 }

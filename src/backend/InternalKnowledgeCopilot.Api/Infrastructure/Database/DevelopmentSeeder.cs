@@ -33,8 +33,8 @@ public static class DevelopmentSeeder
             null,
             cancellationToken);
 
-        var engineeringTeam = await EnsureTeamAsync(dbContext, "Kỹ thuật", "Team kỹ thuật", cancellationToken);
-        await EnsureTeamAsync(dbContext, "Hỗ trợ khách hàng", "Team hỗ trợ khách hàng", cancellationToken);
+        var engineeringTeam = await EnsureTeamAsync(dbContext, defaultTenant.Id, "Kỹ thuật", "Team kỹ thuật", cancellationToken);
+        await EnsureTeamAsync(dbContext, defaultTenant.Id, "Hỗ trợ khách hàng", "Team hỗ trợ khách hàng", cancellationToken);
 
         await EnsureUserAsync(
             dbContext,
@@ -42,6 +42,7 @@ public static class DevelopmentSeeder
             configuration["Seed:AdminEmail"] ?? "admin@example.local",
             "Admin",
             UserRole.Admin,
+            defaultTenant.Id,
             engineeringTeam.Id,
             configuration["Seed:AdminPassword"] ?? "ChangeMe123!",
             false,
@@ -53,6 +54,7 @@ public static class DevelopmentSeeder
             configuration["Seed:ReviewerEmail"] ?? "reviewer@example.local",
             "Reviewer",
             UserRole.Reviewer,
+            defaultTenant.Id,
             engineeringTeam.Id,
             configuration["Seed:ReviewerPassword"] ?? "ChangeMe123!",
             false,
@@ -64,6 +66,7 @@ public static class DevelopmentSeeder
             configuration["Seed:UserEmail"] ?? "user@example.local",
             "User",
             UserRole.User,
+            defaultTenant.Id,
             engineeringTeam.Id,
             configuration["Seed:UserPassword"] ?? "ChangeMe123!",
             true,
@@ -86,7 +89,7 @@ public static class DevelopmentSeeder
         var now = DateTimeOffset.UtcNow;
         var tenant = new TenantEntity
         {
-            Id = Guid.NewGuid(),
+            Id = TenantDefaults.DefaultTenantId,
             Name = name,
             Code = normalizedCode,
             Status = TenantStatus.Active,
@@ -133,9 +136,16 @@ public static class DevelopmentSeeder
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private static async Task<TeamEntity> EnsureTeamAsync(AppDbContext dbContext, string name, string description, CancellationToken cancellationToken)
+    private static async Task<TeamEntity> EnsureTeamAsync(
+        AppDbContext dbContext,
+        Guid tenantId,
+        string name,
+        string description,
+        CancellationToken cancellationToken)
     {
-        var existingTeam = await dbContext.Teams.FirstOrDefaultAsync(team => team.Name == name, cancellationToken);
+        var existingTeam = await dbContext.Teams.FirstOrDefaultAsync(
+            team => team.TenantId == tenantId && team.Name == name,
+            cancellationToken);
         if (existingTeam is not null)
         {
             return existingTeam;
@@ -145,6 +155,7 @@ public static class DevelopmentSeeder
         var teamEntity = new TeamEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             Name = name,
             Description = description,
             CreatedAt = now,
@@ -162,13 +173,16 @@ public static class DevelopmentSeeder
         string email,
         string displayName,
         UserRole role,
+        Guid tenantId,
         Guid teamId,
         string password,
         bool mustChangePassword,
         CancellationToken cancellationToken)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
-        var existingUser = await dbContext.Users.FirstOrDefaultAsync(user => user.Email == normalizedEmail, cancellationToken);
+        var existingUser = await dbContext.Users.FirstOrDefaultAsync(
+            user => user.TenantId == tenantId && user.Email == normalizedEmail,
+            cancellationToken);
         if (existingUser is not null)
         {
             return;
@@ -178,6 +192,7 @@ public static class DevelopmentSeeder
         dbContext.Users.Add(new UserEntity
         {
             Id = Guid.NewGuid(),
+            TenantId = tenantId,
             Email = normalizedEmail,
             DisplayName = displayName,
             PasswordHash = passwordHasher.HashPassword(password),

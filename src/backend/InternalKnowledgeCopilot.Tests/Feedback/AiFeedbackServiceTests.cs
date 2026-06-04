@@ -5,6 +5,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using Microsoft.EntityFrameworkCore;
@@ -184,6 +185,7 @@ public sealed class AiFeedbackServiceTests
     {
         return new AiFeedbackService(
             dbContext,
+            CreateTenantContext(),
             new NoopAuditLogService(),
             new MockEmbeddingService(),
             vectorStore ?? new FakeKnowledgeVectorStore(),
@@ -198,6 +200,13 @@ public sealed class AiFeedbackServiceTests
             .Options;
 
         return new AppDbContext(options);
+    }
+
+    private static TenantContext CreateTenantContext()
+    {
+        var tenantContext = new TenantContext();
+        tenantContext.SetTenant(Guid.Empty, "test");
+        return tenantContext;
     }
 
     private sealed class NoopAuditLogService : IAuditLogService
@@ -218,6 +227,11 @@ public sealed class AiFeedbackServiceTests
         }
 
         public Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteTenantDataAsync(Guid tenantId, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

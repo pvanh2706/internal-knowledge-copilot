@@ -2,6 +2,8 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 
 public sealed record KnowledgeQueryFilter
 {
+    public Guid? TenantId { get; init; }
+
     public IReadOnlyCollection<Guid> FolderIds { get; init; } = [];
 
     public Guid? DocumentId { get; init; }

@@ -4,6 +4,8 @@ public sealed class AiProviderSettingEntity
 {
     public int Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public required string Name { get; set; }
 
     public required string BaseUrl { get; set; }

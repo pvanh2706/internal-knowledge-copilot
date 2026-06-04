@@ -4,6 +4,8 @@ public sealed class FolderPermissionEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid FolderId { get; set; }
 
     public FolderEntity? Folder { get; set; }

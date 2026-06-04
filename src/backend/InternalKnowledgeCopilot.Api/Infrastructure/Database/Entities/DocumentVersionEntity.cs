@@ -6,6 +6,8 @@ public sealed class DocumentVersionEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid DocumentId { get; set; }
 
     public DocumentEntity? Document { get; set; }

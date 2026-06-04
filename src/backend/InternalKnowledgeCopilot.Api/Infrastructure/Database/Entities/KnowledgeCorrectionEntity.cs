@@ -6,6 +6,8 @@ public sealed class KnowledgeCorrectionEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid QualityIssueId { get; set; }
 
     public AiQualityIssueEntity? QualityIssue { get; set; }

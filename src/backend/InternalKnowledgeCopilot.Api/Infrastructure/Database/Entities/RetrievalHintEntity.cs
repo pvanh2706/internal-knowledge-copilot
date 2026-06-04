@@ -4,6 +4,8 @@ public sealed class RetrievalHintEntity
 {
     public Guid Id { get; set; }
 
+    public Guid TenantId { get; set; }
+
     public Guid CorrectionId { get; set; }
 
     public KnowledgeCorrectionEntity? Correction { get; set; }
