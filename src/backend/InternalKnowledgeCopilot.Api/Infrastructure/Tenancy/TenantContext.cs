@@ -6,11 +6,18 @@ public sealed class TenantContext : ITenantContext
 
     public string? TenantCode { get; private set; }
 
+    public Guid? ApplicationId { get; private set; }
+
     public bool HasTenant => TenantId is not null;
 
     public void SetTenant(Guid tenantId, string tenantCode)
     {
         TenantId = tenantId;
         TenantCode = tenantCode;
+    }
+
+    public void SetApplication(Guid? applicationId)
+    {
+        ApplicationId = applicationId;
     }
 }

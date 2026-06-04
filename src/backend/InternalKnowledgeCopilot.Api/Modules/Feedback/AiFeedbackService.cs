@@ -361,12 +361,14 @@ public sealed class AiFeedbackService(
         {
             Id = Guid.NewGuid(),
             TenantId = feedback.TenantId,
-            JobType = "ClassifyAiFailure",
-            TargetType = "AiQualityIssue",
+            JobType = ProcessingJobTypes.ClassifyAiFailure,
+            TargetType = ProcessingJobTargetTypes.AiQualityIssue,
             TargetId = issue.Id,
+            IdempotencyKey = $"classify-ai-failure:{issue.Id:N}",
             Status = ProcessingJobStatus.Pending,
             Attempts = 0,
             CreatedAt = now,
+            ScheduledAt = now,
         });
     }
 

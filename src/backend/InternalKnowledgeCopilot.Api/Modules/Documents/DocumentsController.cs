@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
+using InternalKnowledgeCopilot.Api.Infrastructure.BackgroundJobs;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
@@ -24,6 +25,7 @@ public sealed class DocumentsController(
     IFileUploadValidator fileUploadValidator,
     IFileStorageService fileStorageService,
     IKnowledgeSourceService knowledgeSourceService,
+    IProcessingJobService processingJobService,
     IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
@@ -152,6 +154,7 @@ public sealed class DocumentsController(
 
         var tenantId = tenantContext.GetRequiredTenantId();
         var document = await dbContext.Documents
+            .Include(item => item.KnowledgeSource)
             .Include(item => item.Versions)
             .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.Id == id && item.DeletedAt == null, cancellationToken);
 
@@ -301,18 +304,17 @@ public sealed class DocumentsController(
         document.CurrentVersionId = version.Id;
         document.Status = DocumentStatus.Approved;
         document.UpdatedAt = now;
-        dbContext.ProcessingJobs.Add(new ProcessingJobEntity
-        {
-            Id = Guid.NewGuid(),
-            TenantId = tenantId,
-            JobType = "ExtractAndEmbedDocument",
-            TargetType = "DocumentVersion",
-            TargetId = version.Id,
-            Status = ProcessingJobStatus.Pending,
-            Attempts = 0,
-            CreatedAt = now,
-        });
         await dbContext.SaveChangesAsync(cancellationToken);
+        await processingJobService.EnqueueAsync(
+            new ProcessingJobEnqueueRequest(
+                tenantId,
+                document.KnowledgeSource?.ApplicationId,
+                ProcessingJobTypes.DocumentSync,
+                ProcessingJobTargetTypes.DocumentVersion,
+                version.Id,
+                $"document-sync:{version.Id:N}",
+                now),
+            cancellationToken);
         await auditLogService.RecordAsync(reviewerId.Value, "DocumentApproved", "Document", document.Id, new { VersionId = version.Id }, cancellationToken);
 
         return NoContent();

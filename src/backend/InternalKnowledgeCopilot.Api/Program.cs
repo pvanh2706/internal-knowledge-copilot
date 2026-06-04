@@ -92,6 +92,7 @@ builder.Services.AddScoped<IIntegrationService, IntegrationService>();
 builder.Services.AddScoped<IWorkflowCopilotService, WorkflowCopilotService>();
 builder.Services.AddScoped<IActionApprovalRuleService, DefaultActionApprovalRuleService>();
 builder.Services.AddScoped<IActionApprovalService, ActionApprovalService>();
+builder.Services.AddScoped<IProcessingJobService, ProcessingJobService>();
 builder.Services.AddScoped<IWikiService, WikiService>();
 builder.Services.AddScoped<IDataResetService, DataResetService>();
 builder.Services.AddHttpClient<IExternalContentClient, InternalHttpExternalConnector>();

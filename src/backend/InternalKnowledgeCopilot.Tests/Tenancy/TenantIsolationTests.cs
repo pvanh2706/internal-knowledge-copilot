@@ -23,6 +23,7 @@ using InternalKnowledgeCopilot.Api.Modules.Folders;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
 using InternalKnowledgeCopilot.Api.Modules.Users;
 using InternalKnowledgeCopilot.Api.Modules.Wiki;
+using InternalKnowledgeCopilot.Tests;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -65,6 +66,7 @@ public sealed class TenantIsolationTests
                 new NoopFileUploadValidator(),
                 new NoopFileStorageService(),
                 new FakeKnowledgeSourceService(),
+                new FakeProcessingJobService(),
                 new NoopAuditLogService()),
             seed.UserAId,
             UserRole.User);

@@ -8,6 +8,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Documents;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
+using InternalKnowledgeCopilot.Tests;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
@@ -86,6 +87,7 @@ public sealed class DocumentListQueryTests
             new NoopFileUploadValidator(),
             new NoopFileStorageService(),
             new FakeKnowledgeSourceService(),
+            new FakeProcessingJobService(),
             new NoopAuditLogService())
         {
             ControllerContext = new ControllerContext

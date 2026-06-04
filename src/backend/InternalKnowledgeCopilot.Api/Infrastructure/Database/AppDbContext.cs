@@ -703,18 +703,39 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.ToTable("processing_jobs");
             entity.HasKey(job => job.Id);
             entity.Property(job => job.TenantId).HasColumnName("tenant_id");
+            entity.Property(job => job.ApplicationId).HasColumnName("application_id");
             entity.Property(job => job.JobType).HasColumnName("job_type").HasMaxLength(100).IsRequired();
             entity.Property(job => job.TargetType).HasColumnName("target_type").HasMaxLength(100).IsRequired();
             entity.Property(job => job.TargetId).HasColumnName("target_id");
+            entity.Property(job => job.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(200);
             entity.Property(job => job.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
             entity.Property(job => job.Attempts).HasColumnName("attempts");
             entity.Property(job => job.ErrorMessage).HasColumnName("error_message").HasMaxLength(4000);
+            entity.Property(job => job.ErrorCode).HasColumnName("error_code").HasMaxLength(100);
+            entity.Property(job => job.ErrorType).HasColumnName("error_type").HasMaxLength(300);
+            entity.Property(job => job.ErrorDetailsJson).HasColumnName("error_details_json");
             entity.Property(job => job.CreatedAt).HasColumnName("created_at");
+            entity.Property(job => job.ScheduledAt).HasColumnName("scheduled_at");
             entity.Property(job => job.StartedAt).HasColumnName("started_at");
+            entity.Property(job => job.LastAttemptAt).HasColumnName("last_attempt_at");
+            entity.Property(job => job.LastErrorAt).HasColumnName("last_error_at");
             entity.Property(job => job.FinishedAt).HasColumnName("finished_at");
+            entity.Property(job => job.DeadLetteredAt).HasColumnName("dead_lettered_at");
             entity.HasIndex(job => job.TenantId);
-            entity.HasIndex(job => new { job.TenantId, job.Status, job.CreatedAt });
+            entity.HasIndex(job => job.ApplicationId);
+            entity.HasIndex(job => new { job.TenantId, job.ApplicationId, job.Status, job.ScheduledAt });
             entity.HasIndex(job => new { job.TenantId, job.TargetType, job.TargetId });
+            entity.HasIndex(job => new { job.TenantId, job.ApplicationId, job.JobType, job.IdempotencyKey })
+                .IsUnique()
+                .HasFilter("idempotency_key IS NOT NULL AND application_id IS NOT NULL");
+            entity.HasOne(job => job.Tenant)
+                .WithMany()
+                .HasForeignKey(job => job.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(job => job.Application)
+                .WithMany()
+                .HasForeignKey(job => job.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<AiInteractionEntity>(entity =>

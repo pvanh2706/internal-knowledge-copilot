@@ -171,7 +171,7 @@ If a command cannot be run, record the reason in the progress log.
 - [x] Phase 6 - Workflow Copilot for CRM events
 - [x] Phase 7 - AI action approval and execution
 - [x] Phase 8 - Frontend surfaces and embedded usage
-- [ ] Phase 9 - Worker and job hardening
+- [x] Phase 9 - Worker and job hardening
 - [ ] Phase 10 - Product hardening, evaluation, and enterprise notes
 
 ## 8. Phase 0 - Preflight and Baseline Verification
@@ -609,14 +609,16 @@ Goal: make long-running sync, ingestion, recommendation, and action execution jo
 
 Checklist:
 
-- [ ] Add `TenantId`, `ApplicationId`, `IdempotencyKey`, `ScheduledAt`, and richer error metadata to processing jobs.
-- [ ] Add job types for document sync, permission sync, object sync, workflow recommendation, action execution, and index rebuild.
-- [ ] Ensure all job handlers set tenant/application context.
-- [ ] Add retry rules per job type.
-- [ ] Add dead-letter or final failed state behavior.
-- [ ] Evaluate whether to keep DB-backed polling temporarily or introduce Hangfire/queue.
-- [ ] Prepare a separate `.NET Worker` project when job volume grows.
-- [ ] Add tests for job claiming, retry, failure, and tenant isolation.
+- [x] Add `TenantId`, `ApplicationId`, `IdempotencyKey`, `ScheduledAt`, and richer error metadata to processing jobs.
+- [x] Add job types for document sync, permission sync, object sync, workflow recommendation, action execution, and index rebuild.
+- [x] Ensure all job handlers set tenant/application context.
+- [x] Add retry rules per job type.
+- [x] Add dead-letter or final failed state behavior.
+- [x] Evaluate whether to keep DB-backed polling temporarily or introduce Hangfire/queue.
+- [x] Prepare a separate `.NET Worker` project when job volume grows.
+- [x] Add tests for job claiming, retry, failure, and tenant isolation.
+
+Decision note: keep DB-backed polling for now. The job runner logic is isolated in `ProcessingJobService` so it can move into Hangfire, a queue consumer, or a separate `.NET Worker` project when volume grows.
 
 Acceptance criteria:
 
@@ -708,7 +710,7 @@ Use these slices for AI-assisted construction. Each slice should end with tests 
 
 ### Slice 10 - Hardening
 
-- [ ] Add worker/job hardening.
+- [x] Add worker/job hardening.
 - [ ] Add prompt/model metadata.
 - [ ] Add evaluation and observability improvements.
 
@@ -768,3 +770,4 @@ Add entries here after each implementation batch.
 | 2026-06-05 | Codex | Phase 6 - Workflow Copilot for CRM Events | Added workflow definitions/steps, durable domain events, AI recommendations with citations and feedback, deal-stage event API, recommendation history API, object-context accept/fetch flow, process-document retrieval, and mock/OpenAI-compatible recommendation generation with reasoning-based won/lost signals | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 84/84; `dotnet ef database update` applied all migrations through `20260604175019_AddWorkflowCopilot` on a fresh design-time SQLite database | CRM deal-stage events can now create auditable recommendations grounded in event context and retrieved process sources. Won/lost signals are explicitly labeled reasoning-based, not predictive ML. Next batch: Phase 7 - AI Action Approval and Execution |
 | 2026-06-05 | Codex | Phase 7 - AI Action Approval and Execution | Added action request lifecycle, manual and simple rule approval, recommendation-to-action creation API, approval/rejection/cancel/execute APIs, source-system validation before create/approval/execution, idempotent execution guard, and audit hooks | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 88/88; `dotnet ef database update` applied all migrations through `20260604180553_AddActionApprovals` on a fresh design-time SQLite database | AI now creates auditable action requests instead of directly mutating CRM data. Source-system execution uses `IExternalActionExecutor` and successful actions are not executed twice. Next batch: Phase 8 - Frontend Surfaces and Embedded Usage |
 | 2026-06-05 | Codex | Phase 8 - Frontend Surfaces and Embedded Usage | Added tenant-aware frontend API headers, tenant login context, API clients for platform/workflow surfaces, Admin tenant/application/integration pages, Reviewer knowledge source status page, workflow recommendation detail/citation view, action approval queue with approve/reject/execute controls, routes/nav, and focused page tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 88/88; `C:\nvm4w\nodejs\npm.cmd test` passed 3/3 from `src/frontend`; `C:\nvm4w\nodejs\npm.cmd run build` passed from `src/frontend` | Frontend verification used Node 22 directly because the shell default Node 14 cannot parse the current Vite/Vitest dependencies. Demo CRM event flow remains unchecked for a later batch. Next batch: Phase 9 - Worker and Job Hardening |
+| 2026-06-05 | Codex | Phase 9 - Worker and Job Hardening | Added processing job application/idempotency/scheduling/error metadata, typed job constants, isolated queue/runner service, tenant/application context setup for handlers, type-specific retry delays, dead-letter state, object/permission sync background handlers, action/index/document job handling, and Phase 9 job tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 94/94; `dotnet ef database update` applied all migrations through `20260604185139_HardenProcessingJobsPhase9` on the design-time SQLite database | DB-backed polling remains the temporary queue. Processing logic is now separated from `ProcessingJobWorker`, making a future Hangfire/queue/Worker move straightforward. Workflow recommendation has a job type and retry policy, but still needs a payload-backed async enqueue path before it should be enabled as a background handler. Next batch: Phase 10 - Product Hardening, Evaluation, and Enterprise Notes |

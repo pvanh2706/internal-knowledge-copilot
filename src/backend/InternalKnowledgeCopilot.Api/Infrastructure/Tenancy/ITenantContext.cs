@@ -6,7 +6,11 @@ public interface ITenantContext
 
     string? TenantCode { get; }
 
+    Guid? ApplicationId { get; }
+
     bool HasTenant { get; }
 
     void SetTenant(Guid tenantId, string tenantCode);
+
+    void SetApplication(Guid? applicationId);
 }

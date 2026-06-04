@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
+using InternalKnowledgeCopilot.Api.Infrastructure.BackgroundJobs;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
@@ -44,6 +45,7 @@ public sealed class IntegrationService(
     AppDbContext dbContext,
     ITenantContext tenantContext,
     IAuditLogService auditLogService,
+    IProcessingJobService processingJobService,
     IIntegrationSecretHasher secretHasher) : IIntegrationService
 {
     private const int CodeMaxLength = 100;
@@ -333,8 +335,34 @@ public sealed class IntegrationService(
             inboundEvent.Id,
             new { inboundEvent.ApplicationId, inboundEvent.EventType, inboundEvent.IdempotencyKey, inboundEvent.ObjectType, inboundEvent.ExternalObjectId },
             cancellationToken);
+        await EnqueueInboundProcessingJobAsync(inboundEvent, cancellationToken);
 
         return ToResponse(inboundEvent, application.Code, isDuplicate: false);
+    }
+
+    private async Task EnqueueInboundProcessingJobAsync(IntegrationInboundEventEntity inboundEvent, CancellationToken cancellationToken)
+    {
+        var jobType = inboundEvent.EventType switch
+        {
+            IntegrationInboundEventType.ObjectSync => ProcessingJobTypes.ObjectSync,
+            IntegrationInboundEventType.PermissionSync => ProcessingJobTypes.PermissionSync,
+            _ => null
+        };
+        if (jobType is null)
+        {
+            return;
+        }
+
+        await processingJobService.EnqueueAsync(
+            new ProcessingJobEnqueueRequest(
+                inboundEvent.TenantId,
+                inboundEvent.ApplicationId,
+                jobType,
+                ProcessingJobTargetTypes.IntegrationInboundEvent,
+                inboundEvent.Id,
+                $"integration:{inboundEvent.EventType}:{inboundEvent.IdempotencyKey}",
+                inboundEvent.ReceivedAt),
+            cancellationToken);
     }
 
     private async Task<ApplicationEntity> GetApplicationByIdAsync(Guid tenantId, Guid applicationId, CancellationToken cancellationToken)

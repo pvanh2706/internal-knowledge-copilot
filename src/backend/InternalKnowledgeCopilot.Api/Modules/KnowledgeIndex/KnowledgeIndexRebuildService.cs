@@ -16,7 +16,7 @@ public interface IKnowledgeIndexRebuildService
     Task<KnowledgeIndexSummaryResponse> GetSummaryAsync(CancellationToken cancellationToken = default);
 
     Task<RebuildKnowledgeIndexResponse> RebuildAsync(
-        Guid actorUserId,
+        Guid? actorUserId,
         RebuildKnowledgeIndexRequest request,
         CancellationToken cancellationToken = default);
 }
@@ -53,7 +53,7 @@ public sealed class KnowledgeIndexRebuildService(
     }
 
     public async Task<RebuildKnowledgeIndexResponse> RebuildAsync(
-        Guid actorUserId,
+        Guid? actorUserId,
         RebuildKnowledgeIndexRequest request,
         CancellationToken cancellationToken = default)
     {

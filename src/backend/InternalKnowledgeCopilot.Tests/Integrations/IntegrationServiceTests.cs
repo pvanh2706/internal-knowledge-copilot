@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Integrations;
+using InternalKnowledgeCopilot.Tests;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -157,6 +158,7 @@ public sealed class IntegrationServiceTests
             dbContext,
             tenantContext,
             new NoopAuditLogService(),
+            new FakeProcessingJobService(),
             secretHasher ?? new IntegrationSecretHasher());
     }
 
