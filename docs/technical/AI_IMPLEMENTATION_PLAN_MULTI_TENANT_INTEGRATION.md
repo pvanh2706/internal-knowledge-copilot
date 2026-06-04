@@ -165,7 +165,7 @@ If a command cannot be run, record the reason in the progress log.
 - [x] Phase 0 - Preflight and baseline verification
 - [x] Phase 1 - Tenant and application foundation
 - [x] Phase 2 - Tenantize existing data and query flows
-- [ ] Phase 3 - Knowledge sources, external objects, and ACL snapshots
+- [x] Phase 3 - Knowledge sources, external objects, and ACL snapshots
 - [ ] Phase 4 - Integration contracts and connector boundaries
 - [ ] Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation
 - [ ] Phase 6 - Workflow Copilot for CRM events
@@ -348,22 +348,29 @@ Infrastructure/Database/Entities/ExternalAclSnapshotEntity.cs
 
 Checklist:
 
-- [ ] Add `KnowledgeSourceEntity` with tenant, application, source type, external source id, name, sync mode, status, and last sync metadata.
-- [ ] Add `ExternalObjectEntity` with tenant, application, object type, external object id, title, URL, metadata JSON, content hash, ACL hash, and sync timestamps.
-- [ ] Add `ExternalAclSnapshotEntity` with tenant, application, object identity, subject identity, permission, validity window, and sync timestamp.
-- [ ] Add EF configuration and migrations.
-- [ ] Add service methods for upserting knowledge sources.
-- [ ] Add service methods for upserting external objects by natural key: tenant + application + object type + external object id.
-- [ ] Add service methods for replacing ACL snapshots safely.
-- [ ] Add read APIs for Admin/Reviewer to inspect source sync status.
-- [ ] Map existing local documents/wiki to a default local knowledge source.
-- [ ] Add tests for idempotent upsert and ACL replacement.
+- [x] Add `KnowledgeSourceEntity` with tenant, application, source type, external source id, name, sync mode, status, and last sync metadata.
+- [x] Add `ExternalObjectEntity` with tenant, application, object type, external object id, title, URL, metadata JSON, content hash, ACL hash, and sync timestamps.
+- [x] Add `ExternalAclSnapshotEntity` with tenant, application, object identity, subject identity, permission, validity window, and sync timestamp.
+- [x] Add EF configuration and migrations.
+- [x] Add service methods for upserting knowledge sources.
+- [x] Add service methods for upserting external objects by natural key: tenant + application + object type + external object id.
+- [x] Add service methods for replacing ACL snapshots safely.
+- [x] Add read APIs for Admin/Reviewer to inspect source sync status.
+- [x] Map existing local documents/wiki to a default local knowledge source.
+- [x] Add tests for idempotent upsert and ACL replacement.
 
 Acceptance criteria:
 
 - Local uploaded documents can coexist with external synced documents.
 - External objects can be synced repeatedly without duplicate rows.
 - ACL snapshots are tenant-scoped and application-scoped.
+
+Implementation notes:
+
+- Added shared knowledge-source registry, external-object records, and ACL snapshot storage under tenant/application scope.
+- Added Admin/Reviewer read APIs plus Admin upsert/replace APIs for source sync inspection and connector writes.
+- Local uploads and wiki publishing now attach to the default local knowledge source, with migration backfill for existing local records.
+- Verification passed: `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 72/72; `dotnet ef database update` applied all migrations through `20260604085007_AddKnowledgeSourcesAndExternalObjects` on a fresh design-time SQLite database.
 
 ## 12. Phase 4 - Integration Contracts and Connector Boundaries
 
@@ -652,9 +659,9 @@ Use these slices for AI-assisted construction. Each slice should end with tests 
 
 ### Slice 4 - Knowledge Source Model
 
-- [ ] Add knowledge sources, external objects, and ACL snapshots.
-- [ ] Map local documents to default local source.
-- [ ] Add sync-status APIs.
+- [x] Add knowledge sources, external objects, and ACL snapshots.
+- [x] Map local documents to default local source.
+- [x] Add sync-status APIs.
 
 ### Slice 5 - Integration API
 
@@ -742,3 +749,4 @@ Add entries here after each implementation batch.
 | 2026-06-04 | Codex | Phase 0 - Preflight | Verified repo baseline, tests, EF snapshot, service registration, auth claims, permission flow, retrieval flow, and indexing flow | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 55/55; `npm test` passed 1/1; `npm run build` passed | Dirty file documented: only this untracked plan file. Next batch selected: Phase 1 / Slice 1 - Foundation Only |
 | 2026-06-04 | Codex | Phase 1 - Tenant and application foundation | Added tenant/application domain, EF mapping, migration, default seed data, tenant resolver, admin services/controllers, and focused backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 64/64; `npm test` passed 1/1; `npm run build` passed; `dotnet ef migrations list` confirmed `20260604035437_AddTenantsAndApplications` latest | Existing tables are not tenantized yet. Next batch: Phase 2 - Tenantize Existing Data and Query Flows |
 | 2026-06-04 | Codex | Phase 2 - Tenantize existing data and query flows | Added tenant ids to existing domain tables, tenant-scoped indexes, default-tenant backfill migration, tenant-aware auth/JWT, scoped query/write paths, tenant-aware indexing/rebuild/reset behavior, and cross-tenant backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 68/68 | Existing MVP flows now resolve and enforce tenant context. Next batch: Phase 3 - Knowledge Sources, External Objects, and ACL Snapshots |
+| 2026-06-04 | Codex | Phase 3 - Knowledge sources, external objects, and ACL snapshots | Added tenant/application-scoped knowledge sources, external objects, ACL snapshots, Admin/Reviewer inspection APIs, default local source mapping for documents/wiki, and idempotent sync tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 72/72; `dotnet ef database update` applied all migrations through `20260604085007_AddKnowledgeSourcesAndExternalObjects` on a fresh design-time SQLite database | External knowledge can now be represented without duplicate object rows, and ACL replacement is scoped to the target tenant/application/object. Next batch: Phase 4 - Integration Contracts and Connector Boundaries |

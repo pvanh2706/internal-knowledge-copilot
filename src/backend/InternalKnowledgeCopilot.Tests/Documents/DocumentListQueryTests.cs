@@ -7,6 +7,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
 using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Documents;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
+using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
@@ -84,6 +85,7 @@ public sealed class DocumentListQueryTests
             new FolderPermissionService(dbContext, CreateTenantContext()),
             new NoopFileUploadValidator(),
             new NoopFileStorageService(),
+            new FakeKnowledgeSourceService(),
             new NoopAuditLogService())
         {
             ControllerContext = new ControllerContext
@@ -160,6 +162,51 @@ public sealed class DocumentListQueryTests
         public Task RecordAsync(Guid? actorUserId, string action, string entityType, Guid? entityId, object? metadata = null, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeKnowledgeSourceService : IKnowledgeSourceService
+    {
+        public Task<IReadOnlyList<KnowledgeSourceResponse>> GetSourcesAsync(Guid? applicationId = null, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<KnowledgeSourceResponse>>([]);
+        }
+
+        public Task<KnowledgeSourceResponse> UpsertSourceAsync(Guid? actorUserId, UpsertKnowledgeSourceRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<IReadOnlyList<ExternalObjectResponse>> GetExternalObjectsAsync(Guid? applicationId = null, Guid? knowledgeSourceId = null, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<ExternalObjectResponse>>([]);
+        }
+
+        public Task<ExternalObjectResponse> UpsertExternalObjectAsync(Guid? actorUserId, UpsertExternalObjectRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<IReadOnlyList<ExternalAclSnapshotResponse>> ReplaceAclSnapshotsAsync(Guid? actorUserId, ReplaceExternalAclSnapshotsRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<KnowledgeSourceEntity> GetOrCreateDefaultLocalSourceAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new KnowledgeSourceEntity
+            {
+                Id = Guid.NewGuid(),
+                TenantId = Guid.Empty,
+                ApplicationId = Guid.NewGuid(),
+                SourceType = KnowledgeSourceKind.Local,
+                ExternalSourceId = "local",
+                Name = "Local",
+                SyncMode = KnowledgeSourceSyncMode.Manual,
+                Status = KnowledgeSourceStatus.Active,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
         }
     }
 

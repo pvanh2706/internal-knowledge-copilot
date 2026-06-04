@@ -9,6 +9,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<ApplicationEntity> Applications => Set<ApplicationEntity>();
 
+    public DbSet<KnowledgeSourceEntity> KnowledgeSources => Set<KnowledgeSourceEntity>();
+
+    public DbSet<ExternalObjectEntity> ExternalObjects => Set<ExternalObjectEntity>();
+
+    public DbSet<ExternalAclSnapshotEntity> ExternalAclSnapshots => Set<ExternalAclSnapshotEntity>();
+
     public DbSet<UserEntity> Users => Set<UserEntity>();
 
     public DbSet<TeamEntity> Teams => Set<TeamEntity>();
@@ -93,6 +99,115 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany(tenant => tenant.Applications)
                 .HasForeignKey(application => application.TenantId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<KnowledgeSourceEntity>(entity =>
+        {
+            entity.ToTable("knowledge_sources");
+            entity.HasKey(source => source.Id);
+            entity.Property(source => source.TenantId).HasColumnName("tenant_id");
+            entity.Property(source => source.ApplicationId).HasColumnName("application_id");
+            entity.Property(source => source.SourceType).HasColumnName("source_type").HasConversion<string>().HasMaxLength(50);
+            entity.Property(source => source.ExternalSourceId).HasColumnName("external_source_id").HasMaxLength(300).IsRequired();
+            entity.Property(source => source.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
+            entity.Property(source => source.SyncMode).HasColumnName("sync_mode").HasConversion<string>().HasMaxLength(50);
+            entity.Property(source => source.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(source => source.MetadataJson).HasColumnName("metadata_json");
+            entity.Property(source => source.LastSyncStartedAt).HasColumnName("last_sync_started_at");
+            entity.Property(source => source.LastSyncCompletedAt).HasColumnName("last_sync_completed_at");
+            entity.Property(source => source.LastSyncStatus).HasColumnName("last_sync_status").HasMaxLength(100);
+            entity.Property(source => source.LastSyncError).HasColumnName("last_sync_error").HasMaxLength(2000);
+            entity.Property(source => source.CreatedAt).HasColumnName("created_at");
+            entity.Property(source => source.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(source => source.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(source => source.TenantId);
+            entity.HasIndex(source => source.ApplicationId);
+            entity.HasIndex(source => new { source.TenantId, source.ApplicationId, source.SourceType, source.ExternalSourceId }).IsUnique();
+            entity.HasIndex(source => new { source.TenantId, source.Status });
+            entity.HasOne(source => source.Tenant)
+                .WithMany()
+                .HasForeignKey(source => source.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(source => source.Application)
+                .WithMany()
+                .HasForeignKey(source => source.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ExternalObjectEntity>(entity =>
+        {
+            entity.ToTable("external_objects");
+            entity.HasKey(externalObject => externalObject.Id);
+            entity.Property(externalObject => externalObject.TenantId).HasColumnName("tenant_id");
+            entity.Property(externalObject => externalObject.ApplicationId).HasColumnName("application_id");
+            entity.Property(externalObject => externalObject.KnowledgeSourceId).HasColumnName("knowledge_source_id");
+            entity.Property(externalObject => externalObject.ObjectType).HasColumnName("object_type").HasMaxLength(100).IsRequired();
+            entity.Property(externalObject => externalObject.ExternalObjectId).HasColumnName("external_object_id").HasMaxLength(300).IsRequired();
+            entity.Property(externalObject => externalObject.Title).HasColumnName("title").HasMaxLength(500).IsRequired();
+            entity.Property(externalObject => externalObject.Url).HasColumnName("url").HasMaxLength(1000);
+            entity.Property(externalObject => externalObject.MetadataJson).HasColumnName("metadata_json");
+            entity.Property(externalObject => externalObject.ContentHash).HasColumnName("content_hash").HasMaxLength(200);
+            entity.Property(externalObject => externalObject.AclHash).HasColumnName("acl_hash").HasMaxLength(200);
+            entity.Property(externalObject => externalObject.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(externalObject => externalObject.LastSyncedAt).HasColumnName("last_synced_at");
+            entity.Property(externalObject => externalObject.ContentSyncedAt).HasColumnName("content_synced_at");
+            entity.Property(externalObject => externalObject.AclSyncedAt).HasColumnName("acl_synced_at");
+            entity.Property(externalObject => externalObject.CreatedAt).HasColumnName("created_at");
+            entity.Property(externalObject => externalObject.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(externalObject => externalObject.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(externalObject => externalObject.TenantId);
+            entity.HasIndex(externalObject => externalObject.ApplicationId);
+            entity.HasIndex(externalObject => externalObject.KnowledgeSourceId);
+            entity.HasIndex(externalObject => new { externalObject.TenantId, externalObject.ApplicationId, externalObject.ObjectType, externalObject.ExternalObjectId }).IsUnique();
+            entity.HasIndex(externalObject => new { externalObject.TenantId, externalObject.Status });
+            entity.HasOne(externalObject => externalObject.Tenant)
+                .WithMany()
+                .HasForeignKey(externalObject => externalObject.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(externalObject => externalObject.Application)
+                .WithMany()
+                .HasForeignKey(externalObject => externalObject.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(externalObject => externalObject.KnowledgeSource)
+                .WithMany()
+                .HasForeignKey(externalObject => externalObject.KnowledgeSourceId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ExternalAclSnapshotEntity>(entity =>
+        {
+            entity.ToTable("external_acl_snapshots");
+            entity.HasKey(snapshot => snapshot.Id);
+            entity.Property(snapshot => snapshot.TenantId).HasColumnName("tenant_id");
+            entity.Property(snapshot => snapshot.ApplicationId).HasColumnName("application_id");
+            entity.Property(snapshot => snapshot.ExternalObjectRecordId).HasColumnName("external_object_record_id");
+            entity.Property(snapshot => snapshot.ObjectType).HasColumnName("object_type").HasMaxLength(100).IsRequired();
+            entity.Property(snapshot => snapshot.ExternalObjectId).HasColumnName("external_object_id").HasMaxLength(300).IsRequired();
+            entity.Property(snapshot => snapshot.SubjectType).HasColumnName("subject_type").HasMaxLength(100).IsRequired();
+            entity.Property(snapshot => snapshot.SubjectId).HasColumnName("subject_id").HasMaxLength(300).IsRequired();
+            entity.Property(snapshot => snapshot.SubjectDisplayName).HasColumnName("subject_display_name").HasMaxLength(300);
+            entity.Property(snapshot => snapshot.Permission).HasColumnName("permission").HasConversion<string>().HasMaxLength(50);
+            entity.Property(snapshot => snapshot.ValidFrom).HasColumnName("valid_from");
+            entity.Property(snapshot => snapshot.ValidTo).HasColumnName("valid_to");
+            entity.Property(snapshot => snapshot.MetadataJson).HasColumnName("metadata_json");
+            entity.Property(snapshot => snapshot.SyncedAt).HasColumnName("synced_at");
+            entity.HasIndex(snapshot => snapshot.TenantId);
+            entity.HasIndex(snapshot => snapshot.ApplicationId);
+            entity.HasIndex(snapshot => snapshot.ExternalObjectRecordId);
+            entity.HasIndex(snapshot => new { snapshot.TenantId, snapshot.ApplicationId, snapshot.ObjectType, snapshot.ExternalObjectId });
+            entity.HasIndex(snapshot => new { snapshot.TenantId, snapshot.ApplicationId, snapshot.ObjectType, snapshot.ExternalObjectId, snapshot.SubjectType, snapshot.SubjectId, snapshot.Permission }).IsUnique();
+            entity.HasOne(snapshot => snapshot.Tenant)
+                .WithMany()
+                .HasForeignKey(snapshot => snapshot.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(snapshot => snapshot.Application)
+                .WithMany()
+                .HasForeignKey(snapshot => snapshot.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(snapshot => snapshot.ExternalObject)
+                .WithMany()
+                .HasForeignKey(snapshot => snapshot.ExternalObjectRecordId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<TeamEntity>(entity =>
@@ -206,6 +321,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasKey(document => document.Id);
             entity.Property(document => document.TenantId).HasColumnName("tenant_id");
             entity.Property(document => document.FolderId).HasColumnName("folder_id");
+            entity.Property(document => document.KnowledgeSourceId).HasColumnName("knowledge_source_id");
             entity.Property(document => document.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
             entity.Property(document => document.Description).HasColumnName("description").HasMaxLength(2000);
             entity.Property(document => document.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
@@ -215,6 +331,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(document => document.UpdatedAt).HasColumnName("updated_at");
             entity.Property(document => document.DeletedAt).HasColumnName("deleted_at");
             entity.HasIndex(document => document.TenantId);
+            entity.HasIndex(document => new { document.TenantId, document.KnowledgeSourceId });
             entity.HasIndex(document => new { document.TenantId, document.FolderId, document.Title });
             entity.HasOne(document => document.Folder)
                 .WithMany()
@@ -224,6 +341,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(document => document.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(document => document.KnowledgeSource)
+                .WithMany()
+                .HasForeignKey(document => document.KnowledgeSourceId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<DocumentVersionEntity>(entity =>
@@ -679,6 +800,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(page => page.SourceDraftId).HasColumnName("source_draft_id");
             entity.Property(page => page.SourceDocumentId).HasColumnName("source_document_id");
             entity.Property(page => page.SourceDocumentVersionId).HasColumnName("source_document_version_id");
+            entity.Property(page => page.KnowledgeSourceId).HasColumnName("knowledge_source_id");
             entity.Property(page => page.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
             entity.Property(page => page.Content).HasColumnName("content").IsRequired();
             entity.Property(page => page.Language).HasColumnName("language").HasMaxLength(50).IsRequired();
@@ -691,6 +813,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(page => page.CreatedAt).HasColumnName("created_at");
             entity.Property(page => page.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(page => page.TenantId);
+            entity.HasIndex(page => new { page.TenantId, page.KnowledgeSourceId });
             entity.HasIndex(page => new { page.TenantId, page.SourceDraftId }).IsUnique();
             entity.HasIndex(page => new { page.TenantId, page.VisibilityScope });
             entity.HasOne(page => page.SourceDraft)
@@ -713,6 +836,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(page => page.PublishedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(page => page.KnowledgeSource)
+                .WithMany()
+                .HasForeignKey(page => page.KnowledgeSourceId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AuditLogEntity>(entity =>

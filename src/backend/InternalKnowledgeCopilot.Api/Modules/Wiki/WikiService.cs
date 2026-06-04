@@ -9,6 +9,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.KeywordSearch;
 using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Infrastructure.VectorStore;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
+using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
@@ -38,6 +39,7 @@ public sealed class WikiService(
     IKnowledgeVectorStore vectorStore,
     IKnowledgeChunkLedgerService chunkLedgerService,
     IKnowledgeKeywordIndexService keywordIndexService,
+    IKnowledgeSourceService knowledgeSourceService,
     IAuditLogService auditLogService) : IWikiService
 {
     public async Task<WikiDraftDetailResponse> GenerateDraftAsync(Guid reviewerId, GenerateWikiDraftRequest request, CancellationToken cancellationToken = default)
@@ -201,10 +203,13 @@ public sealed class WikiService(
         }
 
         var now = DateTimeOffset.UtcNow;
+        var knowledgeSourceId = draft.SourceDocument.KnowledgeSourceId
+            ?? (await knowledgeSourceService.GetOrCreateDefaultLocalSourceAsync(cancellationToken)).Id;
         var page = new WikiPageEntity
         {
             Id = Guid.NewGuid(),
             TenantId = tenantId,
+            KnowledgeSourceId = knowledgeSourceId,
             SourceDraftId = draft.Id,
             SourceDocumentId = draft.SourceDocumentId,
             SourceDocumentVersionId = draft.SourceDocumentVersionId,

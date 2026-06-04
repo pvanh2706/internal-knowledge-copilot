@@ -6,6 +6,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.FileStorage;
 using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 using InternalKnowledgeCopilot.Api.Modules.Folders;
+using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ public sealed class DocumentsController(
     IFolderPermissionService folderPermissionService,
     IFileUploadValidator fileUploadValidator,
     IFileStorageService fileStorageService,
+    IKnowledgeSourceService knowledgeSourceService,
     IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
@@ -114,11 +116,13 @@ public sealed class DocumentsController(
 
         var now = DateTimeOffset.UtcNow;
         var tenantId = tenantContext.GetRequiredTenantId();
+        var knowledgeSource = await knowledgeSourceService.GetOrCreateDefaultLocalSourceAsync(cancellationToken);
         var document = new DocumentEntity
         {
             Id = Guid.NewGuid(),
             TenantId = tenantId,
             FolderId = request.FolderId,
+            KnowledgeSourceId = knowledgeSource.Id,
             Title = title,
             Description = request.Description?.Trim(),
             Status = DocumentStatus.PendingReview,

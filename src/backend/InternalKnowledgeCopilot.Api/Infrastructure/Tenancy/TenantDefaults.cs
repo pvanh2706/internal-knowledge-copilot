@@ -7,4 +7,6 @@ public static class TenantDefaults
     public const string DefaultTenantCode = "default";
 
     public const string DefaultApplicationCode = "internal-knowledge-copilot";
+
+    public const string DefaultLocalKnowledgeSourceExternalId = "local";
 }

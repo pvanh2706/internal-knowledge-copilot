@@ -24,7 +24,7 @@ public static class DevelopmentSeeder
             "Default Tenant",
             TenantDefaults.DefaultTenantCode,
             cancellationToken);
-        await EnsureApplicationAsync(
+        var defaultApplication = await EnsureApplicationAsync(
             dbContext,
             defaultTenant.Id,
             TenantDefaults.DefaultApplicationCode,
@@ -32,6 +32,7 @@ public static class DevelopmentSeeder
             ApplicationType.Internal,
             null,
             cancellationToken);
+        await EnsureLocalKnowledgeSourceAsync(dbContext, defaultTenant.Id, defaultApplication.Id, cancellationToken);
 
         var engineeringTeam = await EnsureTeamAsync(dbContext, defaultTenant.Id, "Kỹ thuật", "Team kỹ thuật", cancellationToken);
         await EnsureTeamAsync(dbContext, defaultTenant.Id, "Hỗ trợ khách hàng", "Team hỗ trợ khách hàng", cancellationToken);
@@ -102,7 +103,7 @@ public static class DevelopmentSeeder
         return tenant;
     }
 
-    private static async Task EnsureApplicationAsync(
+    private static async Task<ApplicationEntity> EnsureApplicationAsync(
         AppDbContext dbContext,
         Guid tenantId,
         string code,
@@ -116,11 +117,11 @@ public static class DevelopmentSeeder
             .FirstOrDefaultAsync(application => application.TenantId == tenantId && application.Code == normalizedCode, cancellationToken);
         if (existingApplication is not null)
         {
-            return;
+            return existingApplication;
         }
 
         var now = DateTimeOffset.UtcNow;
-        dbContext.Applications.Add(new ApplicationEntity
+        var application = new ApplicationEntity
         {
             Id = Guid.NewGuid(),
             TenantId = tenantId,
@@ -129,6 +130,44 @@ public static class DevelopmentSeeder
             ApplicationType = applicationType,
             BaseUrl = baseUrl,
             Status = ApplicationStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        dbContext.Applications.Add(application);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return application;
+    }
+
+    private static async Task EnsureLocalKnowledgeSourceAsync(
+        AppDbContext dbContext,
+        Guid tenantId,
+        Guid applicationId,
+        CancellationToken cancellationToken)
+    {
+        var existingSource = await dbContext.KnowledgeSources.FirstOrDefaultAsync(
+            source =>
+                source.TenantId == tenantId &&
+                source.ApplicationId == applicationId &&
+                source.SourceType == KnowledgeSourceKind.Local &&
+                source.ExternalSourceId == TenantDefaults.DefaultLocalKnowledgeSourceExternalId,
+            cancellationToken);
+        if (existingSource is not null)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        dbContext.KnowledgeSources.Add(new KnowledgeSourceEntity
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            ApplicationId = applicationId,
+            SourceType = KnowledgeSourceKind.Local,
+            ExternalSourceId = TenantDefaults.DefaultLocalKnowledgeSourceExternalId,
+            Name = "Local uploads and wiki",
+            SyncMode = KnowledgeSourceSyncMode.Manual,
+            Status = KnowledgeSourceStatus.Active,
             CreatedAt = now,
             UpdatedAt = now,
         });

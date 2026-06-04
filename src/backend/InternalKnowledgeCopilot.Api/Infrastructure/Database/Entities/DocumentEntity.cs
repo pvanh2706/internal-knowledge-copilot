@@ -12,6 +12,10 @@ public sealed class DocumentEntity
 
     public FolderEntity? Folder { get; set; }
 
+    public Guid? KnowledgeSourceId { get; set; }
+
+    public KnowledgeSourceEntity? KnowledgeSource { get; set; }
+
     public required string Title { get; set; }
 
     public string? Description { get; set; }
