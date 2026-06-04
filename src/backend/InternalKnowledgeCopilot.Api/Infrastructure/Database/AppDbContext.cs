@@ -5,6 +5,10 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.Database;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<TenantEntity> Tenants => Set<TenantEntity>();
+
+    public DbSet<ApplicationEntity> Applications => Set<ApplicationEntity>();
+
     public DbSet<UserEntity> Users => Set<UserEntity>();
 
     public DbSet<TeamEntity> Teams => Set<TeamEntity>();
@@ -54,6 +58,42 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<TenantEntity>(entity =>
+        {
+            entity.ToTable("tenants");
+            entity.HasKey(tenant => tenant.Id);
+            entity.Property(tenant => tenant.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+            entity.Property(tenant => tenant.Code).HasColumnName("code").HasMaxLength(100).IsRequired();
+            entity.Property(tenant => tenant.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(tenant => tenant.CreatedAt).HasColumnName("created_at");
+            entity.Property(tenant => tenant.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(tenant => tenant.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(tenant => tenant.Code).IsUnique();
+            entity.HasIndex(tenant => tenant.Status);
+        });
+
+        modelBuilder.Entity<ApplicationEntity>(entity =>
+        {
+            entity.ToTable("applications");
+            entity.HasKey(application => application.Id);
+            entity.Property(application => application.TenantId).HasColumnName("tenant_id");
+            entity.Property(application => application.Code).HasColumnName("code").HasMaxLength(100).IsRequired();
+            entity.Property(application => application.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+            entity.Property(application => application.ApplicationType).HasColumnName("application_type").HasConversion<string>().HasMaxLength(50);
+            entity.Property(application => application.BaseUrl).HasColumnName("base_url").HasMaxLength(1000);
+            entity.Property(application => application.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(application => application.CreatedAt).HasColumnName("created_at");
+            entity.Property(application => application.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(application => application.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(application => application.TenantId);
+            entity.HasIndex(application => new { application.TenantId, application.Code }).IsUnique();
+            entity.HasIndex(application => application.Status);
+            entity.HasOne(application => application.Tenant)
+                .WithMany(tenant => tenant.Applications)
+                .HasForeignKey(application => application.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         modelBuilder.Entity<TeamEntity>(entity =>
         {
@@ -656,7 +696,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         {
             entity.ToTable("ai_provider_settings");
             entity.HasKey(setting => setting.Id);
-            entity.Property(setting => setting.Id).HasColumnName("id");
+            entity.Property(setting => setting.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(setting => setting.Name).HasColumnName("name").HasMaxLength(50).IsRequired();
             entity.Property(setting => setting.BaseUrl).HasColumnName("base_url").HasMaxLength(1000).IsRequired();
             entity.Property(setting => setting.ApiKey).HasColumnName("api_key").HasMaxLength(4000);
