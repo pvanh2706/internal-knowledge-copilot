@@ -168,7 +168,7 @@ If a command cannot be run, record the reason in the progress log.
 - [x] Phase 3 - Knowledge sources, external objects, and ACL snapshots
 - [x] Phase 4 - Integration contracts and connector boundaries
 - [x] Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation
-- [ ] Phase 6 - Workflow Copilot for CRM events
+- [x] Phase 6 - Workflow Copilot for CRM events
 - [ ] Phase 7 - AI action approval and execution
 - [ ] Phase 8 - Frontend surfaces and embedded usage
 - [ ] Phase 9 - Worker and job hardening
@@ -498,22 +498,22 @@ Infrastructure/AiProvider/WorkflowRecommendationGenerationService.cs
 
 Checklist:
 
-- [ ] Add `WorkflowDefinitionEntity`.
-- [ ] Add `WorkflowStepEntity`.
-- [ ] Add `DomainEventEntity`.
-- [ ] Add `AiRecommendationEntity`.
-- [ ] Add EF configuration and migrations.
-- [ ] Add API to receive or trigger CRM deal-stage events.
-- [ ] Add API to list recommendations by tenant/application/object.
-- [ ] Add service to resolve the workflow definition for an event.
-- [ ] Add service to fetch or accept object context: deal, stage, notes, tasks, emails, calls, recent activities.
-- [ ] Add retrieval step for process documents related to the workflow/stage.
-- [ ] Add AI generation service for workflow recommendations.
-- [ ] Include next steps, risks, clarification questions, suggested tasks, warnings, and reasoning-based won/lost signals.
-- [ ] Store recommendation sources/citations.
-- [ ] Add feedback endpoint for recommendation quality.
-- [ ] Add tests for deal-stage event to recommendation creation.
-- [ ] Add tests for missing workflow, missing context, and permission failure.
+- [x] Add `WorkflowDefinitionEntity`.
+- [x] Add `WorkflowStepEntity`.
+- [x] Add `DomainEventEntity`.
+- [x] Add `AiRecommendationEntity`.
+- [x] Add EF configuration and migrations.
+- [x] Add API to receive or trigger CRM deal-stage events.
+- [x] Add API to list recommendations by tenant/application/object.
+- [x] Add service to resolve the workflow definition for an event.
+- [x] Add service to fetch or accept object context: deal, stage, notes, tasks, emails, calls, recent activities.
+- [x] Add retrieval step for process documents related to the workflow/stage.
+- [x] Add AI generation service for workflow recommendations.
+- [x] Include next steps, risks, clarification questions, suggested tasks, warnings, and reasoning-based won/lost signals.
+- [x] Store recommendation sources/citations.
+- [x] Add feedback endpoint for recommendation quality.
+- [x] Add tests for deal-stage event to recommendation creation.
+- [x] Add tests for missing workflow, missing context, and permission failure.
 
 Acceptance criteria:
 
@@ -690,9 +690,9 @@ Use these slices for AI-assisted construction. Each slice should end with tests 
 
 ### Slice 7 - CRM Workflow Recommendation
 
-- [ ] Add workflow/domain event/recommendation data model.
-- [ ] Add event-to-recommendation service.
-- [ ] Add reasoning-based won/lost recommendation output.
+- [x] Add workflow/domain event/recommendation data model.
+- [x] Add event-to-recommendation service.
+- [x] Add reasoning-based won/lost recommendation output.
 
 ### Slice 8 - Action Approval
 
@@ -765,3 +765,4 @@ Add entries here after each implementation batch.
 | 2026-06-04 | Codex | Phase 3 - Knowledge sources, external objects, and ACL snapshots | Added tenant/application-scoped knowledge sources, external objects, ACL snapshots, Admin/Reviewer inspection APIs, default local source mapping for documents/wiki, and idempotent sync tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 72/72; `dotnet ef database update` applied all migrations through `20260604085007_AddKnowledgeSourcesAndExternalObjects` on a fresh design-time SQLite database | External knowledge can now be represented without duplicate object rows, and ACL replacement is scoped to the target tenant/application/object. Next batch: Phase 4 - Integration Contracts and Connector Boundaries |
 | 2026-06-04 | Codex | Phase 4 - Integration contracts and connector boundaries | Added integration connections, internal API-key auth, inbound event/document/object/permission sync contracts, durable idempotent inbound event storage, connector interfaces, internal HTTP connector, and focused backend tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 77/77; `dotnet ef database update` applied all migrations through `20260604091137_AddIntegrationContracts` on a fresh design-time SQLite database | Internal applications can now push sync/events without duplicate rows, and connector boundaries remain independent of CRM-specific logic. Next batch: Phase 5 - Tenant-Aware Retrieval, Indexing, and Permission Revalidation |
 | 2026-06-04 | Codex | Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation | Added application/source/external-object metadata to retrieval indexes, extended vector and keyword filters, preserved local folder permission checks, added external ACL snapshot plus realtime revalidation before answer generation, and added retrieval isolation tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 80/80; `dotnet ef database update` applied all migrations through `20260604093517_AddRetrievalSourceMetadata` on a fresh design-time SQLite database | Retrieval is now tenant-scoped, optionally application/source/object-scoped, and external citations can be rejected when source-system revalidation denies access. Next batch: Phase 6 - Workflow Copilot for CRM Events |
+| 2026-06-05 | Codex | Phase 6 - Workflow Copilot for CRM Events | Added workflow definitions/steps, durable domain events, AI recommendations with citations and feedback, deal-stage event API, recommendation history API, object-context accept/fetch flow, process-document retrieval, and mock/OpenAI-compatible recommendation generation with reasoning-based won/lost signals | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 84/84; `dotnet ef database update` applied all migrations through `20260604175019_AddWorkflowCopilot` on a fresh design-time SQLite database | CRM deal-stage events can now create auditable recommendations grounded in event context and retrieved process sources. Won/lost signals are explicitly labeled reasoning-based, not predictive ML. Next batch: Phase 7 - AI Action Approval and Execution |

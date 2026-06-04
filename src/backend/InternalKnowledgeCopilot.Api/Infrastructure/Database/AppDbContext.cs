@@ -19,6 +19,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<IntegrationInboundEventEntity> IntegrationInboundEvents => Set<IntegrationInboundEventEntity>();
 
+    public DbSet<WorkflowDefinitionEntity> WorkflowDefinitions => Set<WorkflowDefinitionEntity>();
+
+    public DbSet<WorkflowStepEntity> WorkflowSteps => Set<WorkflowStepEntity>();
+
+    public DbSet<DomainEventEntity> DomainEvents => Set<DomainEventEntity>();
+
+    public DbSet<AiRecommendationEntity> AiRecommendations => Set<AiRecommendationEntity>();
+
     public DbSet<UserEntity> Users => Set<UserEntity>();
 
     public DbSet<TeamEntity> Teams => Set<TeamEntity>();
@@ -280,6 +288,157 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(inboundEvent => inboundEvent.IntegrationConnectionId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<WorkflowDefinitionEntity>(entity =>
+        {
+            entity.ToTable("workflow_definitions");
+            entity.HasKey(workflow => workflow.Id);
+            entity.Property(workflow => workflow.TenantId).HasColumnName("tenant_id");
+            entity.Property(workflow => workflow.ApplicationId).HasColumnName("application_id");
+            entity.Property(workflow => workflow.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
+            entity.Property(workflow => workflow.Description).HasColumnName("description").HasMaxLength(2000);
+            entity.Property(workflow => workflow.EventType).HasColumnName("event_type").HasMaxLength(200).IsRequired();
+            entity.Property(workflow => workflow.ObjectType).HasColumnName("object_type").HasMaxLength(100).IsRequired();
+            entity.Property(workflow => workflow.TriggerStage).HasColumnName("trigger_stage").HasMaxLength(200);
+            entity.Property(workflow => workflow.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(workflow => workflow.MetadataJson).HasColumnName("metadata_json");
+            entity.Property(workflow => workflow.CreatedAt).HasColumnName("created_at");
+            entity.Property(workflow => workflow.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(workflow => workflow.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(workflow => workflow.TenantId);
+            entity.HasIndex(workflow => workflow.ApplicationId);
+            entity.HasIndex(workflow => new { workflow.TenantId, workflow.ApplicationId, workflow.EventType, workflow.ObjectType, workflow.TriggerStage });
+            entity.HasIndex(workflow => new { workflow.TenantId, workflow.Status });
+            entity.HasOne(workflow => workflow.Tenant)
+                .WithMany()
+                .HasForeignKey(workflow => workflow.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(workflow => workflow.Application)
+                .WithMany()
+                .HasForeignKey(workflow => workflow.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<WorkflowStepEntity>(entity =>
+        {
+            entity.ToTable("workflow_steps");
+            entity.HasKey(step => step.Id);
+            entity.Property(step => step.TenantId).HasColumnName("tenant_id");
+            entity.Property(step => step.WorkflowDefinitionId).HasColumnName("workflow_definition_id");
+            entity.Property(step => step.StepOrder).HasColumnName("step_order");
+            entity.Property(step => step.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
+            entity.Property(step => step.StepType).HasColumnName("step_type").HasConversion<string>().HasMaxLength(50);
+            entity.Property(step => step.Instruction).HasColumnName("instruction").HasMaxLength(4000).IsRequired();
+            entity.Property(step => step.RetrievalQuery).HasColumnName("retrieval_query").HasMaxLength(2000);
+            entity.Property(step => step.RequiredContextJson).HasColumnName("required_context_json");
+            entity.Property(step => step.CreatedAt).HasColumnName("created_at");
+            entity.Property(step => step.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(step => step.TenantId);
+            entity.HasIndex(step => new { step.TenantId, step.WorkflowDefinitionId, step.StepOrder });
+            entity.HasOne(step => step.WorkflowDefinition)
+                .WithMany(workflow => workflow.Steps)
+                .HasForeignKey(step => step.WorkflowDefinitionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DomainEventEntity>(entity =>
+        {
+            entity.ToTable("domain_events");
+            entity.HasKey(domainEvent => domainEvent.Id);
+            entity.Property(domainEvent => domainEvent.TenantId).HasColumnName("tenant_id");
+            entity.Property(domainEvent => domainEvent.ApplicationId).HasColumnName("application_id");
+            entity.Property(domainEvent => domainEvent.WorkflowDefinitionId).HasColumnName("workflow_definition_id");
+            entity.Property(domainEvent => domainEvent.IntegrationInboundEventId).HasColumnName("integration_inbound_event_id");
+            entity.Property(domainEvent => domainEvent.EventType).HasColumnName("event_type").HasMaxLength(200).IsRequired();
+            entity.Property(domainEvent => domainEvent.ObjectType).HasColumnName("object_type").HasMaxLength(100).IsRequired();
+            entity.Property(domainEvent => domainEvent.ExternalObjectId).HasColumnName("external_object_id").HasMaxLength(300).IsRequired();
+            entity.Property(domainEvent => domainEvent.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(200).IsRequired();
+            entity.Property(domainEvent => domainEvent.OccurredAt).HasColumnName("occurred_at");
+            entity.Property(domainEvent => domainEvent.PayloadJson).HasColumnName("payload_json");
+            entity.Property(domainEvent => domainEvent.ObjectContextJson).HasColumnName("object_context_json");
+            entity.Property(domainEvent => domainEvent.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(domainEvent => domainEvent.Error).HasColumnName("error").HasMaxLength(2000);
+            entity.Property(domainEvent => domainEvent.CreatedAt).HasColumnName("created_at");
+            entity.Property(domainEvent => domainEvent.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(domainEvent => domainEvent.TenantId);
+            entity.HasIndex(domainEvent => domainEvent.ApplicationId);
+            entity.HasIndex(domainEvent => domainEvent.WorkflowDefinitionId);
+            entity.HasIndex(domainEvent => domainEvent.IntegrationInboundEventId);
+            entity.HasIndex(domainEvent => new { domainEvent.TenantId, domainEvent.ApplicationId, domainEvent.IdempotencyKey }).IsUnique();
+            entity.HasIndex(domainEvent => new { domainEvent.TenantId, domainEvent.ApplicationId, domainEvent.EventType, domainEvent.OccurredAt });
+            entity.HasIndex(domainEvent => new { domainEvent.TenantId, domainEvent.ApplicationId, domainEvent.ObjectType, domainEvent.ExternalObjectId });
+            entity.HasOne(domainEvent => domainEvent.Tenant)
+                .WithMany()
+                .HasForeignKey(domainEvent => domainEvent.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(domainEvent => domainEvent.Application)
+                .WithMany()
+                .HasForeignKey(domainEvent => domainEvent.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(domainEvent => domainEvent.WorkflowDefinition)
+                .WithMany()
+                .HasForeignKey(domainEvent => domainEvent.WorkflowDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(domainEvent => domainEvent.IntegrationInboundEvent)
+                .WithMany()
+                .HasForeignKey(domainEvent => domainEvent.IntegrationInboundEventId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AiRecommendationEntity>(entity =>
+        {
+            entity.ToTable("ai_recommendations");
+            entity.HasKey(recommendation => recommendation.Id);
+            entity.Property(recommendation => recommendation.TenantId).HasColumnName("tenant_id");
+            entity.Property(recommendation => recommendation.ApplicationId).HasColumnName("application_id");
+            entity.Property(recommendation => recommendation.DomainEventId).HasColumnName("domain_event_id");
+            entity.Property(recommendation => recommendation.WorkflowDefinitionId).HasColumnName("workflow_definition_id");
+            entity.Property(recommendation => recommendation.ObjectType).HasColumnName("object_type").HasMaxLength(100).IsRequired();
+            entity.Property(recommendation => recommendation.ExternalObjectId).HasColumnName("external_object_id").HasMaxLength(300).IsRequired();
+            entity.Property(recommendation => recommendation.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
+            entity.Property(recommendation => recommendation.Summary).HasColumnName("summary").HasMaxLength(4000).IsRequired();
+            entity.Property(recommendation => recommendation.RecommendedNextStepsJson).HasColumnName("recommended_next_steps_json").IsRequired();
+            entity.Property(recommendation => recommendation.RisksJson).HasColumnName("risks_json").IsRequired();
+            entity.Property(recommendation => recommendation.ClarificationQuestionsJson).HasColumnName("clarification_questions_json").IsRequired();
+            entity.Property(recommendation => recommendation.SuggestedTasksJson).HasColumnName("suggested_tasks_json").IsRequired();
+            entity.Property(recommendation => recommendation.WarningsJson).HasColumnName("warnings_json").IsRequired();
+            entity.Property(recommendation => recommendation.WonLostSignalsJson).HasColumnName("won_lost_signals_json").IsRequired();
+            entity.Property(recommendation => recommendation.ReasoningLabel).HasColumnName("reasoning_label").HasMaxLength(300).IsRequired();
+            entity.Property(recommendation => recommendation.SourcesJson).HasColumnName("sources_json").IsRequired();
+            entity.Property(recommendation => recommendation.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(recommendation => recommendation.FeedbackValue).HasColumnName("feedback_value").HasConversion<string>().HasMaxLength(50);
+            entity.Property(recommendation => recommendation.FeedbackNote).HasColumnName("feedback_note").HasMaxLength(2000);
+            entity.Property(recommendation => recommendation.FeedbackByUserId).HasColumnName("feedback_by_user_id");
+            entity.Property(recommendation => recommendation.FeedbackAt).HasColumnName("feedback_at");
+            entity.Property(recommendation => recommendation.CreatedAt).HasColumnName("created_at");
+            entity.Property(recommendation => recommendation.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(recommendation => recommendation.TenantId);
+            entity.HasIndex(recommendation => recommendation.ApplicationId);
+            entity.HasIndex(recommendation => recommendation.DomainEventId).IsUnique();
+            entity.HasIndex(recommendation => recommendation.WorkflowDefinitionId);
+            entity.HasIndex(recommendation => new { recommendation.TenantId, recommendation.ApplicationId, recommendation.ObjectType, recommendation.ExternalObjectId, recommendation.CreatedAt });
+            entity.HasIndex(recommendation => new { recommendation.TenantId, recommendation.Status, recommendation.CreatedAt });
+            entity.HasOne(recommendation => recommendation.Tenant)
+                .WithMany()
+                .HasForeignKey(recommendation => recommendation.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(recommendation => recommendation.Application)
+                .WithMany()
+                .HasForeignKey(recommendation => recommendation.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(recommendation => recommendation.DomainEvent)
+                .WithMany()
+                .HasForeignKey(recommendation => recommendation.DomainEventId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(recommendation => recommendation.WorkflowDefinition)
+                .WithMany()
+                .HasForeignKey(recommendation => recommendation.WorkflowDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(recommendation => recommendation.FeedbackByUser)
+                .WithMany()
+                .HasForeignKey(recommendation => recommendation.FeedbackByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<TeamEntity>(entity =>

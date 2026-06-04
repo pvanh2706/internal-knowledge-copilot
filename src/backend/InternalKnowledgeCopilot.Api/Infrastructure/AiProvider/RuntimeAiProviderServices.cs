@@ -85,3 +85,19 @@ public sealed class RuntimeDocumentUnderstandingService(
             : await openAiService.AnalyzeAsync(title, normalizedText, sections, cancellationToken);
     }
 }
+
+public sealed class RuntimeWorkflowRecommendationGenerationService(
+    IAiProviderSettingsService settingsService,
+    MockWorkflowRecommendationGenerationService mockService,
+    OpenAiCompatibleWorkflowRecommendationGenerationService openAiService) : IWorkflowRecommendationGenerationService
+{
+    public async Task<WorkflowRecommendationDraft> GenerateAsync(
+        WorkflowRecommendationGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var options = await settingsService.GetCurrentAsync(cancellationToken);
+        return string.Equals(options.Name, "mock", StringComparison.OrdinalIgnoreCase)
+            ? await mockService.GenerateAsync(request, cancellationToken)
+            : await openAiService.GenerateAsync(request, cancellationToken);
+    }
+}

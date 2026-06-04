@@ -24,6 +24,7 @@ using InternalKnowledgeCopilot.Api.Modules.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
 using InternalKnowledgeCopilot.Api.Modules.Integrations;
 using InternalKnowledgeCopilot.Api.Modules.Tenants;
+using InternalKnowledgeCopilot.Api.Modules.WorkflowCopilot;
 using InternalKnowledgeCopilot.Api.Modules.Wiki;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -74,6 +75,9 @@ builder.Services.AddScoped<IWikiDraftGenerationService, RuntimeWikiDraftGenerati
 builder.Services.AddScoped<MockDocumentUnderstandingService>();
 builder.Services.AddScoped<OpenAiCompatibleDocumentUnderstandingService>();
 builder.Services.AddScoped<IDocumentUnderstandingService, RuntimeDocumentUnderstandingService>();
+builder.Services.AddScoped<MockWorkflowRecommendationGenerationService>();
+builder.Services.AddScoped<OpenAiCompatibleWorkflowRecommendationGenerationService>();
+builder.Services.AddScoped<IWorkflowRecommendationGenerationService, RuntimeWorkflowRecommendationGenerationService>();
 builder.Services.AddScoped<IDocumentProcessingService, DocumentProcessingService>();
 builder.Services.AddScoped<IKnowledgeChunkLedgerService, KnowledgeChunkLedgerService>();
 builder.Services.AddScoped<IKnowledgeKeywordIndexService, KnowledgeKeywordIndexService>();
@@ -84,6 +88,7 @@ builder.Services.AddScoped<IKnowledgeIndexRebuildService, KnowledgeIndexRebuildS
 builder.Services.AddScoped<IKnowledgeSourceService, KnowledgeSourceService>();
 builder.Services.AddSingleton<IIntegrationSecretHasher, IntegrationSecretHasher>();
 builder.Services.AddScoped<IIntegrationService, IntegrationService>();
+builder.Services.AddScoped<IWorkflowCopilotService, WorkflowCopilotService>();
 builder.Services.AddScoped<IWikiService, WikiService>();
 builder.Services.AddScoped<IDataResetService, DataResetService>();
 builder.Services.AddHttpClient<IExternalContentClient, InternalHttpExternalConnector>();
