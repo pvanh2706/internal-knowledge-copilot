@@ -1,4 +1,14 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api'
+export const tenantCodeStorageKey = 'ikc.tenantCode'
+
+export function getTenantCode() {
+  return localStorage.getItem(tenantCodeStorageKey) || 'default'
+}
+
+export function setTenantCode(value: string) {
+  const cleaned = value.trim().toLowerCase()
+  localStorage.setItem(tenantCodeStorageKey, cleaned || 'default')
+}
 
 export class ApiError extends Error {
   public readonly status: number
@@ -17,6 +27,11 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, tok
 
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  const tenantCode = getTenantCode()
+  if (tenantCode && !headers.has('X-Tenant-Code')) {
+    headers.set('X-Tenant-Code', tenantCode)
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {

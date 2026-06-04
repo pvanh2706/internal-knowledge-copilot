@@ -170,7 +170,7 @@ If a command cannot be run, record the reason in the progress log.
 - [x] Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation
 - [x] Phase 6 - Workflow Copilot for CRM events
 - [x] Phase 7 - AI action approval and execution
-- [ ] Phase 8 - Frontend surfaces and embedded usage
+- [x] Phase 8 - Frontend surfaces and embedded usage
 - [ ] Phase 9 - Worker and job hardening
 - [ ] Phase 10 - Product hardening, evaluation, and enterprise notes
 
@@ -583,18 +583,18 @@ src/frontend/src/pages/workflow/ActionApprovalQueuePage.vue
 
 Checklist:
 
-- [ ] Add API clients for tenants and applications.
-- [ ] Add Admin pages for tenant/application management.
-- [ ] Add API clients for integrations and knowledge sources.
-- [ ] Add Admin/Reviewer pages for source sync status.
-- [ ] Add workflow recommendation list page.
-- [ ] Add recommendation detail page with citations/context.
-- [ ] Add action approval queue.
-- [ ] Add approve/reject/execute interactions with clear loading/error states.
-- [ ] Add tenant/application context handling in API client headers.
-- [ ] Add route guards for Admin/Reviewer/User access.
-- [ ] Add frontend tests for key pages.
-- [ ] Add build verification.
+- [x] Add API clients for tenants and applications.
+- [x] Add Admin pages for tenant/application management.
+- [x] Add API clients for integrations and knowledge sources.
+- [x] Add Admin/Reviewer pages for source sync status.
+- [x] Add workflow recommendation list page.
+- [x] Add recommendation detail page with citations/context.
+- [x] Add action approval queue.
+- [x] Add approve/reject/execute interactions with clear loading/error states.
+- [x] Add tenant/application context handling in API client headers.
+- [x] Add route guards for Admin/Reviewer/User access.
+- [x] Add frontend tests for key pages.
+- [x] Add build verification.
 
 Acceptance criteria:
 
@@ -702,8 +702,8 @@ Use these slices for AI-assisted construction. Each slice should end with tests 
 
 ### Slice 9 - Frontend and Demo Flow
 
-- [ ] Add admin settings pages.
-- [ ] Add recommendation and action approval pages.
+- [x] Add admin settings pages.
+- [x] Add recommendation and action approval pages.
 - [ ] Create a demo CRM event flow.
 
 ### Slice 10 - Hardening
@@ -767,3 +767,4 @@ Add entries here after each implementation batch.
 | 2026-06-04 | Codex | Phase 5 - Tenant-aware retrieval, indexing, and permission revalidation | Added application/source/external-object metadata to retrieval indexes, extended vector and keyword filters, preserved local folder permission checks, added external ACL snapshot plus realtime revalidation before answer generation, and added retrieval isolation tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 80/80; `dotnet ef database update` applied all migrations through `20260604093517_AddRetrievalSourceMetadata` on a fresh design-time SQLite database | Retrieval is now tenant-scoped, optionally application/source/object-scoped, and external citations can be rejected when source-system revalidation denies access. Next batch: Phase 6 - Workflow Copilot for CRM Events |
 | 2026-06-05 | Codex | Phase 6 - Workflow Copilot for CRM Events | Added workflow definitions/steps, durable domain events, AI recommendations with citations and feedback, deal-stage event API, recommendation history API, object-context accept/fetch flow, process-document retrieval, and mock/OpenAI-compatible recommendation generation with reasoning-based won/lost signals | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 84/84; `dotnet ef database update` applied all migrations through `20260604175019_AddWorkflowCopilot` on a fresh design-time SQLite database | CRM deal-stage events can now create auditable recommendations grounded in event context and retrieved process sources. Won/lost signals are explicitly labeled reasoning-based, not predictive ML. Next batch: Phase 7 - AI Action Approval and Execution |
 | 2026-06-05 | Codex | Phase 7 - AI Action Approval and Execution | Added action request lifecycle, manual and simple rule approval, recommendation-to-action creation API, approval/rejection/cancel/execute APIs, source-system validation before create/approval/execution, idempotent execution guard, and audit hooks | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 88/88; `dotnet ef database update` applied all migrations through `20260604180553_AddActionApprovals` on a fresh design-time SQLite database | AI now creates auditable action requests instead of directly mutating CRM data. Source-system execution uses `IExternalActionExecutor` and successful actions are not executed twice. Next batch: Phase 8 - Frontend Surfaces and Embedded Usage |
+| 2026-06-05 | Codex | Phase 8 - Frontend Surfaces and Embedded Usage | Added tenant-aware frontend API headers, tenant login context, API clients for platform/workflow surfaces, Admin tenant/application/integration pages, Reviewer knowledge source status page, workflow recommendation detail/citation view, action approval queue with approve/reject/execute controls, routes/nav, and focused page tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 88/88; `C:\nvm4w\nodejs\npm.cmd test` passed 3/3 from `src/frontend`; `C:\nvm4w\nodejs\npm.cmd run build` passed from `src/frontend` | Frontend verification used Node 22 directly because the shell default Node 14 cannot parse the current Vite/Vitest dependencies. Demo CRM event flow remains unchecked for a later batch. Next batch: Phase 9 - Worker and Job Hardening |

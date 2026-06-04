@@ -63,6 +63,15 @@ watch(
         <RouterLink v-if="authStore.isAdmin" to="/admin/data-reset">Reset dữ liệu</RouterLink>
         <RouterLink v-if="authStore.isAdmin" to="/admin/audit-logs">Nhật ký</RouterLink>
       </nav>
+
+      <nav class="nav-list secondary-nav" aria-label="Platform navigation">
+        <RouterLink v-if="authStore.isReviewer || authStore.isAdmin" to="/knowledge-sources">Knowledge sources</RouterLink>
+        <RouterLink to="/workflow/recommendations">Recommendations</RouterLink>
+        <RouterLink to="/workflow/actions">Action queue</RouterLink>
+        <RouterLink v-if="authStore.isAdmin" to="/admin/tenants">Tenants</RouterLink>
+        <RouterLink v-if="authStore.isAdmin" to="/admin/applications">Applications</RouterLink>
+        <RouterLink v-if="authStore.isAdmin" to="/admin/integrations">Integrations</RouterLink>
+      </nav>
     </aside>
 
     <main class="main-content">

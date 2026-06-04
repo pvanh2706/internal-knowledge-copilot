@@ -1,10 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardPage from '../pages/DashboardPage.vue'
+import ActionApprovalQueuePage from '../pages/workflow/ActionApprovalQueuePage.vue'
 import AuditLogPage from '../pages/admin/AuditLogPage.vue'
 import AiSettingsPage from '../pages/admin/AiSettingsPage.vue'
+import ApplicationManagementPage from '../pages/admin/ApplicationManagementPage.vue'
 import DataResetPage from '../pages/admin/DataResetPage.vue'
 import FolderManagementPage from '../pages/admin/FolderManagementPage.vue'
+import IntegrationManagementPage from '../pages/admin/IntegrationManagementPage.vue'
 import TeamManagementPage from '../pages/admin/TeamManagementPage.vue'
+import TenantManagementPage from '../pages/admin/TenantManagementPage.vue'
 import UserManagementPage from '../pages/admin/UserManagementPage.vue'
 import ChangePasswordPage from '../pages/auth/ChangePasswordPage.vue'
 import AiQuestionPage from '../pages/ai/AiQuestionPage.vue'
@@ -14,6 +18,8 @@ import DocumentReviewPage from '../pages/review/DocumentReviewPage.vue'
 import EvaluationPage from '../pages/review/EvaluationPage.vue'
 import FeedbackReviewPage from '../pages/review/FeedbackReviewPage.vue'
 import KnowledgeIndexPage from '../pages/review/KnowledgeIndexPage.vue'
+import KnowledgeSourcePage from '../pages/review/KnowledgeSourcePage.vue'
+import RecommendationListPage from '../pages/workflow/RecommendationListPage.vue'
 import RetrievalExplainPage from '../pages/review/RetrievalExplainPage.vue'
 import WikiDraftPage from '../pages/wiki/WikiDraftPage.vue'
 import { useAuthStore } from '../stores/auth'
@@ -32,6 +38,12 @@ const router = createRouter({
     { path: '/evaluation', name: 'evaluation', component: EvaluationPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/retrieval-explain', name: 'retrieval-explain', component: RetrievalExplainPage, meta: { requiresAuth: true, requiresReviewer: true } },
     { path: '/knowledge-index', name: 'knowledge-index', component: KnowledgeIndexPage, meta: { requiresAuth: true, requiresReviewer: true } },
+    { path: '/knowledge-sources', name: 'knowledge-sources', component: KnowledgeSourcePage, meta: { requiresAuth: true, requiresReviewer: true } },
+    { path: '/workflow/recommendations', name: 'workflow-recommendations', component: RecommendationListPage, meta: { requiresAuth: true } },
+    { path: '/workflow/actions', name: 'workflow-actions', component: ActionApprovalQueuePage, meta: { requiresAuth: true } },
+    { path: '/admin/tenants', name: 'admin-tenants', component: TenantManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: '/admin/applications', name: 'admin-applications', component: ApplicationManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: '/admin/integrations', name: 'admin-integrations', component: IntegrationManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/users', name: 'admin-users', component: UserManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/teams', name: 'admin-teams', component: TeamManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/folders', name: 'admin-folders', component: FolderManagementPage, meta: { requiresAuth: true, requiresReviewer: true } },

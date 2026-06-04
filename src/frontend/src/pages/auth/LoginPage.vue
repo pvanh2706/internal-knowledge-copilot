@@ -33,6 +33,17 @@ async function submitLogin() {
       <h2>Đăng nhập</h2>
 
       <label>
+        Tenant code
+        <input
+          v-model="authStore.tenantCode"
+          type="text"
+          autocomplete="organization"
+          required
+          @change="authStore.setTenantCode(authStore.tenantCode)"
+        />
+      </label>
+
+      <label>
         Email
         <input v-model="email" type="email" autocomplete="email" required />
       </label>
