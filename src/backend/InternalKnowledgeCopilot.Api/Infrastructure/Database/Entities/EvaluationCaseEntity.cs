@@ -18,6 +18,10 @@ public sealed class EvaluationCaseEntity
 
     public string? ExpectedKeywordsJson { get; set; }
 
+    public string? ForbiddenKeywordsJson { get; set; }
+
+    public EvaluationCaseKind CaseKind { get; set; } = EvaluationCaseKind.Regression;
+
     public AiScopeType ScopeType { get; set; }
 
     public Guid? FolderId { get; set; }
@@ -27,6 +31,18 @@ public sealed class EvaluationCaseEntity
     public Guid? DocumentId { get; set; }
 
     public DocumentEntity? Document { get; set; }
+
+    public Guid? ApplicationId { get; set; }
+
+    public ApplicationEntity? Application { get; set; }
+
+    public Guid? KnowledgeSourceId { get; set; }
+
+    public KnowledgeSourceEntity? KnowledgeSource { get; set; }
+
+    public string? ExternalObjectType { get; set; }
+
+    public string? ExternalObjectId { get; set; }
 
     public Guid CreatedByUserId { get; set; }
 

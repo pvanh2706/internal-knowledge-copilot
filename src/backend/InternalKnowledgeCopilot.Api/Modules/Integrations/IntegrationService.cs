@@ -46,7 +46,8 @@ public sealed class IntegrationService(
     ITenantContext tenantContext,
     IAuditLogService auditLogService,
     IProcessingJobService processingJobService,
-    IIntegrationSecretHasher secretHasher) : IIntegrationService
+    IIntegrationSecretHasher secretHasher,
+    ILogger<IntegrationService>? logger = null) : IIntegrationService
 {
     private const int CodeMaxLength = 100;
     private const int NameMaxLength = 200;
@@ -336,6 +337,14 @@ public sealed class IntegrationService(
             new { inboundEvent.ApplicationId, inboundEvent.EventType, inboundEvent.IdempotencyKey, inboundEvent.ObjectType, inboundEvent.ExternalObjectId },
             cancellationToken);
         await EnqueueInboundProcessingJobAsync(inboundEvent, cancellationToken);
+        logger?.LogInformation(
+            "Integration inbound event {InboundEventId} received for tenant {TenantId} application {ApplicationId} type {EventType} object {ObjectType}/{ExternalObjectId}.",
+            inboundEvent.Id,
+            inboundEvent.TenantId,
+            inboundEvent.ApplicationId,
+            inboundEvent.EventType,
+            inboundEvent.ObjectType,
+            inboundEvent.ExternalObjectId);
 
         return ToResponse(inboundEvent, application.Code, isDuplicate: false);
     }

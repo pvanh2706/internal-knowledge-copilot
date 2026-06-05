@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -47,7 +48,9 @@ public sealed class WorkflowCopilotService(
     IExternalObjectContextClient externalObjectContextClient,
     IExternalAccessResolver externalAccessResolver,
     IWorkflowRecommendationGenerationService recommendationGenerationService,
-    IAuditLogService auditLogService) : IWorkflowCopilotService
+    IAuditLogService auditLogService,
+    IAiTaskRouter? aiTaskRouter = null,
+    ILogger<WorkflowCopilotService>? logger = null) : IWorkflowCopilotService
 {
     private const string DealStageChangedEventType = "deal.stage.changed";
     private const string DealObjectType = "deal";
@@ -71,6 +74,10 @@ public sealed class WorkflowCopilotService(
         CancellationToken cancellationToken = default)
     {
         var tenantId = tenantContext.GetRequiredTenantId();
+        var stopwatch = Stopwatch.StartNew();
+        var taskRoute = aiTaskRouter is null
+            ? null
+            : await aiTaskRouter.ResolveAsync(AiTaskType.WorkflowRecommendation, cancellationToken);
         var application = await GetActiveApplicationAsync(tenantId, request.ApplicationId, cancellationToken);
         var externalObjectId = CleanRequired(request.ExternalObjectId, "external_object_id_required", ExternalObjectIdMaxLength);
         var toStage = CleanRequired(request.ToStage, "deal_stage_required", StageMaxLength);
@@ -166,6 +173,34 @@ public sealed class WorkflowCopilotService(
             WonLostSignalsJson = SerializeList(EnsureReasoningSignals(draft.WonLostSignals)),
             ReasoningLabel = EnsureReasoningLabel(draft.ReasoningLabel),
             SourcesJson = JsonSerializer.Serialize(sources, JsonOptions),
+            AiTaskType = taskRoute?.TaskType,
+            AiProviderName = taskRoute?.ProviderName,
+            AiModel = taskRoute?.Model,
+            EmbeddingProviderName = taskRoute?.EmbeddingProviderName,
+            EmbeddingModel = taskRoute?.EmbeddingModel,
+            PromptTemplateId = taskRoute?.PromptTemplateId,
+            PromptTemplateVersion = taskRoute?.PromptTemplateVersion,
+            PromptHash = taskRoute?.PromptHash,
+            RetrievalPipeline = "workflow-hybrid-process-sources-v1",
+            RetrievalMetadataJson = JsonSerializer.Serialize(new
+            {
+                SourceCount = sources.Count,
+                MaxRecommendationSources,
+                SearchLimit,
+                KeywordSearchLimit,
+                workflow.Id,
+                workflow.EventType,
+                workflow.ObjectType,
+                workflow.TriggerStage
+            }, JsonOptions),
+            AiRequestMetadataJson = taskRoute is null ? null : JsonSerializer.Serialize(new
+            {
+                taskRoute.PromptName,
+                taskRoute.PromptMetadataJson,
+                taskRoute.PromptHash,
+                taskRoute.Model
+            }, JsonOptions),
+            LatencyMs = (int)Math.Min(int.MaxValue, stopwatch.ElapsedMilliseconds),
             Status = AiRecommendationStatus.Ready,
             CreatedAt = now,
             UpdatedAt = now,
@@ -198,6 +233,15 @@ public sealed class WorkflowCopilotService(
             recommendation.Id,
             new { recommendation.ApplicationId, recommendation.ObjectType, recommendation.ExternalObjectId, recommendation.WorkflowDefinitionId, Sources = sources.Count },
             cancellationToken);
+        logger?.LogInformation(
+            "Workflow recommendation {RecommendationId} created for tenant {TenantId} application {ApplicationId} object {ObjectType}/{ExternalObjectId} with {SourceCount} sources in {LatencyMs} ms.",
+            recommendation.Id,
+            tenantId,
+            application.Id,
+            recommendation.ObjectType,
+            recommendation.ExternalObjectId,
+            sources.Count,
+            recommendation.LatencyMs);
 
         return ToResponse(recommendation);
     }

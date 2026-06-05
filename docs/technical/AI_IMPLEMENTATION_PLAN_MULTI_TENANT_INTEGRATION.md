@@ -172,7 +172,7 @@ If a command cannot be run, record the reason in the progress log.
 - [x] Phase 7 - AI action approval and execution
 - [x] Phase 8 - Frontend surfaces and embedded usage
 - [x] Phase 9 - Worker and job hardening
-- [ ] Phase 10 - Product hardening, evaluation, and enterprise notes
+- [x] Phase 10 - Product hardening, evaluation, and enterprise notes
 
 ## 8. Phase 0 - Preflight and Baseline Verification
 
@@ -632,17 +632,19 @@ Goal: prepare the platform for real multi-customer operation while keeping enter
 
 Checklist:
 
-- [ ] Add prompt template/version storage for major AI tasks.
-- [ ] Add `IAiTaskRouter` for task-based model selection.
-- [ ] Store provider/model/prompt/retrieval pipeline metadata on AI interactions and recommendations.
-- [ ] Add tenant-scoped evaluation cases and evaluation runs.
-- [ ] Add evaluation cases for cross-tenant leakage prevention.
-- [ ] Add structured logs for integration events, retrieval, recommendations, and actions.
-- [ ] Add metrics for sync lag, indexing failures, recommendation latency, approval rate, execution success rate, and incorrect feedback.
-- [ ] Add secret handling plan for integration credentials and AI provider keys.
-- [ ] Add SQL Server or PostgreSQL migration plan.
-- [ ] Add backup/restore and retention notes for tenant data.
-- [ ] Add future research notes for on-premise, data residency, local models, and per-tenant provider isolation.
+- [x] Add prompt template/version storage for major AI tasks.
+- [x] Add `IAiTaskRouter` for task-based model selection.
+- [x] Store provider/model/prompt/retrieval pipeline metadata on AI interactions and recommendations.
+- [x] Add tenant-scoped evaluation cases and evaluation runs.
+- [x] Add evaluation cases for cross-tenant leakage prevention.
+- [x] Add structured logs for integration events, retrieval, recommendations, and actions.
+- [x] Add metrics for sync lag, indexing failures, recommendation latency, approval rate, execution success rate, and incorrect feedback.
+- [x] Add secret handling plan for integration credentials and AI provider keys.
+- [x] Add SQL Server or PostgreSQL migration plan.
+- [x] Add backup/restore and retention notes for tenant data.
+- [x] Add future research notes for on-premise, data residency, local models, and per-tenant provider isolation.
+
+Enterprise-only notes are kept in `docs/technical/ENTERPRISE_OPERATIONS_NOTES.md` so they do not expand the immediate implementation scope.
 
 Acceptance criteria:
 
@@ -711,8 +713,8 @@ Use these slices for AI-assisted construction. Each slice should end with tests 
 ### Slice 10 - Hardening
 
 - [x] Add worker/job hardening.
-- [ ] Add prompt/model metadata.
-- [ ] Add evaluation and observability improvements.
+- [x] Add prompt/model metadata.
+- [x] Add evaluation and observability improvements.
 
 ## 20. Minimum Demo Target
 
@@ -771,3 +773,4 @@ Add entries here after each implementation batch.
 | 2026-06-05 | Codex | Phase 7 - AI Action Approval and Execution | Added action request lifecycle, manual and simple rule approval, recommendation-to-action creation API, approval/rejection/cancel/execute APIs, source-system validation before create/approval/execution, idempotent execution guard, and audit hooks | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 88/88; `dotnet ef database update` applied all migrations through `20260604180553_AddActionApprovals` on a fresh design-time SQLite database | AI now creates auditable action requests instead of directly mutating CRM data. Source-system execution uses `IExternalActionExecutor` and successful actions are not executed twice. Next batch: Phase 8 - Frontend Surfaces and Embedded Usage |
 | 2026-06-05 | Codex | Phase 8 - Frontend Surfaces and Embedded Usage | Added tenant-aware frontend API headers, tenant login context, API clients for platform/workflow surfaces, Admin tenant/application/integration pages, Reviewer knowledge source status page, workflow recommendation detail/citation view, action approval queue with approve/reject/execute controls, routes/nav, and focused page tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 88/88; `C:\nvm4w\nodejs\npm.cmd test` passed 3/3 from `src/frontend`; `C:\nvm4w\nodejs\npm.cmd run build` passed from `src/frontend` | Frontend verification used Node 22 directly because the shell default Node 14 cannot parse the current Vite/Vitest dependencies. Demo CRM event flow remains unchecked for a later batch. Next batch: Phase 9 - Worker and Job Hardening |
 | 2026-06-05 | Codex | Phase 9 - Worker and Job Hardening | Added processing job application/idempotency/scheduling/error metadata, typed job constants, isolated queue/runner service, tenant/application context setup for handlers, type-specific retry delays, dead-letter state, object/permission sync background handlers, action/index/document job handling, and Phase 9 job tests | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 94/94; `dotnet ef database update` applied all migrations through `20260604185139_HardenProcessingJobsPhase9` on the design-time SQLite database | DB-backed polling remains the temporary queue. Processing logic is now separated from `ProcessingJobWorker`, making a future Hangfire/queue/Worker move straightforward. Workflow recommendation has a job type and retry policy, but still needs a payload-backed async enqueue path before it should be enabled as a background handler. Next batch: Phase 10 - Product Hardening, Evaluation, and Enterprise Notes |
+| 2026-06-05 | Codex | Phase 10 - Product Hardening, Evaluation, and Enterprise Notes | Added AI prompt template storage, `IAiTaskRouter`, provider/model/prompt/retrieval metadata on interactions and recommendations, leakage-aware evaluation cases/runs, operational metrics endpoint, structured service logs, and enterprise operations notes | `dotnet test src/backend/InternalKnowledgeCopilot.sln` passed 97/97; `dotnet ef database update` applied all migrations through `20260605010352_ProductHardeningPhase10` on the design-time SQLite database | AI changes now leave prompt/model metadata for review, evaluation can include cross-tenant leakage checks, and operations can query sync/index/recommendation/action/feedback health from DB-backed metrics. Enterprise deployment items remain documented, not mixed into the MVP runtime scope |

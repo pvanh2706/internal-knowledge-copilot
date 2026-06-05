@@ -46,6 +46,27 @@ public sealed class EvaluationController(IEvaluationService evaluationService) :
         }
     }
 
+    [HttpPost("leakage-cases")]
+    public async Task<ActionResult<EvaluationCaseResponse>> CreateCrossTenantLeakageCase(
+        CreateCrossTenantLeakageCaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var reviewerId = GetCurrentUserId();
+        if (reviewerId is null)
+        {
+            return Unauthorized(new ApiError("invalid_token", "Token khong hop le."));
+        }
+
+        try
+        {
+            return Ok(await evaluationService.CreateCrossTenantLeakageCaseAsync(reviewerId.Value, request, cancellationToken));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiError(ex.Message, "Du lieu eval leakage case khong hop le."));
+        }
+    }
+
     [HttpGet("runs")]
     public async Task<ActionResult<IReadOnlyList<EvaluationRunResponse>>> GetRuns(CancellationToken cancellationToken)
     {

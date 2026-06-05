@@ -46,6 +46,32 @@ public sealed class AiRecommendationEntity
 
     public required string SourcesJson { get; set; }
 
+    public AiTaskType? AiTaskType { get; set; }
+
+    public string? AiProviderName { get; set; }
+
+    public string? AiModel { get; set; }
+
+    public string? EmbeddingProviderName { get; set; }
+
+    public string? EmbeddingModel { get; set; }
+
+    public Guid? PromptTemplateId { get; set; }
+
+    public AiPromptTemplateEntity? PromptTemplate { get; set; }
+
+    public int? PromptTemplateVersion { get; set; }
+
+    public string? PromptHash { get; set; }
+
+    public string? RetrievalPipeline { get; set; }
+
+    public string? RetrievalMetadataJson { get; set; }
+
+    public string? AiRequestMetadataJson { get; set; }
+
+    public int LatencyMs { get; set; }
+
     public AiRecommendationStatus Status { get; set; } = AiRecommendationStatus.Ready;
 
     public AiRecommendationFeedbackValue? FeedbackValue { get; set; }

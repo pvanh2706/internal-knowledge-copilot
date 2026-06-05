@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 
 namespace InternalKnowledgeCopilot.Api.Infrastructure.Database;
@@ -74,6 +75,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AuditLogEntity> AuditLogs => Set<AuditLogEntity>();
 
     public DbSet<AiProviderSettingEntity> AiProviderSettings => Set<AiProviderSettingEntity>();
+
+    public DbSet<AiPromptTemplateEntity> AiPromptTemplates => Set<AiPromptTemplateEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -408,6 +411,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(recommendation => recommendation.WonLostSignalsJson).HasColumnName("won_lost_signals_json").IsRequired();
             entity.Property(recommendation => recommendation.ReasoningLabel).HasColumnName("reasoning_label").HasMaxLength(300).IsRequired();
             entity.Property(recommendation => recommendation.SourcesJson).HasColumnName("sources_json").IsRequired();
+            entity.Property(recommendation => recommendation.AiTaskType).HasColumnName("ai_task_type").HasConversion<string>().HasMaxLength(100);
+            entity.Property(recommendation => recommendation.AiProviderName).HasColumnName("ai_provider_name").HasMaxLength(100);
+            entity.Property(recommendation => recommendation.AiModel).HasColumnName("ai_model").HasMaxLength(200);
+            entity.Property(recommendation => recommendation.EmbeddingProviderName).HasColumnName("embedding_provider_name").HasMaxLength(100);
+            entity.Property(recommendation => recommendation.EmbeddingModel).HasColumnName("embedding_model").HasMaxLength(200);
+            entity.Property(recommendation => recommendation.PromptTemplateId).HasColumnName("prompt_template_id");
+            entity.Property(recommendation => recommendation.PromptTemplateVersion).HasColumnName("prompt_template_version");
+            entity.Property(recommendation => recommendation.PromptHash).HasColumnName("prompt_hash").HasMaxLength(128);
+            entity.Property(recommendation => recommendation.RetrievalPipeline).HasColumnName("retrieval_pipeline").HasMaxLength(100);
+            entity.Property(recommendation => recommendation.RetrievalMetadataJson).HasColumnName("retrieval_metadata_json");
+            entity.Property(recommendation => recommendation.AiRequestMetadataJson).HasColumnName("ai_request_metadata_json");
+            entity.Property(recommendation => recommendation.LatencyMs).HasColumnName("latency_ms");
             entity.Property(recommendation => recommendation.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
             entity.Property(recommendation => recommendation.FeedbackValue).HasColumnName("feedback_value").HasConversion<string>().HasMaxLength(50);
             entity.Property(recommendation => recommendation.FeedbackNote).HasColumnName("feedback_note").HasMaxLength(2000);
@@ -419,6 +434,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasIndex(recommendation => recommendation.ApplicationId);
             entity.HasIndex(recommendation => recommendation.DomainEventId).IsUnique();
             entity.HasIndex(recommendation => recommendation.WorkflowDefinitionId);
+            entity.HasIndex(recommendation => recommendation.PromptTemplateId);
             entity.HasIndex(recommendation => new { recommendation.TenantId, recommendation.ApplicationId, recommendation.ObjectType, recommendation.ExternalObjectId, recommendation.CreatedAt });
             entity.HasIndex(recommendation => new { recommendation.TenantId, recommendation.Status, recommendation.CreatedAt });
             entity.HasOne(recommendation => recommendation.Tenant)
@@ -437,6 +453,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany()
                 .HasForeignKey(recommendation => recommendation.WorkflowDefinitionId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(recommendation => recommendation.PromptTemplate)
+                .WithMany()
+                .HasForeignKey(recommendation => recommendation.PromptTemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(recommendation => recommendation.FeedbackByUser)
                 .WithMany()
                 .HasForeignKey(recommendation => recommendation.FeedbackByUserId)
@@ -754,17 +774,33 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(interaction => interaction.MissingInformationJson).HasColumnName("missing_information_json");
             entity.Property(interaction => interaction.ConflictsJson).HasColumnName("conflicts_json");
             entity.Property(interaction => interaction.SuggestedFollowUpsJson).HasColumnName("suggested_follow_ups_json");
+            entity.Property(interaction => interaction.AiTaskType).HasColumnName("ai_task_type").HasConversion<string>().HasMaxLength(100);
+            entity.Property(interaction => interaction.AiProviderName).HasColumnName("ai_provider_name").HasMaxLength(100);
+            entity.Property(interaction => interaction.AiModel).HasColumnName("ai_model").HasMaxLength(200);
+            entity.Property(interaction => interaction.EmbeddingProviderName).HasColumnName("embedding_provider_name").HasMaxLength(100);
+            entity.Property(interaction => interaction.EmbeddingModel).HasColumnName("embedding_model").HasMaxLength(200);
+            entity.Property(interaction => interaction.PromptTemplateId).HasColumnName("prompt_template_id");
+            entity.Property(interaction => interaction.PromptTemplateVersion).HasColumnName("prompt_template_version");
+            entity.Property(interaction => interaction.PromptHash).HasColumnName("prompt_hash").HasMaxLength(128);
+            entity.Property(interaction => interaction.RetrievalPipeline).HasColumnName("retrieval_pipeline").HasMaxLength(100);
+            entity.Property(interaction => interaction.RetrievalMetadataJson).HasColumnName("retrieval_metadata_json");
+            entity.Property(interaction => interaction.AiRequestMetadataJson).HasColumnName("ai_request_metadata_json");
             entity.Property(interaction => interaction.LatencyMs).HasColumnName("latency_ms");
             entity.Property(interaction => interaction.UsedWikiCount).HasColumnName("used_wiki_count");
             entity.Property(interaction => interaction.UsedDocumentCount).HasColumnName("used_document_count");
             entity.Property(interaction => interaction.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(interaction => interaction.TenantId);
+            entity.HasIndex(interaction => interaction.PromptTemplateId);
             entity.HasIndex(interaction => new { interaction.TenantId, interaction.CreatedAt });
             entity.HasIndex(interaction => new { interaction.TenantId, interaction.UserId });
             entity.HasOne(interaction => interaction.User)
                 .WithMany()
                 .HasForeignKey(interaction => interaction.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(interaction => interaction.PromptTemplate)
+                .WithMany()
+                .HasForeignKey(interaction => interaction.PromptTemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AiInteractionSourceEntity>(entity =>
@@ -1023,14 +1059,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(evaluationCase => evaluationCase.Question).HasColumnName("question").HasMaxLength(4000).IsRequired();
             entity.Property(evaluationCase => evaluationCase.ExpectedAnswer).HasColumnName("expected_answer").IsRequired();
             entity.Property(evaluationCase => evaluationCase.ExpectedKeywordsJson).HasColumnName("expected_keywords_json");
+            entity.Property(evaluationCase => evaluationCase.ForbiddenKeywordsJson).HasColumnName("forbidden_keywords_json");
+            entity.Property(evaluationCase => evaluationCase.CaseKind).HasColumnName("case_kind").HasConversion<string>().HasMaxLength(50).HasDefaultValue(EvaluationCaseKind.Regression);
             entity.Property(evaluationCase => evaluationCase.ScopeType).HasColumnName("scope_type").HasConversion<string>().HasMaxLength(50);
             entity.Property(evaluationCase => evaluationCase.FolderId).HasColumnName("folder_id");
             entity.Property(evaluationCase => evaluationCase.DocumentId).HasColumnName("document_id");
+            entity.Property(evaluationCase => evaluationCase.ApplicationId).HasColumnName("application_id");
+            entity.Property(evaluationCase => evaluationCase.KnowledgeSourceId).HasColumnName("knowledge_source_id");
+            entity.Property(evaluationCase => evaluationCase.ExternalObjectType).HasColumnName("external_object_type").HasMaxLength(100);
+            entity.Property(evaluationCase => evaluationCase.ExternalObjectId).HasColumnName("external_object_id").HasMaxLength(300);
             entity.Property(evaluationCase => evaluationCase.CreatedByUserId).HasColumnName("created_by_user_id");
             entity.Property(evaluationCase => evaluationCase.IsActive).HasColumnName("is_active");
             entity.Property(evaluationCase => evaluationCase.CreatedAt).HasColumnName("created_at");
             entity.Property(evaluationCase => evaluationCase.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(evaluationCase => evaluationCase.TenantId);
+            entity.HasIndex(evaluationCase => evaluationCase.ApplicationId);
+            entity.HasIndex(evaluationCase => evaluationCase.KnowledgeSourceId);
+            entity.HasIndex(evaluationCase => new { evaluationCase.TenantId, evaluationCase.CaseKind, evaluationCase.IsActive });
             entity.HasIndex(evaluationCase => new { evaluationCase.TenantId, evaluationCase.IsActive, evaluationCase.CreatedAt });
             entity.HasIndex(evaluationCase => new { evaluationCase.TenantId, evaluationCase.SourceFeedbackId });
             entity.HasOne(evaluationCase => evaluationCase.SourceFeedback)
@@ -1044,6 +1089,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasOne(evaluationCase => evaluationCase.Document)
                 .WithMany()
                 .HasForeignKey(evaluationCase => evaluationCase.DocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(evaluationCase => evaluationCase.Application)
+                .WithMany()
+                .HasForeignKey(evaluationCase => evaluationCase.ApplicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(evaluationCase => evaluationCase.KnowledgeSource)
+                .WithMany()
+                .HasForeignKey(evaluationCase => evaluationCase.KnowledgeSourceId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(evaluationCase => evaluationCase.CreatedByUser)
                 .WithMany()
@@ -1060,6 +1113,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(run => run.TotalCases).HasColumnName("total_cases");
             entity.Property(run => run.PassedCases).HasColumnName("passed_cases");
             entity.Property(run => run.FailedCases).HasColumnName("failed_cases");
+            entity.Property(run => run.CrossTenantLeakageCases).HasColumnName("cross_tenant_leakage_cases");
+            entity.Property(run => run.CrossTenantLeakageFailures).HasColumnName("cross_tenant_leakage_failures");
+            entity.Property(run => run.AiMetadataJson).HasColumnName("ai_metadata_json");
             entity.Property(run => run.CreatedByUserId).HasColumnName("created_by_user_id");
             entity.Property(run => run.CreatedAt).HasColumnName("created_at");
             entity.Property(run => run.FinishedAt).HasColumnName("finished_at");
@@ -1241,6 +1297,37 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasOne(setting => setting.UpdatedByUser)
                 .WithMany()
                 .HasForeignKey(setting => setting.UpdatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AiPromptTemplateEntity>(entity =>
+        {
+            entity.ToTable("ai_prompt_templates");
+            entity.HasKey(template => template.Id);
+            entity.Property(template => template.TenantId).HasColumnName("tenant_id");
+            entity.Property(template => template.TaskType).HasColumnName("task_type").HasConversion<string>().HasMaxLength(100);
+            entity.Property(template => template.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+            entity.Property(template => template.Version).HasColumnName("version");
+            entity.Property(template => template.SystemPrompt).HasColumnName("system_prompt").IsRequired();
+            entity.Property(template => template.UserPromptTemplate).HasColumnName("user_prompt_template").IsRequired();
+            entity.Property(template => template.PromptHash).HasColumnName("prompt_hash").HasMaxLength(128).IsRequired();
+            entity.Property(template => template.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(template => template.IsDefault).HasColumnName("is_default");
+            entity.Property(template => template.MetadataJson).HasColumnName("metadata_json");
+            entity.Property(template => template.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(template => template.CreatedAt).HasColumnName("created_at");
+            entity.Property(template => template.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(template => template.TenantId);
+            entity.HasIndex(template => template.CreatedByUserId);
+            entity.HasIndex(template => new { template.TenantId, template.TaskType, template.Version }).IsUnique();
+            entity.HasIndex(template => new { template.TenantId, template.TaskType, template.Status, template.IsDefault });
+            entity.HasOne(template => template.Tenant)
+                .WithMany()
+                .HasForeignKey(template => template.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(template => template.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(template => template.CreatedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
     }

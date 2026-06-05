@@ -98,7 +98,8 @@ public sealed class ActionApprovalService(
     IExternalAccessResolver externalAccessResolver,
     IExternalActionExecutor externalActionExecutor,
     IActionApprovalRuleService approvalRuleService,
-    IAuditLogService auditLogService) : IActionApprovalService
+    IAuditLogService auditLogService,
+    ILogger<ActionApprovalService>? logger = null) : IActionApprovalService
 {
     private const int ActionTypeMaxLength = 100;
     private const int ObjectTypeMaxLength = 100;
@@ -521,6 +522,12 @@ public sealed class ActionApprovalService(
             action.Id,
             new { execution.ExternalExecutionId, execution.Error },
             cancellationToken);
+        logger?.LogInformation(
+            "AI action request {ActionRequestId} execution completed for tenant {TenantId} application {ApplicationId} with status {Status}.",
+            action.Id,
+            tenantId,
+            action.ApplicationId,
+            action.Status);
 
         if (!execution.Succeeded)
         {

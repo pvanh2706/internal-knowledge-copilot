@@ -31,7 +31,9 @@ public sealed class AiQuestionService(
     IKnowledgeVectorStore vectorStore,
     IKnowledgeKeywordIndexService keywordIndexService,
     IExternalAccessResolver externalAccessResolver,
-    IAnswerGenerationService answerGenerationService) : IAiQuestionService
+    IAnswerGenerationService answerGenerationService,
+    IAiTaskRouter? aiTaskRouter = null,
+    ILogger<AiQuestionService>? logger = null) : IAiQuestionService
 {
     private const int SearchLimit = 50;
     private const int KeywordSearchLimit = 20;
@@ -56,6 +58,9 @@ public sealed class AiQuestionService(
         await ValidateScopeAsync(userId, request, cancellationToken);
 
         var tenantId = tenantContext.GetRequiredTenantId();
+        var taskRoute = aiTaskRouter is null
+            ? null
+            : await aiTaskRouter.ResolveAsync(AiTaskType.QuestionAnswering, cancellationToken);
         var queryUnderstanding = UnderstandQuery(question);
         var visibleFolderIds = await folderPermissionService.GetVisibleFolderIdsAsync(userId, cancellationToken);
         var stopwatch = Stopwatch.StartNew();
@@ -104,6 +109,36 @@ public sealed class AiQuestionService(
             MissingInformationJson = JsonSerializer.Serialize(answerDraft.MissingInformation),
             ConflictsJson = JsonSerializer.Serialize(answerDraft.Conflicts),
             SuggestedFollowUpsJson = JsonSerializer.Serialize(answerDraft.SuggestedFollowUps),
+            AiTaskType = taskRoute?.TaskType,
+            AiProviderName = taskRoute?.ProviderName,
+            AiModel = taskRoute?.Model,
+            EmbeddingProviderName = taskRoute?.EmbeddingProviderName,
+            EmbeddingModel = taskRoute?.EmbeddingModel,
+            PromptTemplateId = taskRoute?.PromptTemplateId,
+            PromptTemplateVersion = taskRoute?.PromptTemplateVersion,
+            PromptHash = taskRoute?.PromptHash,
+            RetrievalPipeline = "hybrid-vector-keyword-rerank-v1",
+            RetrievalMetadataJson = JsonSerializer.Serialize(new
+            {
+                VectorCandidateCount = vectorResults.Count,
+                KeywordCandidateCount = keywordResults.Count,
+                AllowedCandidateCount = chunks.Count,
+                FinalContextCount = chunks.Count,
+                MaxContextChunks,
+                SearchLimit,
+                KeywordSearchLimit,
+                request.ApplicationId,
+                request.KnowledgeSourceId,
+                request.ExternalObjectType,
+                request.ExternalObjectId
+            }),
+            AiRequestMetadataJson = taskRoute is null ? null : JsonSerializer.Serialize(new
+            {
+                taskRoute.PromptName,
+                taskRoute.PromptMetadataJson,
+                taskRoute.PromptHash,
+                taskRoute.Model
+            }),
             LatencyMs = (int)Math.Min(int.MaxValue, stopwatch.ElapsedMilliseconds),
             UsedWikiCount = citedChunks.Count(chunk => chunk.SourceType == KnowledgeSourceType.Wiki),
             UsedDocumentCount = citedChunks.Count(chunk => chunk.SourceType == KnowledgeSourceType.Document),
@@ -134,6 +169,13 @@ public sealed class AiQuestionService(
             CreatedAt = now,
         }));
         await dbContext.SaveChangesAsync(cancellationToken);
+        logger?.LogInformation(
+            "AI question answered for tenant {TenantId} user {UserId} interaction {InteractionId} with {ContextCount} context chunks in {LatencyMs} ms.",
+            tenantId,
+            userId,
+            interactionId,
+            chunks.Count,
+            interaction.LatencyMs);
 
         return new AskQuestionResponse(
             interactionId,

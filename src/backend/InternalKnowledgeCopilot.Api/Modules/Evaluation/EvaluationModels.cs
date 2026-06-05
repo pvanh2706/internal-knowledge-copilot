@@ -8,6 +8,26 @@ public sealed record CreateEvaluationCaseFromFeedbackRequest(
     AiScopeType? ScopeType,
     Guid? FolderId,
     Guid? DocumentId,
+    bool IsActive = true,
+    EvaluationCaseKind CaseKind = EvaluationCaseKind.Regression,
+    IReadOnlyList<string>? ForbiddenKeywords = null,
+    Guid? ApplicationId = null,
+    Guid? KnowledgeSourceId = null,
+    string? ExternalObjectType = null,
+    string? ExternalObjectId = null);
+
+public sealed record CreateCrossTenantLeakageCaseRequest(
+    string Question,
+    IReadOnlyList<string> ForbiddenKeywords,
+    string? ExpectedAnswer = null,
+    IReadOnlyList<string>? ExpectedKeywords = null,
+    AiScopeType ScopeType = AiScopeType.All,
+    Guid? FolderId = null,
+    Guid? DocumentId = null,
+    Guid? ApplicationId = null,
+    Guid? KnowledgeSourceId = null,
+    string? ExternalObjectType = null,
+    string? ExternalObjectId = null,
     bool IsActive = true);
 
 public sealed record RunEvaluationRequest(Guid? CaseId, string? Name);
@@ -18,9 +38,15 @@ public sealed record EvaluationCaseResponse(
     string Question,
     string ExpectedAnswer,
     IReadOnlyList<string> ExpectedKeywords,
+    IReadOnlyList<string> ForbiddenKeywords,
+    EvaluationCaseKind CaseKind,
     AiScopeType ScopeType,
     Guid? FolderId,
     Guid? DocumentId,
+    Guid? ApplicationId,
+    Guid? KnowledgeSourceId,
+    string? ExternalObjectType,
+    string? ExternalObjectId,
     bool IsActive,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
@@ -31,6 +57,8 @@ public sealed record EvaluationRunResponse(
     int TotalCases,
     int PassedCases,
     int FailedCases,
+    int CrossTenantLeakageCases,
+    int CrossTenantLeakageFailures,
     double PassRate,
     DateTimeOffset CreatedAt,
     DateTimeOffset? FinishedAt,

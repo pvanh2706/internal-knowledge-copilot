@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
@@ -19,6 +20,8 @@ public interface IEvaluationService
 
     Task<EvaluationCaseResponse> CreateCaseFromFeedbackAsync(Guid feedbackId, Guid reviewerId, CreateEvaluationCaseFromFeedbackRequest request, CancellationToken cancellationToken = default);
 
+    Task<EvaluationCaseResponse> CreateCrossTenantLeakageCaseAsync(Guid reviewerId, CreateCrossTenantLeakageCaseRequest request, CancellationToken cancellationToken = default);
+
     Task<EvaluationRunResponse> RunAsync(Guid reviewerId, RunEvaluationRequest request, CancellationToken cancellationToken = default);
 }
 
@@ -26,7 +29,9 @@ public sealed class EvaluationService(
     AppDbContext dbContext,
     ITenantContext tenantContext,
     IAiQuestionService aiQuestionService,
-    IAuditLogService auditLogService) : IEvaluationService
+    IAuditLogService auditLogService,
+    IAiTaskRouter? aiTaskRouter = null,
+    ILogger<EvaluationService>? logger = null) : IEvaluationService
 {
     private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -100,6 +105,7 @@ public sealed class EvaluationService(
         ValidateScope(scopeType, folderId, documentId);
 
         var keywords = NormalizeKeywords(request.ExpectedKeywords, expectedAnswer);
+        var forbiddenKeywords = NormalizeOptionalKeywords(request.ForbiddenKeywords);
         var now = DateTimeOffset.UtcNow;
         var evaluationCase = new EvaluationCaseEntity
         {
@@ -109,9 +115,15 @@ public sealed class EvaluationService(
             Question = feedback.AiInteraction.Question,
             ExpectedAnswer = expectedAnswer,
             ExpectedKeywordsJson = JsonSerializer.Serialize(keywords),
+            ForbiddenKeywordsJson = JsonSerializer.Serialize(forbiddenKeywords),
+            CaseKind = request.CaseKind,
             ScopeType = scopeType,
             FolderId = folderId,
             DocumentId = documentId,
+            ApplicationId = request.ApplicationId,
+            KnowledgeSourceId = request.KnowledgeSourceId,
+            ExternalObjectType = CleanOptional(request.ExternalObjectType, 100),
+            ExternalObjectId = CleanOptional(request.ExternalObjectId, 300),
             CreatedByUserId = reviewerId,
             IsActive = request.IsActive,
             CreatedAt = now,
@@ -126,6 +138,65 @@ public sealed class EvaluationService(
             "EvaluationCase",
             evaluationCase.Id,
             new { feedbackId },
+            cancellationToken);
+
+        return ToCaseResponse(evaluationCase);
+    }
+
+    public async Task<EvaluationCaseResponse> CreateCrossTenantLeakageCaseAsync(
+        Guid reviewerId,
+        CreateCrossTenantLeakageCaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = tenantContext.GetRequiredTenantId();
+        var question = request.Question.Trim();
+        if (string.IsNullOrWhiteSpace(question))
+        {
+            throw new ArgumentException("question_required");
+        }
+
+        var forbiddenKeywords = NormalizeOptionalKeywords(request.ForbiddenKeywords);
+        if (forbiddenKeywords.Count == 0)
+        {
+            throw new ArgumentException("forbidden_keywords_required");
+        }
+
+        ValidateScope(request.ScopeType, request.FolderId, request.DocumentId);
+        var expectedAnswer = string.IsNullOrWhiteSpace(request.ExpectedAnswer)
+            ? "The answer must not include forbidden cross-tenant facts."
+            : request.ExpectedAnswer.Trim();
+        var keywords = NormalizeOptionalKeywords(request.ExpectedKeywords);
+        var now = DateTimeOffset.UtcNow;
+        var evaluationCase = new EvaluationCaseEntity
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Question = question,
+            ExpectedAnswer = expectedAnswer,
+            ExpectedKeywordsJson = JsonSerializer.Serialize(keywords),
+            ForbiddenKeywordsJson = JsonSerializer.Serialize(forbiddenKeywords),
+            CaseKind = EvaluationCaseKind.CrossTenantLeakage,
+            ScopeType = request.ScopeType,
+            FolderId = request.ScopeType == AiScopeType.Folder ? request.FolderId : null,
+            DocumentId = request.ScopeType == AiScopeType.Document ? request.DocumentId : null,
+            ApplicationId = request.ApplicationId,
+            KnowledgeSourceId = request.KnowledgeSourceId,
+            ExternalObjectType = CleanOptional(request.ExternalObjectType, 100),
+            ExternalObjectId = CleanOptional(request.ExternalObjectId, 300),
+            CreatedByUserId = reviewerId,
+            IsActive = request.IsActive,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        dbContext.EvaluationCases.Add(evaluationCase);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.RecordAsync(
+            reviewerId,
+            "CrossTenantLeakageEvaluationCaseCreated",
+            "EvaluationCase",
+            evaluationCase.Id,
+            new { ForbiddenKeywordCount = forbiddenKeywords.Count, request.ApplicationId, request.KnowledgeSourceId },
             cancellationToken);
 
         return ToCaseResponse(evaluationCase);
@@ -158,6 +229,9 @@ public sealed class EvaluationService(
         }
 
         var now = DateTimeOffset.UtcNow;
+        var taskRoute = aiTaskRouter is null
+            ? null
+            : await aiTaskRouter.ResolveAsync(AiTaskType.Evaluation, cancellationToken);
         var runId = Guid.NewGuid();
         var resultEntities = new List<EvaluationRunResultEntity>();
 
@@ -168,6 +242,10 @@ public sealed class EvaluationService(
         }
 
         var passedCases = resultEntities.Count(result => result.Passed);
+        var leakageCases = cases.Count(item => item.CaseKind == EvaluationCaseKind.CrossTenantLeakage);
+        var leakageFailures = resultEntities.Count(result =>
+            !result.Passed &&
+            cases.Any(item => item.Id == result.EvaluationCaseId && item.CaseKind == EvaluationCaseKind.CrossTenantLeakage));
         var run = new EvaluationRunEntity
         {
             Id = runId,
@@ -176,6 +254,17 @@ public sealed class EvaluationService(
             TotalCases = resultEntities.Count,
             PassedCases = passedCases,
             FailedCases = resultEntities.Count - passedCases,
+            CrossTenantLeakageCases = leakageCases,
+            CrossTenantLeakageFailures = leakageFailures,
+            AiMetadataJson = taskRoute is null ? null : JsonSerializer.Serialize(new
+            {
+                taskRoute.TaskType,
+                taskRoute.ProviderName,
+                taskRoute.Model,
+                taskRoute.PromptTemplateId,
+                taskRoute.PromptTemplateVersion,
+                taskRoute.PromptHash
+            }),
             CreatedByUserId = reviewerId,
             CreatedAt = now,
             FinishedAt = DateTimeOffset.UtcNow,
@@ -189,8 +278,16 @@ public sealed class EvaluationService(
             "EvaluationRunCompleted",
             "EvaluationRun",
             run.Id,
-            new { run.TotalCases, run.PassedCases, run.FailedCases },
+            new { run.TotalCases, run.PassedCases, run.FailedCases, run.CrossTenantLeakageCases, run.CrossTenantLeakageFailures },
             cancellationToken);
+        logger?.LogInformation(
+            "Evaluation run {EvaluationRunId} completed for tenant {TenantId}: {PassedCases}/{TotalCases} passed, leakage failures {LeakageFailures}/{LeakageCases}.",
+            run.Id,
+            tenantId,
+            run.PassedCases,
+            run.TotalCases,
+            run.CrossTenantLeakageFailures,
+            run.CrossTenantLeakageCases);
 
         var savedRun = await dbContext.EvaluationRuns
             .AsNoTracking()
@@ -218,10 +315,15 @@ public sealed class EvaluationService(
                     evaluationCase.Question,
                     evaluationCase.ScopeType,
                     evaluationCase.FolderId,
-                    evaluationCase.DocumentId),
+                    evaluationCase.DocumentId,
+                    evaluationCase.ApplicationId,
+                    evaluationCase.KnowledgeSourceId,
+                    evaluationCase.ExternalObjectType,
+                    evaluationCase.ExternalObjectId),
                 cancellationToken);
             var expectedKeywords = DeserializeKeywords(evaluationCase.ExpectedKeywordsJson);
-            var assessment = Assess(response, expectedKeywords);
+            var forbiddenKeywords = DeserializeKeywords(evaluationCase.ForbiddenKeywordsJson);
+            var assessment = Assess(response, expectedKeywords, forbiddenKeywords, evaluationCase.CaseKind);
 
             return new EvaluationRunResultEntity
             {
@@ -254,9 +356,28 @@ public sealed class EvaluationService(
         }
     }
 
-    private static EvaluationAssessment Assess(AskQuestionResponse response, IReadOnlyList<string> expectedKeywords)
+    private static EvaluationAssessment Assess(
+        AskQuestionResponse response,
+        IReadOnlyList<string> expectedKeywords,
+        IReadOnlyList<string> forbiddenKeywords,
+        EvaluationCaseKind caseKind)
     {
         var normalizedAnswer = NormalizeForSearch(response.Answer);
+        var forbiddenMatches = forbiddenKeywords
+            .Select(keyword => new KeywordMatch(keyword, NormalizeForSearch(keyword)))
+            .Where(match => !string.IsNullOrWhiteSpace(match.Normalized) && normalizedAnswer.Contains(match.Normalized, StringComparison.Ordinal))
+            .Select(match => match.Original)
+            .ToList();
+        if (forbiddenMatches.Count > 0)
+        {
+            return new EvaluationAssessment(false, 0, $"forbidden_keywords_present: {string.Join(", ", forbiddenMatches)}");
+        }
+
+        if (caseKind == EvaluationCaseKind.CrossTenantLeakage && expectedKeywords.Count == 0)
+        {
+            return new EvaluationAssessment(true, 1, null);
+        }
+
         var normalizedKeywords = expectedKeywords
             .Select(keyword => new KeywordMatch(keyword, NormalizeForSearch(keyword)))
             .Where(match => !string.IsNullOrWhiteSpace(match.Normalized))
@@ -308,6 +429,27 @@ public sealed class EvaluationService(
             .ToList();
 
         return keywords.Count > 0 ? keywords : ExtractSignificantKeywords(expectedAnswer);
+    }
+
+    private static IReadOnlyList<string> NormalizeOptionalKeywords(IReadOnlyList<string>? keywords)
+    {
+        return (keywords ?? [])
+            .Select(keyword => keyword.Trim())
+            .Where(keyword => !string.IsNullOrWhiteSpace(keyword))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(50)
+            .ToList();
+    }
+
+    private static string? CleanOptional(string? value, int maxLength)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return null;
+        }
+
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 
     private static IReadOnlyList<string> ExtractSignificantKeywords(string text)
@@ -369,9 +511,15 @@ public sealed class EvaluationService(
             evaluationCase.Question,
             evaluationCase.ExpectedAnswer,
             DeserializeKeywords(evaluationCase.ExpectedKeywordsJson),
+            DeserializeKeywords(evaluationCase.ForbiddenKeywordsJson),
+            evaluationCase.CaseKind,
             evaluationCase.ScopeType,
             evaluationCase.FolderId,
             evaluationCase.DocumentId,
+            evaluationCase.ApplicationId,
+            evaluationCase.KnowledgeSourceId,
+            evaluationCase.ExternalObjectType,
+            evaluationCase.ExternalObjectId,
             evaluationCase.IsActive,
             evaluationCase.CreatedAt,
             evaluationCase.UpdatedAt);
@@ -400,6 +548,8 @@ public sealed class EvaluationService(
             run.TotalCases,
             run.PassedCases,
             run.FailedCases,
+            run.CrossTenantLeakageCases,
+            run.CrossTenantLeakageFailures,
             passRate,
             run.CreatedAt,
             run.FinishedAt,

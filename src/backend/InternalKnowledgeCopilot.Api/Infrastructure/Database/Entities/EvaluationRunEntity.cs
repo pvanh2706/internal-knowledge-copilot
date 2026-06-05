@@ -14,6 +14,12 @@ public sealed class EvaluationRunEntity
 
     public int FailedCases { get; set; }
 
+    public int CrossTenantLeakageCases { get; set; }
+
+    public int CrossTenantLeakageFailures { get; set; }
+
+    public string? AiMetadataJson { get; set; }
+
     public Guid CreatedByUserId { get; set; }
 
     public UserEntity? CreatedByUser { get; set; }
