@@ -1,0 +1,1023 @@
+{
+  "info": {
+    "_postman_id": "a6d16d59-4d6d-4b94-a09f-9a40bdbd67e1",
+    "name": "Internal Knowledge Copilot - Third Party Integration",
+    "description": "Postman collection dành cho bên thứ ba kiểm thử tích hợp với Internal Knowledge Copilot. Collection này bao gồm luồng JWT cho user/admin/reviewer, luồng Integration API Key cho hệ thống bên thứ ba, upload/approve tài liệu, sync event/object/permission, hỏi AI và workflow recommendation. JSON không có comment kiểu // để Postman import được; ghi chú nằm trong description của collection, folder và request.\n\nCách dùng nhanh:\n1. Import collection này vào Postman.\n2. Mở tab Variables của collection và cập nhật baseUrl, tenantCode, applicationId, folderId, credentials và integration secret.\n3. Chạy lần lượt: Health Check -> Admin Login -> Create Integration Connection -> Reviewer/User Login -> Upload Document -> Approve Document -> các request sync/AI/workflow.\n4. Các request có test script sẽ tự lưu token và id vào collection variables nếu response hợp lệ.\n\nLưu ý bảo mật: không commit secret thật, JWT thật hoặc file dữ liệu nhạy cảm vào repo. Với production, chỉ gọi qua HTTPS.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 Read Me And Health",
+      "description": "Nhóm request kiểm tra hệ thống còn sống trước khi test tích hợp. Nếu health fail, không nên chạy tiếp các request nghiệp vụ.",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text",
+                "description": "Tenant đang test. Với một số health check có thể không bắt buộc, nhưng giữ header này để thống nhất."
+              }
+            ],
+            "url": "{{baseUrl}}/health",
+            "description": "Kiểm tra API, database, storage path và Chroma configuration. Response Healthy không có nghĩa mọi luồng integration đã cấu hình đúng, nhưng là bước đầu để biết API đang chạy."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "01 Auth - JWT",
+      "description": "Các request lấy JWT cho Admin, Reviewer và User. JWT dùng cho API thao tác người dùng như tạo integration connection, upload/approve document, hỏi AI và workflow recommendation.",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin login returns access token', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+                  "  pm.collectionVariables.set('adminJwt', json.accessToken);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text",
+                "description": "Tenant của tài khoản admin."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Đăng nhập Admin. Dùng để tạo integration connection và các cấu hình quản trị. Script tự lưu `adminJwt`."
+          },
+          "response": []
+        },
+        {
+          "name": "Reviewer Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reviewer login returns access token', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+                  "  pm.collectionVariables.set('reviewerJwt', json.accessToken);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{reviewerEmail}}\",\n  \"password\": \"{{reviewerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Đăng nhập Reviewer. Dùng để approve document, giải thích retrieval hoặc xử lý workflow nếu reviewer có quyền. Script tự lưu `reviewerJwt`."
+          },
+          "response": []
+        },
+        {
+          "name": "User Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('User login returns access token', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+                  "  pm.collectionVariables.set('userJwt', json.accessToken);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Đăng nhập User. Dùng để hỏi AI, gửi feedback và test phân quyền như người dùng cuối. Script tự lưu `userJwt`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Integration Admin - JWT Admin",
+      "description": "Nhóm request cấu hình connection cho bên thứ ba. Các request này dùng JWT Admin, không dùng Integration API Key.",
+      "item": [
+        {
+          "name": "Create Integration Connection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Connection created or returned successfully', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 409]);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('integrationConnectionId', json.id);",
+                  "  pm.collectionVariables.set('applicationCode', json.applicationCode || pm.collectionVariables.get('applicationCode'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminJwt}}",
+                "type": "text",
+                "description": "JWT Admin lấy từ request Admin Login."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"name\": \"{{applicationCode}} connector for Postman test\",\n  \"baseUrl\": \"{{sourceSystemBaseUrl}}\",\n  \"authMode\": \"InternalApiKey\",\n  \"secretReference\": \"{{integrationKeyId}}\",\n  \"secretValue\": \"{{integrationKey}}\",\n  \"status\": \"Active\",\n  \"metadataJson\": \"{\\\"source\\\":\\\"postman\\\",\\\"purpose\\\":\\\"third_party_integration_test\\\"}\"\n}"
+            },
+            "url": "{{baseUrl}}/integrations/connections",
+            "description": "Tạo integration connection cho application đã có. Sau khi tạo, bên thứ ba gọi inbound API bằng `X-Integration-Key-Id={{integrationKeyId}}` và `X-Integration-Key={{integrationKey}}`. Nếu response 409, connection có thể đã tồn tại; kiểm tra lại applicationId/secretReference."
+          },
+          "response": []
+        },
+        {
+          "name": "List Integration Connections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/connections?applicationId={{applicationId}}",
+            "description": "Liệt kê connection theo applicationId. Dùng để kiểm tra connection đang Active và secretConfigured=true."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Document Upload And Indexing - JWT",
+      "description": "Luồng upload tài liệu đang chạy ổn định nhất để đưa nội dung vào knowledge. Bên thứ ba có thể dùng luồng này nếu muốn operator/reviewer upload file vào Copilot.",
+      "item": [
+        {
+          "name": "Upload Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Document uploaded', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.id).to.be.a('string');",
+                  "  pm.collectionVariables.set('documentId', json.id);",
+                  "  if (json.versions && json.versions.length > 0) {",
+                  "    pm.collectionVariables.set('documentVersionId', json.versions[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text",
+                "description": "User phải có quyền folderId. Không tự set Content-Type khi body là form-data; Postman tự tạo multipart boundary."
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "folderId",
+                  "value": "{{folderId}}",
+                  "type": "text",
+                  "description": "Folder mà user có quyền upload/xem."
+                },
+                {
+                  "key": "title",
+                  "value": "Quy trình thanh toán nhà cung cấp - Postman {{$timestamp}}",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Tài liệu mẫu upload từ Postman để test integration.",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{documentFilePath}}",
+                  "description": "Chọn file .md/.txt/.docx/.pdf trong Postman sau khi import. Nếu biến documentFilePath không hoạt động với máy bạn, hãy chọn file thủ công."
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/documents",
+            "description": "Upload một tài liệu vào Copilot. Response trả `id` của document và `versions[0].id`; script lưu vào `documentId` và `documentVersionId`."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Document Version",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{reviewerJwt}}",
+                "type": "text",
+                "description": "Reviewer hoặc Admin JWT."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"versionId\": \"{{documentVersionId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/documents/{{documentId}}/approve",
+            "description": "Approve version để hệ thống tạo background job index tài liệu. Response thường là 204 No Content. Sau đó chờ worker xử lý cho đến khi version chuyển Indexed."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Document Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Document detail returned', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('documentId', json.id);",
+                  "  if (json.currentVersionId) { pm.collectionVariables.set('documentVersionId', json.currentVersionId); }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/documents/{{documentId}}",
+            "description": "Kiểm tra trạng thái document/version. Khi version có status `Indexed`, tài liệu có thể dùng cho AI Q&A."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 Inbound Integration API - Integration Key",
+      "description": "Các request bên thứ ba gọi bằng integration key, không dùng JWT. Header bắt buộc: X-Tenant-Code, X-Integration-Key-Id, X-Integration-Key và Content-Type application/json.",
+      "item": [
+        {
+          "name": "Domain Event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Domain event accepted', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('lastInboundEventId', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Integration-Key-Id",
+                "value": "{{integrationKeyId}}",
+                "type": "text",
+                "description": "secretReference của integration connection."
+              },
+              {
+                "key": "X-Integration-Key",
+                "value": "{{integrationKey}}",
+                "type": "text",
+                "description": "Secret thật. Chỉ gửi qua HTTPS ở production."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"domain-event:{{externalObjectId}}:{{$timestamp}}\",\n  \"eventType\": \"procedure.updated\",\n  \"externalEventId\": \"evt-{{$guid}}\",\n  \"objectType\": \"procedure\",\n  \"externalObjectId\": \"{{externalObjectId}}\",\n  \"occurredAt\": \"{{$isoTimestamp}}\",\n  \"payloadJson\": \"{\\\"changeType\\\":\\\"updated\\\",\\\"source\\\":\\\"postman\\\"}\",\n  \"metadataJson\": \"{\\\"note\\\":\\\"Generic domain event from Postman\\\"}\"\n}"
+            },
+            "url": "{{baseUrl}}/integrations/{{applicationCode}}/events",
+            "description": "Gửi domain event generic từ hệ thống gốc. Dùng khi chưa có endpoint chuyên biệt hoặc muốn log một sự kiện nghiệp vụ. `idempotencyKey` giúp chống xử lý trùng."
+          },
+          "response": []
+        },
+        {
+          "name": "Document Changed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Integration-Key-Id",
+                "value": "{{integrationKeyId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Integration-Key",
+                "value": "{{integrationKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"document-changed:{{externalDocumentId}}:v1\",\n  \"externalDocumentId\": \"{{externalDocumentId}}\",\n  \"changeType\": \"updated\",\n  \"knowledgeSourceExternalId\": \"{{knowledgeSourceExternalId}}\",\n  \"title\": \"Quy trình thanh toán nhà cung cấp\",\n  \"url\": \"{{sourceSystemBaseUrl}}/procedures/{{externalDocumentId}}\",\n  \"contentHash\": \"sha256:postman-sample-content\",\n  \"changedAt\": \"{{$isoTimestamp}}\",\n  \"metadataJson\": \"{\\\"department\\\":\\\"Finance\\\",\\\"version\\\":\\\"1\\\"}\"\n}"
+            },
+            "url": "{{baseUrl}}/integrations/{{applicationCode}}/documents/changed",
+            "description": "Báo Copilot biết tài liệu bên hệ thống gốc đã thay đổi. Hiện endpoint nhận và lưu event; nếu muốn index content ngay, dùng luồng Upload Document hoặc bổ sung worker kéo content từ hệ thống gốc."
+          },
+          "response": []
+        },
+        {
+          "name": "Object Sync",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Object sync accepted', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('lastObjectSyncEventId', json.id);",
+                  "  pm.collectionVariables.set('objectSyncIdempotencyKey', json.idempotencyKey);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Integration-Key-Id",
+                "value": "{{integrationKeyId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Integration-Key",
+                "value": "{{integrationKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"object-sync:{{externalObjectType}}:{{externalObjectId}}:v1\",\n  \"objectType\": \"{{externalObjectType}}\",\n  \"externalObjectId\": \"{{externalObjectId}}\",\n  \"title\": \"Quy trình thanh toán nhà cung cấp\",\n  \"knowledgeSourceExternalId\": \"{{knowledgeSourceExternalId}}\",\n  \"url\": \"{{sourceSystemBaseUrl}}/objects/{{externalObjectType}}/{{externalObjectId}}\",\n  \"contentHash\": \"sha256:postman-object-content\",\n  \"aclHash\": \"sha256:postman-object-acl\",\n  \"syncedAt\": \"{{$isoTimestamp}}\",\n  \"metadataJson\": \"{\\\"owner\\\":\\\"finance\\\",\\\"status\\\":\\\"active\\\"}\"\n}"
+            },
+            "url": "{{baseUrl}}/integrations/{{applicationCode}}/objects/sync",
+            "description": "Sync metadata của external object. Worker sẽ tạo/cập nhật external object record. Script lưu idempotency key để request duplicate bên dưới có thể test retry."
+          },
+          "response": []
+        },
+        {
+          "name": "Object Sync - Duplicate Retry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Duplicate object sync returns isDuplicate true', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.isDuplicate).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Integration-Key-Id",
+                "value": "{{integrationKeyId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Integration-Key",
+                "value": "{{integrationKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{objectSyncIdempotencyKey}}\",\n  \"objectType\": \"{{externalObjectType}}\",\n  \"externalObjectId\": \"{{externalObjectId}}\",\n  \"title\": \"Quy trình thanh toán nhà cung cấp\",\n  \"knowledgeSourceExternalId\": \"{{knowledgeSourceExternalId}}\",\n  \"url\": \"{{sourceSystemBaseUrl}}/objects/{{externalObjectType}}/{{externalObjectId}}\",\n  \"contentHash\": \"sha256:postman-object-content\",\n  \"aclHash\": \"sha256:postman-object-acl\",\n  \"syncedAt\": \"{{$isoTimestamp}}\",\n  \"metadataJson\": \"{\\\"owner\\\":\\\"finance\\\",\\\"status\\\":\\\"active\\\"}\"\n}"
+            },
+            "url": "{{baseUrl}}/integrations/{{applicationCode}}/objects/sync",
+            "description": "Gửi lại cùng idempotencyKey để kiểm tra retry/idempotency. Response kỳ vọng có `isDuplicate=true`."
+          },
+          "response": []
+        },
+        {
+          "name": "Permission Sync",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Integration-Key-Id",
+                "value": "{{integrationKeyId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Integration-Key",
+                "value": "{{integrationKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"permission-sync:{{externalObjectType}}:{{externalObjectId}}:v1\",\n  \"objectType\": \"{{externalObjectType}}\",\n  \"externalObjectId\": \"{{externalObjectId}}\",\n  \"aclSnapshots\": [\n    {\n      \"subjectType\": \"user\",\n      \"subjectId\": \"{{externalSubjectId}}\",\n      \"subjectDisplayName\": \"Postman Test User\",\n      \"permission\": \"View\",\n      \"validFrom\": \"2026-06-01T00:00:00Z\",\n      \"validTo\": null,\n      \"metadataJson\": \"{\\\"source\\\":\\\"postman_acl\\\"}\"\n    },\n    {\n      \"subjectType\": \"group\",\n      \"subjectId\": \"finance-reviewers\",\n      \"subjectDisplayName\": \"Finance Reviewers\",\n      \"permission\": \"Owner\",\n      \"validFrom\": \"2026-06-01T00:00:00Z\",\n      \"validTo\": null,\n      \"metadataJson\": \"{\\\"source\\\":\\\"postman_acl\\\"}\"\n    }\n  ],\n  \"syncedAt\": \"{{$isoTimestamp}}\",\n  \"metadataJson\": \"{\\\"aclVersion\\\":\\\"1\\\"}\"\n}"
+            },
+            "url": "{{baseUrl}}/integrations/{{applicationCode}}/permissions/sync",
+            "description": "Sync ACL snapshot cho external object. Mỗi cặp subjectType/subjectId/permission chỉ nên xuất hiện một lần trong request. Khi sync, snapshot hiện có của object được thay bằng danh sách mới."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 AI Q&A - JWT User",
+      "description": "Các request hỏi AI bằng JWT của user. User chỉ nhận câu trả lời dựa trên nguồn mà user có quyền truy cập.",
+      "item": [
+        {
+          "name": "Ask AI - All Allowed Knowledge",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('AI answer returned', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('interactionId', json.interactionId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Quy trình thanh toán nhà cung cấp gồm các bước nào?\",\n  \"scopeType\": \"All\",\n  \"folderId\": null,\n  \"documentId\": null\n}"
+            },
+            "url": "{{baseUrl}}/ai/ask",
+            "description": "Hỏi trên toàn bộ nguồn mà user có quyền. Response có `citations`; luôn kiểm tra citations khi đánh giá kết quả."
+          },
+          "response": []
+        },
+        {
+          "name": "Ask AI - Specific Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Khi hồ sơ thiếu hóa đơn thì xử lý thế nào?\",\n  \"scopeType\": \"Document\",\n  \"folderId\": null,\n  \"documentId\": \"{{documentId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/ai/ask",
+            "description": "Hỏi trong một document cụ thể. Document phải thuộc quyền user và version hiện hành phải Indexed."
+          },
+          "response": []
+        },
+        {
+          "name": "Ask AI - External Object Scope",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Dựa trên quy trình liên quan, bước tiếp theo cho hồ sơ này là gì?\",\n  \"scopeType\": \"All\",\n  \"folderId\": null,\n  \"documentId\": null,\n  \"applicationId\": \"{{applicationId}}\",\n  \"knowledgeSourceId\": null,\n  \"externalObjectType\": \"{{externalObjectType}}\",\n  \"externalObjectId\": \"{{externalObjectId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/ai/ask",
+            "description": "Hỏi AI với scope application/external object. Cần object/ACL đã sync và user phải có quyền qua ACL snapshot/revalidation."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit AI Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"Incorrect\",\n  \"note\": \"Postman test: citation cần được reviewer kiểm tra lại.\"\n}"
+            },
+            "url": "{{baseUrl}}/ai/interactions/{{interactionId}}/feedback",
+            "description": "Gửi feedback cho lượt hỏi AI gần nhất. `value` có thể là `Correct` hoặc `Incorrect`. Incorrect sẽ tạo queue cho reviewer."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 Workflow Copilot - JWT User",
+      "description": "Luồng workflow recommendation hiện chuyên cho CRM deal stage changed. Cần applicationId, externalObjectId và quyền external object hợp lệ.",
+      "item": [
+        {
+          "name": "Deal Stage Changed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Workflow recommendation returned', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('recommendationId', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"externalObjectId\": \"{{dealExternalObjectId}}\",\n  \"fromStage\": \"Qualification\",\n  \"toStage\": \"Proposal\",\n  \"idempotencyKey\": \"deal-stage:{{dealExternalObjectId}}:Proposal:{{$timestamp}}\",\n  \"occurredAt\": \"{{$isoTimestamp}}\",\n  \"dealContextJson\": \"{\\\"customer\\\":\\\"ABC\\\",\\\"amount\\\":120000000,\\\"stage\\\":\\\"Proposal\\\"}\",\n  \"notesJson\": \"[{\\\"text\\\":\\\"Customer requested payment terms.\\\"}]\",\n  \"tasksJson\": \"[]\",\n  \"emailsJson\": \"[]\",\n  \"callsJson\": \"[]\",\n  \"recentActivitiesJson\": \"[{\\\"type\\\":\\\"note\\\",\\\"summary\\\":\\\"Need legal review.\\\"}]\"\n}"
+            },
+            "url": "{{baseUrl}}/workflow-copilot/deal-stage-changed",
+            "description": "Tạo recommendation khi deal đổi stage. Response gồm recommendedNextSteps, risks, suggestedTasks, wonLostSignals và sources. Đây là reasoning-based recommendation, không phải predictive ML."
+          },
+          "response": []
+        },
+        {
+          "name": "List Workflow Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/workflow-copilot/recommendations?applicationId={{applicationId}}&objectType=deal&externalObjectId={{dealExternalObjectId}}",
+            "description": "Liệt kê recommendation theo application/object. Dùng để kiểm tra recommendation đã được lưu và audit được."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Workflow Recommendation Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Code",
+                "value": "{{tenantCode}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"Helpful\",\n  \"note\": \"Postman test: recommendation hợp lý cho stage Proposal.\"\n}"
+            },
+            "url": "{{baseUrl}}/workflow-copilot/recommendations/{{recommendationId}}/feedback",
+            "description": "Gửi feedback cho recommendation. Giá trị hiện hành: `Helpful`, `NotHelpful`, `NeedsReview`."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string",
+      "description": "Base URL của Copilot API, giữ hậu tố /api."
+    },
+    {
+      "key": "tenantCode",
+      "value": "acme",
+      "type": "string",
+      "description": "Tenant code dùng khi test. Với local seed có thể là default tùy cấu hình."
+    },
+    {
+      "key": "applicationCode",
+      "value": "crm",
+      "type": "string"
+    },
+    {
+      "key": "applicationId",
+      "value": "11111111-1111-1111-1111-111111111111",
+      "type": "string",
+      "description": "GUID application đã được tạo trước trong Admin UI/API."
+    },
+    {
+      "key": "sourceSystemBaseUrl",
+      "value": "https://crm.example.com",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@example.local",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "ChangeMe123!",
+      "type": "string"
+    },
+    {
+      "key": "reviewerEmail",
+      "value": "reviewer@example.local",
+      "type": "string"
+    },
+    {
+      "key": "reviewerPassword",
+      "value": "ChangeMe123!",
+      "type": "string"
+    },
+    {
+      "key": "userEmail",
+      "value": "user@example.local",
+      "type": "string"
+    },
+    {
+      "key": "userPassword",
+      "value": "ChangeMe123!",
+      "type": "string"
+    },
+    {
+      "key": "adminJwt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reviewerJwt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userJwt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "integrationKeyId",
+      "value": "crm-postman-key",
+      "type": "string",
+      "description": "secretReference lưu trong integration connection."
+    },
+    {
+      "key": "integrationKey",
+      "value": "replace-with-a-long-random-secret-for-postman",
+      "type": "string",
+      "description": "Secret test. Không dùng secret này cho production."
+    },
+    {
+      "key": "integrationConnectionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "folderId",
+      "value": "22222222-2222-2222-2222-222222222222",
+      "type": "string",
+      "description": "Folder mà user có quyền upload/xem."
+    },
+    {
+      "key": "documentFilePath",
+      "value": "",
+      "type": "string",
+      "description": "Đường dẫn file local để Postman upload. Có thể phải chọn file thủ công sau khi import."
+    },
+    {
+      "key": "documentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "documentVersionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "externalDocumentId",
+      "value": "proc-pay-001",
+      "type": "string"
+    },
+    {
+      "key": "knowledgeSourceExternalId",
+      "value": "crm-procedure-library",
+      "type": "string"
+    },
+    {
+      "key": "externalObjectType",
+      "value": "procedure",
+      "type": "string"
+    },
+    {
+      "key": "externalObjectId",
+      "value": "proc-pay-001",
+      "type": "string"
+    },
+    {
+      "key": "externalSubjectId",
+      "value": "user-123",
+      "type": "string",
+      "description": "Subject/user id từ hệ thống gốc để sync ACL."
+    },
+    {
+      "key": "objectSyncIdempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "interactionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dealExternalObjectId",
+      "value": "D-10001",
+      "type": "string"
+    },
+    {
+      "key": "recommendationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lastInboundEventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lastObjectSyncEventId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

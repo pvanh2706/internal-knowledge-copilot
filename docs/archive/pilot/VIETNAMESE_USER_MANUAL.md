@@ -1,5 +1,7 @@
 # Hướng Dẫn Sử Dụng Internal Knowledge Copilot
 
+> Archived: nội dung đã được gộp vào `docs/pilot/HƯỚNG_DẪN_PILOT_VÀ_SỬ_DỤNG.md`. Không dùng file này làm hướng dẫn hiện hành.
+
 Tài liệu này hướng dẫn thao tác cơ bản cho người dùng, reviewer và admin trong giai đoạn pilot: đăng nhập, upload file, duyệt tài liệu, hỏi AI, xử lý feedback và tạo wiki nội bộ.
 
 ## 1. Vai Trò Trong Hệ Thống

@@ -1,5 +1,7 @@
 # Tong hop lam ro dinh huong tich hop he sinh thai phan mem
 
+> Archived: huong dan hien hanh nam o `docs/technical/HUONG_DAN_TICH_HOP_BEN_THU_3.md`.
+
 Ngay lap: 2026-06-03
 
 Tai lieu nay tong hop cac cau tra loi lam ro ve dinh huong phat trien Internal Knowledge Copilot thanh nen tang AI co the tich hop voi he sinh thai phan mem cua cong ty nhu CRM, phan mem ban hang va cac san pham khac.

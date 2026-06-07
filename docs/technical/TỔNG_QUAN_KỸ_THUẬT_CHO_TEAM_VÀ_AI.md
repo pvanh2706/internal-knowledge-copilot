@@ -484,7 +484,7 @@ Tài liệu chi tiết:
 
 ```text
 docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md
-docs/technical/GIẢ_LẬP_TEXT_THÀNH_TRI_THỨC.md
+docs/archive/technical/GIẢ_LẬP_TEXT_THÀNH_TRI_THỨC.md
 ```
 
 ## 12. AI provider boundary
@@ -571,7 +571,7 @@ Nếu là AI agent hoặc developer mới, đọc theo thứ tự:
 ```text
 docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md
 docs/technical/LUỒNG_HỎI_ĐÁP_AI.md
-docs/technical/GIẢ_LẬP_TEXT_THÀNH_TRI_THỨC.md
+docs/archive/technical/GIẢ_LẬP_TEXT_THÀNH_TRI_THỨC.md
 ```
 
 6. API/data model nếu cần:
@@ -673,7 +673,7 @@ KIẾN_TRÚC_MVP.md
 MÔ_HÌNH_DỮ_LIỆU.md
 docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md
 docs/technical/LUỒNG_HỎI_ĐÁP_AI.md
-docs/technical/GIẢ_LẬP_TEXT_THÀNH_TRI_THỨC.md
+docs/archive/technical/GIẢ_LẬP_TEXT_THÀNH_TRI_THỨC.md
 docs/technical/KẾ_HOẠCH_NÂNG_CẤP_AI_THÔNG_MINH.md
 docs/technical/KẾ_HOẠCH_SẢN_PHẨM_HÓA.md
 ```

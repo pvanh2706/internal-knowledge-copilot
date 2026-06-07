@@ -2,10 +2,12 @@
 
 Date: 2026-06-04
 
-This document is the executable implementation plan for AI-assisted development work. It is based on the current codebase, existing technical documents, and the two integration planning documents:
+This document is archived implementation history, not the current integration guide. Use `docs/technical/HUONG_DAN_TICH_HOP_BEN_THU_3.md` for the current integration guide.
 
-- `docs/technical/TONG_HOP_LAM_RO_DINH_HUONG_TICH_HOP.md`
-- `docs/technical/GOI_Y_DIEU_CHINH_KIEN_TRUC_TICH_HOP.md`
+This document was the executable implementation plan for AI-assisted development work. It was based on the then-current codebase, existing technical documents, and the two integration planning documents:
+
+- `docs/archive/technical/TONG_HOP_LAM_RO_DINH_HUONG_TICH_HOP.md`
+- `docs/archive/technical/GOI_Y_DIEU_CHINH_KIEN_TRUC_TICH_HOP.md`
 
 The goal is to evolve Internal Knowledge Copilot from a standalone internal knowledge MVP into a shared multi-tenant platform that can integrate with CRM, sales software, and later third-party business systems.
 

@@ -1,468 +1,80 @@
-# Internal Knowledge Copilot - Data Model MVP
+# Internal Knowledge Copilot - Data Model
 
-Ngày lập: 2026-05-09
+Ngày cập nhật: 2026-06-07
 
-## 1. Nguyên tắc thiết kế dữ liệu
+Tài liệu này là bản tóm tắt mô hình dữ liệu hiện tại. Danh sách bảng đầy đủ và phần đối chiếu với code nằm tại [docs/technical/DANH_SACH_BANG_DU_LIEU_HE_THONG.md](docs/technical/DANH_SACH_BANG_DU_LIEU_HE_THONG.md).
 
-- SQLite là nguồn sự thật cho dữ liệu nghiệp vụ.
-- Qdrant chỉ lưu vector chunks và metadata phục vụ retrieval.
-- File gốc lưu trong local folder, database chỉ lưu metadata/path.
-- Schema hạn chế phụ thuộc tính năng riêng của SQLite để dễ migrate sau này.
-- Dùng soft delete cho dữ liệu quan trọng.
-- Mọi trạng thái cần rõ ràng để dashboard và audit dễ tính.
+## Nguyên Tắc
 
-## 2. Enum chính
+- SQLite là source of truth cho dữ liệu nghiệp vụ, quyền, trạng thái tài liệu, wiki, feedback, audit và cấu hình AI.
+- ChromaDB là vector store hiện tại cho semantic retrieval. Qdrant chỉ là future option sau boundary `IKnowledgeVectorStore`.
+- Vector metadata chỉ dùng để filter nhanh. Backend vẫn phải recheck quyền và trạng thái nguồn bằng SQLite trước khi đưa chunk vào prompt.
+- File gốc, extracted text và normalized text lưu trong local storage; database chỉ lưu metadata/path.
+- Schema nên giữ hướng dễ migrate sang SQL Server/PostgreSQL khi cần sản phẩm hóa.
 
-UserRole:
+## Nhóm Bảng Chính
 
-- Admin
-- User
-- Reviewer
+| Nhóm | Bảng |
+| --- | --- |
+| User và phân quyền | `users`, `teams`, `folders`, `folder_permissions`, `user_folder_permissions` |
+| Tài liệu và xử lý nền | `documents`, `document_versions`, `processing_jobs` |
+| Hỏi đáp AI và citation | `ai_interactions`, `ai_interaction_sources` |
+| Feedback và cải thiện AI | `ai_feedback`, `ai_quality_issues`, `knowledge_corrections`, `retrieval_hints` |
+| Knowledge index | `knowledge_chunks`, `knowledge_chunk_indexes` |
+| Evaluation | `evaluation_cases`, `evaluation_runs`, `evaluation_run_results` |
+| Wiki | `wiki_drafts`, `wiki_pages` |
+| Audit và cấu hình | `audit_logs`, `ai_provider_settings` |
 
-DocumentStatus:
+## Lưu Ý Về Quyền
 
-- PendingReview
-- Approved
-- Rejected
-- Archived
-- Deleted
+Schema hiện tại không có bảng `document_permissions`. Quyền xem tài liệu đang được enforce theo folder/team/user:
 
-DocumentVersionStatus:
+- `folder_permissions`: cấp quyền theo team.
+- `user_folder_permissions`: cấp quyền bổ sung theo user.
+- `documents.folder_id`: tài liệu thừa hưởng quyền từ folder.
 
-- PendingReview
-- Approved
-- Rejected
-- Processing
-- Indexed
-- ProcessingFailed
+Nếu sau này cần override quyền cấp document, hãy thiết kế feature riêng và cập nhật cả service permission, retrieval filter, tests và tài liệu này.
 
-WikiStatus:
+## Lưu Ý Về Vector Store
 
-- Draft
-- Published
-- Rejected
-- Archived
+Chroma collection hiện tại:
 
-AiFeedbackValue:
+- `knowledge_chunks`
 
-- Correct
-- Incorrect
+Payload quan trọng:
 
-FeedbackReviewStatus:
+- `chunk_id`
+- `source_type`: `document`, `wiki`, hoặc `correction`
+- `source_id`
+- `document_id`
+- `document_version_id`
+- `wiki_page_id`
+- `folder_id`
+- `visibility_scope`
+- `tenant_id`
+- `application_id`
+- `knowledge_source_id`
+- `external_object_type`
+- `external_object_id`
+- `status`
+- `title`
+- `section_title`
+- `chunk_index`
 
-- New
-- InReview
-- Resolved
+Bảng SQLite `knowledge_chunks` là ledger/metadata để đối soát và rebuild. Bảng này không phải nơi lưu vector embedding.
 
-VisibilityScope:
+## Luồng Quan Hệ Cốt Lõi
 
-- Folder
-- Company
+- User -> team -> folder permission -> document visibility.
+- Document -> document versions -> processing jobs -> knowledge chunks.
+- Wiki draft -> wiki page -> knowledge chunks.
+- AI interaction -> interaction sources -> feedback/quality issue/correction.
+- Evaluation case -> evaluation run -> evaluation result.
 
-ProcessingJobStatus:
+## Source Of Truth Chi Tiết
 
-- Pending
-- Running
-- Succeeded
-- Failed
+Dùng các tài liệu sau khi cần chi tiết hơn:
 
-## 3. Bảng users
-
-Mục đích:
-
-- Lưu tài khoản người dùng.
-
-Trường chính:
-
-- id
-- email
-- display_name
-- password_hash
-- role
-- primary_team_id
-- must_change_password
-- is_active
-- created_at
-- updated_at
-- deleted_at
-
-Ghi chú:
-
-- Admin tạo user thủ công.
-- User đổi mật khẩu sau lần đăng nhập đầu.
-
-## 4. Bảng teams
-
-Mục đích:
-
-- Lưu team/phòng ban.
-
-Trường chính:
-
-- id
-- name
-- description
-- created_at
-- updated_at
-- deleted_at
-
-Team MVP ban đầu:
-
-- Kỹ thuật
-- Hỗ trợ khách hàng
-
-## 5. Bảng folders
-
-Mục đích:
-
-- Lưu cây thư mục tài liệu.
-
-Trường chính:
-
-- id
-- parent_id
-- name
-- path
-- created_by_user_id
-- created_at
-- updated_at
-- deleted_at
-
-Ghi chú:
-
-- path có thể lưu dạng hiển thị, ví dụ `/Support/Payment`.
-- Folder bị xóa nên dùng soft delete.
-
-## 6. Bảng folder_permissions
-
-Mục đích:
-
-- Gán quyền xem folder theo team.
-
-Trường chính:
-
-- id
-- folder_id
-- team_id
-- can_view
-- created_at
-- updated_at
-
-Quy tắc MVP:
-
-- User thấy folder nếu team chính hoặc quyền bổ sung cho phép.
-- User không có quyền thì không thấy folder/tài liệu.
-
-## 7. Bảng user_folder_permissions
-
-Mục đích:
-
-- Cấp quyền bổ sung cho user vào folder cụ thể.
-
-Trường chính:
-
-- id
-- user_id
-- folder_id
-- can_view
-- created_at
-- updated_at
-
-Ghi chú:
-
-- Dùng cho trường hợp user thuộc team chính nhưng cần xem thêm folder khác.
-
-## 8. Bảng documents
-
-Mục đích:
-
-- Đại diện cho một tài liệu logic, có nhiều version.
-
-Trường chính:
-
-- id
-- folder_id
-- title
-- description
-- status
-- current_version_id
-- created_by_user_id
-- created_at
-- updated_at
-- deleted_at
-
-Ghi chú:
-
-- Khi upload version mới, user phải chọn document hiện có.
-- Không tự đoán document theo tên file.
-
-## 9. Bảng document_versions
-
-Mục đích:
-
-- Lưu từng phiên bản file của document.
-
-Trường chính:
-
-- id
-- document_id
-- version_number
-- original_file_name
-- stored_file_path
-- file_extension
-- file_size_bytes
-- content_type
-- status
-- reject_reason
-- extracted_text_path
-- text_hash
-- uploaded_by_user_id
-- reviewed_by_user_id
-- reviewed_at
-- indexed_at
-- created_at
-- updated_at
-
-Quy tắc:
-
-- Version mới ở PendingReview.
-- Version cũ vẫn current cho đến khi version mới approved và indexed.
-- Rejected version không được index.
-
-## 10. Bảng document_permissions
-
-Mục đích:
-
-- Override quyền xem ở cấp tài liệu.
-
-Trường chính:
-
-- id
-- document_id
-- user_id
-- team_id
-- can_view
-- created_at
-- updated_at
-
-Ghi chú:
-
-- user_id hoặc team_id có thể null tùy loại override.
-- MVP chỉ dùng khi cần ngoại lệ, không biến thành ma trận quyền phức tạp.
-
-## 11. Bảng wiki_drafts
-
-Mục đích:
-
-- Lưu wiki draft do AI sinh từ document approved.
-
-Trường chính:
-
-- id
-- source_document_id
-- source_document_version_id
-- title
-- content
-- language
-- status
-- reject_reason
-- generated_by_user_id
-- reviewed_by_user_id
-- created_at
-- updated_at
-- reviewed_at
-
-Quy tắc:
-
-- Draft được sinh thủ công bởi Reviewer.
-- Rejected draft phải có lý do.
-
-## 12. Bảng wiki_pages
-
-Mục đích:
-
-- Lưu wiki đã publish.
-
-Trường chính:
-
-- id
-- source_draft_id
-- source_document_id
-- source_document_version_id
-- title
-- content
-- language
-- visibility_scope
-- folder_id
-- is_company_public_confirmed
-- published_by_user_id
-- published_at
-- archived_at
-- created_at
-- updated_at
-
-Quy tắc:
-
-- Nếu visibility_scope = Company thì is_company_public_confirmed phải true.
-- MVP chưa cần versioning wiki.
-
-## 13. Bảng ai_interactions
-
-Mục đích:
-
-- Lưu bản ghi tối thiểu cho Q&A, feedback và KPI.
-
-Trường chính:
-
-- id
-- user_id
-- question
-- answer
-- scope_type
-- scope_folder_id
-- scope_document_id
-- created_at
-- latency_ms
-- used_wiki_count
-- used_document_count
-
-Ghi chú:
-
-- MVP chưa cần trang xem lại lịch sử hỏi đáp cho user.
-- Bảng này vẫn cần để gắn feedback và đo KPI.
-
-## 14. Bảng ai_interaction_sources
-
-Mục đích:
-
-- Lưu nguồn đã dùng trong câu trả lời.
-
-Trường chính:
-
-- id
-- ai_interaction_id
-- source_type
-- source_id
-- document_id
-- document_version_id
-- wiki_page_id
-- title
-- folder_path
-- excerpt
-- rank
-- created_at
-
-## 15. Bảng ai_feedback
-
-Mục đích:
-
-- Lưu feedback đúng/sai từ user.
-
-Trường chính:
-
-- id
-- ai_interaction_id
-- user_id
-- value
-- note
-- review_status
-- reviewed_by_user_id
-- reviewer_note
-- created_at
-- updated_at
-- resolved_at
-
-Quy tắc:
-
-- value = Incorrect tạo hàng chờ cho Reviewer.
-
-## 16. Bảng processing_jobs
-
-Mục đích:
-
-- Quản lý background jobs trong .NET.
-
-Trường chính:
-
-- id
-- job_type
-- target_type
-- target_id
-- status
-- attempts
-- error_message
-- created_at
-- started_at
-- finished_at
-
-Job types:
-
-- ExtractDocument
-- EmbedDocument
-- GenerateWikiDraft
-- EmbedWiki
-
-## 17. Bảng audit_logs
-
-Mục đích:
-
-- Ghi hành động nghiệp vụ chính.
-
-Trường chính:
-
-- id
-- actor_user_id
-- action
-- entity_type
-- entity_id
-- metadata_json
-- created_at
-
-Actions MVP:
-
-- UserCreated
-- FolderCreated
-- PermissionChanged
-- DocumentUploaded
-- DocumentApproved
-- DocumentRejected
-- WikiDraftGenerated
-- WikiPublished
-- WikiRejected
-- AiFeedbackSubmitted
-
-## 18. Qdrant collection
-
-Collection đề xuất:
-
-- knowledge_chunks
-
-Vector:
-
-- embedding vector từ AI embedding model đã chọn.
-
-Payload:
-
-- chunk_id
-- source_type: document hoặc wiki
-- source_id
-- document_id
-- document_version_id
-- wiki_page_id
-- folder_id
-- team_id
-- title
-- folder_path
-- version_number
-- status
-- visibility_scope
-- chunk_text
-- created_at
-
-Nguyên tắc:
-
-- Chỉ index document version approved/indexed.
-- Chỉ index wiki page published.
-- Khi version mới approved, chunks của version cũ có thể giữ nhưng phải filter theo current version hoặc đánh dấu inactive.
-- SQLite vẫn là nguồn sự thật cho quyền.
-
+- [Danh sách bảng dữ liệu hệ thống](docs/technical/DANH_SACH_BANG_DU_LIEU_HE_THONG.md)
+- [Luồng upload tài liệu thành tri thức](docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md)
+- [Luồng hỏi đáp AI](docs/technical/LUỒNG_HỎI_ĐÁP_AI.md)

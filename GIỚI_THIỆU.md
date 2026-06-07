@@ -45,6 +45,8 @@ Product và điều phối:
 Kỹ thuật:
 
 - [docs/technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md](docs/technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md)
+- [docs/technical/HUONG_DAN_TICH_HOP_BEN_THU_3.md](docs/technical/HUONG_DAN_TICH_HOP_BEN_THU_3.md)
+- [docs/postman/InternalKnowledgeCopilot_ThirdPartyIntegration.postman_collection.json](docs/postman/InternalKnowledgeCopilot_ThirdPartyIntegration.postman_collection.json)
 - [docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md](docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md)
 - [docs/technical/LUỒNG_HỎI_ĐÁP_AI.md](docs/technical/LUỒNG_HỎI_ĐÁP_AI.md)
 - [docs/technical/HƯỚNG_DẪN_CÀI_ĐẶT_LOCAL.md](docs/technical/HƯỚNG_DẪN_CÀI_ĐẶT_LOCAL.md)
@@ -52,6 +54,7 @@ Kỹ thuật:
 
 Vận hành, demo và pilot:
 
+- [docs/training/HƯỚNG_DẪN_ĐÀO_TẠO_TEAM_TRIỂN_KHAI.md](docs/training/HƯỚNG_DẪN_ĐÀO_TẠO_TEAM_TRIỂN_KHAI.md)
 - [docs/pilot/HƯỚNG_DẪN_PILOT_VÀ_SỬ_DỤNG.md](docs/pilot/HƯỚNG_DẪN_PILOT_VÀ_SỬ_DỤNG.md)
 - [docs/presentation/HƯỚNG_DẪN_TRÌNH_BÀY_VÀ_DEMO.md](docs/presentation/HƯỚNG_DẪN_TRÌNH_BÀY_VÀ_DEMO.md)
 - [docs/pilot/MẪU_HỖ_TRỢ_VÀ_BÁO_LỖI.md](docs/pilot/MẪU_HỖ_TRỢ_VÀ_BÁO_LỖI.md)

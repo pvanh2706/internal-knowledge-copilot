@@ -2,7 +2,9 @@
 
 Ngay lap: 2026-06-03
 
-Tai lieu nay de xuat huong dieu chinh Internal Knowledge Copilot dua tren cac quyet dinh da lam ro trong `docs/technical/TONG_HOP_LAM_RO_DINH_HUONG_TICH_HOP.md`.
+Tai lieu nay da duoc archive. Huong dan hien hanh nam o `docs/technical/HUONG_DAN_TICH_HOP_BEN_THU_3.md`.
+
+Tai lieu nay de xuat huong dieu chinh Internal Knowledge Copilot dua tren cac quyet dinh da lam ro trong `docs/archive/technical/TONG_HOP_LAM_RO_DINH_HUONG_TICH_HOP.md`.
 
 ## 1. Dinh huong kien truc
 

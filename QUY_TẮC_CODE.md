@@ -42,7 +42,7 @@ Stack:
 
 - ASP.NET Core.
 - SQLite.
-- Qdrant.
+- ChromaDB hiện tại sau `IKnowledgeVectorStore`.
 
 Gợi ý cấu trúc:
 
@@ -63,7 +63,7 @@ src/
       Infrastructure/
         Database/
         FileStorage/
-        Qdrant/
+        VectorStore/
         AiProvider/
         BackgroundJobs/
       Common/
@@ -123,13 +123,13 @@ Quy tắc:
 - Status dùng enum/string nhất quán.
 - Không xóa hard file/tài liệu trong MVP trừ khi được xác nhận.
 
-## 6. Qdrant và RAG
+## 6. Vector Store và RAG
 
 Quy tắc:
 
 - Chỉ index document approved.
 - Chỉ index wiki published.
-- Payload phải có source_type.
+- Vector metadata phải có `source_type`.
 - SQLite là nguồn sự thật cho quyền.
 - Trước khi đưa chunk vào prompt, backend cần đảm bảo chunk thuộc phạm vi user được phép.
 - Không để AI tự tạo citation ngoài nguồn retrieved.
@@ -160,7 +160,7 @@ Quy tắc:
 - Permission service.
 - Document status/versioning.
 - File upload validation.
-- Qdrant filter theo quyền.
+- Vector retrieval filter và SQLite permission recheck.
 - AI feedback metrics.
 - Wiki publish visibility.
 

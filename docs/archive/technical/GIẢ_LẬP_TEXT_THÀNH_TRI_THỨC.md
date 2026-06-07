@@ -1,5 +1,7 @@
 # Giả lập một đoạn text đi qua code cho đến khi thành tài liệu tri thức
 
+> Archived: luồng hiện hành nằm ở `docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md`. File này chỉ giữ lại như ví dụ lịch sử.
+
 Tài liệu này mô phỏng một file text đơn giản được upload vào Internal Knowledge Copilot và mô tả nó đi qua các luồng, class và hàm nào trong code cho đến khi trở thành nguồn tri thức có thể dùng cho AI Q&A.
 
 Tài liệu tham chiếu nền: `docs/technical/LUỒNG_UPLOAD_TÀI_LIỆU_THÀNH_TRI_THỨC.md`.
