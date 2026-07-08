@@ -1,19 +1,34 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { explainRetrieval, type AiScopeType, type RetrievalExplainResponse } from '../../api/ai'
-import type { DocumentListItem } from '../../api/documents'
-import { getDocuments } from '../../api/documents'
-import type { FolderTreeItem } from '../../api/folders'
-import { getFolderTree } from '../../api/folders'
-import { ApiError } from '../../api/http'
-import { useAuthStore } from '../../stores/auth'
+import { computed, h, onMounted, ref } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import { SearchIcon } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import CitationCard from '@/components/app/CitationCard.vue'
+import DataTable from '@/components/app/DataTable.vue'
+import EmptyState from '@/components/app/EmptyState.vue'
+import ErrorState from '@/components/app/ErrorState.vue'
+import PageHeader from '@/components/app/PageHeader.vue'
+import ScopeSelector from '@/components/app/ScopeSelector.vue'
+import StatCard from '@/components/app/StatCard.vue'
+import StatusBadge from '@/components/app/StatusBadge.vue'
+import { explainRetrieval, type AiScopeType, type RetrievalCandidate, type RetrievalExplainResponse } from '@/api/ai'
+import type { DocumentListItem } from '@/api/documents'
+import { getDocuments } from '@/api/documents'
+import { ApiError } from '@/api/http'
+import { useAuthStore } from '@/stores/auth'
+import { useFolderTree } from '@/composables/useFolderTree'
 
 const authStore = useAuthStore()
-const folders = ref<FolderTreeItem[]>([])
+const { flatFolders, loadFolders } = useFolderTree()
+
 const documents = ref<DocumentListItem[]>([])
 const explain = ref<RetrievalExplainResponse | null>(null)
 const isLoading = ref(false)
 const errorMessage = ref('')
+
 const form = ref({
   question: '',
   scopeType: 'All' as AiScopeType,
@@ -21,28 +36,73 @@ const form = ref({
   documentId: '',
 })
 
-const flattenedFolders = computed(() => flattenFolders(folders.value))
-const indexedDocuments = computed(() => documents.value.filter((document) => document.latestVersionStatus === 'Indexed'))
+const indexedDocuments = computed(() =>
+  documents.value.filter((document) => document.latestVersionStatus === 'Indexed'),
+)
+
 const canSubmit = computed(() => {
   if (!form.value.question.trim()) return false
   if (form.value.scopeType === 'Folder') return Boolean(form.value.folderId)
   if (form.value.scopeType === 'Document') return Boolean(form.value.documentId)
   return true
 })
-const rejectedCandidates = computed(() => explain.value?.candidates.filter((candidate) => !candidate.passedPermissionFilter) ?? [])
+
+const rejectedCandidates = computed(
+  () => explain.value?.candidates.filter((candidate) => !candidate.passedPermissionFilter) ?? [],
+)
+
+const candidateColumns: ColumnDef<RetrievalCandidate>[] = [
+  {
+    accessorKey: 'title',
+    header: 'Nguồn',
+    cell: ({ row }) =>
+      h('div', { class: 'grid gap-0.5' }, [
+        h('span', { class: 'text-sm font-medium' }, `${row.original.sourceType} — ${row.original.title}`),
+        h(
+          'span',
+          { class: 'font-mono text-xs text-muted-foreground' },
+          `${row.original.retrievalSource} / ${[row.original.folderPath, row.original.sectionTitle].filter(Boolean).join(' / ') || '—'}`,
+        ),
+      ]),
+  },
+  {
+    accessorKey: 'score',
+    header: 'Điểm',
+    cell: ({ row }) => h('span', { class: 'font-mono text-xs tabular-nums' }, row.original.score.toFixed(2)),
+  },
+  {
+    accessorKey: 'matchedKeywords',
+    header: 'Từ khóa khớp',
+    enableSorting: false,
+    cell: ({ row }) => row.original.matchedKeywords.join(', ') || '—',
+  },
+  {
+    accessorKey: 'decision',
+    header: 'Quyết định',
+    enableSorting: false,
+    cell: ({ row }) =>
+      h(StatusBadge, {
+        status: row.original.selectedForContext ? 'Active' : 'Disabled',
+        label: row.original.decision,
+      }),
+  },
+]
 
 async function loadScopeData() {
   if (!authStore.accessToken) return
-  const [folderTree, documentList] = await Promise.all([
-    getFolderTree(authStore.accessToken),
-    getDocuments(authStore.accessToken, { status: 'Approved' }),
-  ])
-  folders.value = folderTree
-  documents.value = documentList
+  try {
+    const [documentList] = await Promise.all([
+      getDocuments(authStore.accessToken, { status: 'Approved' }),
+      loadFolders(authStore.accessToken),
+    ])
+    documents.value = documentList
+  } catch {
+    // Scope mặc định "Tất cả" vẫn dùng được nếu tải dữ liệu scope thất bại
+  }
 }
 
 async function submitExplain() {
-  if (!authStore.accessToken || !canSubmit.value) return
+  if (!authStore.accessToken || !canSubmit.value || isLoading.value) return
   errorMessage.value = ''
   explain.value = null
   isLoading.value = true
@@ -58,146 +118,128 @@ async function submitExplain() {
       authStore.accessToken,
     )
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể explain retrieval.'
+    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể phân tích truy xuất.'
   } finally {
     isLoading.value = false
   }
 }
 
-function flattenFolders(items: FolderTreeItem[], level = 0): Array<FolderTreeItem & { label: string }> {
-  return items.flatMap((item) => [
-    { ...item, label: `${'--'.repeat(level)} ${item.name}`.trim() },
-    ...flattenFolders(item.children, level + 1),
-  ])
-}
-
-function formatDistance(distance?: number | null) {
-  return typeof distance === 'number' ? distance.toFixed(3) : '-'
-}
-
-function formatScore(score: number) {
-  return score.toFixed(2)
+function candidateMeta(candidate: RetrievalCandidate) {
+  const distance = typeof candidate.distance === 'number' ? candidate.distance.toFixed(3) : '—'
+  return `${candidate.retrievalSource} · score ${candidate.score.toFixed(2)} · distance ${distance}`
 }
 
 onMounted(loadScopeData)
 </script>
 
 <template>
-  <section class="panel management-page">
-    <div>
-      <h2>Giải thích truy xuất</h2>
-    </div>
+  <div class="mx-auto max-w-6xl">
+    <PageHeader
+      title="Giải thích truy xuất"
+      description="Kiểm tra pipeline truy xuất: truy vấn được hiểu thế nào, ứng viên nào được chọn vào context."
+    />
 
-    <form class="ai-form" @submit.prevent="submitExplain">
-      <label>
-        Câu hỏi
-        <textarea v-model="form.question" rows="4" placeholder="Nhập câu hỏi cần kiểm tra..." required />
-      </label>
-
-      <div class="management-form">
-        <select v-model="form.scopeType">
-          <option value="All">Tất cả nguồn được phép</option>
-          <option value="Folder">Theo folder</option>
-          <option value="Document">Theo tài liệu</option>
-        </select>
-
-        <select v-if="form.scopeType === 'Folder'" v-model="form.folderId" required>
-          <option value="">Chọn folder</option>
-          <option v-for="folder in flattenedFolders" :key="folder.id" :value="folder.id">{{ folder.label }}</option>
-        </select>
-
-        <select v-if="form.scopeType === 'Document'" v-model="form.documentId" required>
-          <option value="">Chọn tài liệu đã index</option>
-          <option v-for="document in indexedDocuments" :key="document.id" :value="document.id">
-            {{ document.title }} - {{ document.folderPath }}
-          </option>
-        </select>
-
-        <button type="submit" :disabled="isLoading || !canSubmit">{{ isLoading ? 'Đang phân tích...' : 'Phân tích' }}</button>
+    <form
+      class="mb-6 grid gap-3 rounded-xl border bg-card p-4 text-card-foreground focus-within:ring-2 focus-within:ring-ring/40"
+      @submit.prevent="submitExplain"
+    >
+      <Textarea
+        v-model="form.question"
+        rows="3"
+        required
+        placeholder="Nhập câu hỏi cần kiểm tra..."
+        aria-label="Câu hỏi cần phân tích"
+        class="border-0 shadow-none focus-visible:ring-0"
+      />
+      <div class="flex items-center justify-between gap-3">
+        <ScopeSelector
+          v-model:scope-type="form.scopeType"
+          v-model:folder-id="form.folderId"
+          v-model:document-id="form.documentId"
+          :folders="flatFolders"
+          :documents="indexedDocuments"
+        />
+        <Button type="submit" :disabled="isLoading || !canSubmit">
+          <SearchIcon class="size-4" />
+          {{ isLoading ? 'Đang phân tích...' : 'Phân tích' }}
+        </Button>
       </div>
     </form>
 
-    <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+    <ErrorState v-if="errorMessage" :message="errorMessage" class="mb-4" @retry="submitExplain" />
 
-    <div v-if="explain" class="management-page">
-      <section class="answer-panel">
-        <h3>Truy vấn</h3>
-        <p><strong>Chuẩn hóa:</strong> {{ explain.queryUnderstanding.normalizedQuestion || '-' }}</p>
-        <p><strong>Từ khóa:</strong> {{ explain.queryUnderstanding.keywords.join(', ') || '-' }}</p>
-        <p>
-          <strong>Bộ lọc:</strong>
-          {{ explain.filter.sourceTypes.join(', ') }} /
-          {{ explain.filter.statuses.join(', ') }} /
-          folder được xem {{ explain.filter.visibleFolderCount }} /
-          folder đã lọc {{ explain.filter.filteredFolderCount }}
-        </p>
-      </section>
+    <div v-if="isLoading" class="grid gap-4">
+      <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <Skeleton v-for="n in 6" :key="n" class="h-24 rounded-lg" />
+      </div>
+      <Skeleton class="h-48 rounded-lg" />
+    </div>
 
-      <div class="stat-grid">
-        <div class="stat-card">
-          <span>Vector</span>
-          <strong>{{ explain.candidateStats.vectorCandidateCount }}</strong>
-        </div>
-        <div class="stat-card">
-          <span>Keyword</span>
-          <strong>{{ explain.candidateStats.keywordCandidateCount }}</strong>
-        </div>
-        <div class="stat-card">
-          <span>Đã gộp</span>
-          <strong>{{ explain.candidateStats.mergedCandidateCount }}</strong>
-        </div>
-        <div class="stat-card">
-          <span>Hợp lệ</span>
-          <strong>{{ explain.candidateStats.allowedCandidateCount }}</strong>
-        </div>
-        <div class="stat-card">
-          <span>Context cuối</span>
-          <strong>{{ explain.candidateStats.finalContextCount }}</strong>
-        </div>
-        <div class="stat-card">
-          <span>Bị loại</span>
-          <strong>{{ rejectedCandidates.length }}</strong>
+    <div v-else-if="explain" class="grid gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle class="text-lg">Truy vấn</CardTitle>
+        </CardHeader>
+        <CardContent class="grid gap-2 text-sm">
+          <p>
+            <span class="font-medium">Chuẩn hóa:</span>
+            {{ explain.queryUnderstanding.normalizedQuestion || '—' }}
+          </p>
+          <p>
+            <span class="font-medium">Từ khóa:</span>
+            {{ explain.queryUnderstanding.keywords.join(', ') || '—' }}
+          </p>
+          <p class="text-muted-foreground">
+            <span class="font-medium text-foreground">Bộ lọc:</span>
+            {{ explain.filter.sourceTypes.join(', ') }} / {{ explain.filter.statuses.join(', ') }} ·
+            thư mục được xem {{ explain.filter.visibleFolderCount }} ·
+            thư mục sau lọc {{ explain.filter.filteredFolderCount }}
+          </p>
+        </CardContent>
+      </Card>
+
+      <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <StatCard label="Vector" :value="explain.candidateStats.vectorCandidateCount" />
+        <StatCard label="Từ khóa" :value="explain.candidateStats.keywordCandidateCount" />
+        <StatCard label="Đã gộp" :value="explain.candidateStats.mergedCandidateCount" />
+        <StatCard label="Hợp lệ" :value="explain.candidateStats.allowedCandidateCount" />
+        <StatCard label="Context cuối" :value="explain.candidateStats.finalContextCount" />
+        <StatCard label="Bị loại" :value="rejectedCandidates.length" />
+      </div>
+
+      <div>
+        <p class="mb-2 text-sm font-medium">Context cuối</p>
+        <EmptyState v-if="explain.finalContext.length === 0" title="Không có context phù hợp" />
+        <div v-else class="grid gap-3 sm:grid-cols-2">
+          <CitationCard
+            v-for="(candidate, index) in explain.finalContext"
+            :key="candidate.candidateId"
+            :index="index + 1"
+            :source-type="candidate.sourceType"
+            :title="candidate.title"
+            :folder-path="candidate.folderPath"
+            :section-title="candidate.sectionTitle"
+            :excerpt="candidate.excerpt"
+            :meta="candidateMeta(candidate)"
+          />
         </div>
       </div>
 
-      <section class="answer-panel">
-        <h3>Context cuối</h3>
-        <p v-if="explain.finalContext.length === 0">Không có context phù hợp.</p>
-        <article v-for="candidate in explain.finalContext" :key="candidate.candidateId" class="citation-item">
-          <strong>{{ candidate.sourceType }} - {{ candidate.title }}</strong>
-          <small>
-            {{ candidate.retrievalSource }} / score {{ formatScore(candidate.score) }} / distance {{ formatDistance(candidate.distance) }}
-          </small>
-          <small>{{ [candidate.folderPath, candidate.sectionTitle].filter(Boolean).join(' / ') || '-' }}</small>
-          <p>{{ candidate.excerpt }}</p>
-          <small>{{ candidate.scoreReasons.join(' | ') }}</small>
-        </article>
-      </section>
-
-      <section class="answer-panel">
-        <h3>Ứng viên</h3>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Nguồn</th>
-              <th>Điểm</th>
-              <th>Khớp</th>
-              <th>Quyết định</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="candidate in explain.candidates" :key="candidate.candidateId">
-              <td>
-                <strong>{{ candidate.sourceType }} - {{ candidate.title }}</strong>
-                <small>{{ candidate.retrievalSource }} / {{ [candidate.folderPath, candidate.sectionTitle].filter(Boolean).join(' / ') || '-' }}</small>
-              </td>
-              <td>{{ formatScore(candidate.score) }}</td>
-              <td>{{ candidate.matchedKeywords.join(', ') || '-' }}</td>
-              <td>{{ candidate.decision }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+      <div>
+        <p class="mb-2 text-sm font-medium">Toàn bộ ứng viên</p>
+        <DataTable
+          :columns="candidateColumns"
+          :data="explain.candidates"
+          empty-title="Không có ứng viên nào"
+        />
+      </div>
     </div>
-  </section>
+
+    <EmptyState
+      v-else-if="!errorMessage"
+      :icon="SearchIcon"
+      title="Nhập câu hỏi để phân tích pipeline truy xuất"
+      description="Công cụ dành cho reviewer kiểm tra vì sao AI chọn (hoặc bỏ) một nguồn."
+    />
+  </div>
 </template>

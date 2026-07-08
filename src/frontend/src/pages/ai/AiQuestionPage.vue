@@ -1,22 +1,33 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { askQuestion, type AiScopeType, type AskQuestionResponse } from '../../api/ai'
-import type { DocumentListItem } from '../../api/documents'
-import { getDocuments } from '../../api/documents'
-import { submitAiFeedback, type AiFeedbackValue } from '../../api/feedback'
-import type { FolderTreeItem } from '../../api/folders'
-import { getFolderTree } from '../../api/folders'
-import { ApiError } from '../../api/http'
-import { useAuthStore } from '../../stores/auth'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { SendIcon, SparklesIcon } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import AnswerPanel from '@/components/app/AnswerPanel.vue'
+import CitationCard from '@/components/app/CitationCard.vue'
+import EmptyState from '@/components/app/EmptyState.vue'
+import ErrorState from '@/components/app/ErrorState.vue'
+import ScopeSelector from '@/components/app/ScopeSelector.vue'
+import { askQuestion, type AiScopeType, type AskQuestionResponse } from '@/api/ai'
+import type { DocumentListItem } from '@/api/documents'
+import { getDocuments } from '@/api/documents'
+import { submitAiFeedback, type AiFeedbackValue } from '@/api/feedback'
+import { ApiError } from '@/api/http'
+import { useAuthStore } from '@/stores/auth'
+import { useFolderTree } from '@/composables/useFolderTree'
+import { useToast } from '@/composables/useToast'
 
 const authStore = useAuthStore()
-const folders = ref<FolderTreeItem[]>([])
+const toast = useToast()
+const { flatFolders, loadFolders } = useFolderTree()
+
 const documents = ref<DocumentListItem[]>([])
 const answer = ref<AskQuestionResponse | null>(null)
 const isLoading = ref(false)
+const isSubmittingFeedback = ref(false)
 const errorMessage = ref('')
-const feedbackMessage = ref('')
-const feedbackNote = ref('')
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
 const form = ref({
   question: '',
   scopeType: 'All' as AiScopeType,
@@ -24,8 +35,10 @@ const form = ref({
   documentId: '',
 })
 
-const flattenedFolders = computed(() => flattenFolders(folders.value))
-const indexedDocuments = computed(() => documents.value.filter((document) => document.latestVersionStatus === 'Indexed'))
+const indexedDocuments = computed(() =>
+  documents.value.filter((document) => document.latestVersionStatus === 'Indexed'),
+)
+
 const canSubmit = computed(() => {
   if (!form.value.question.trim()) return false
   if (form.value.scopeType === 'Folder') return Boolean(form.value.folderId)
@@ -35,19 +48,36 @@ const canSubmit = computed(() => {
 
 async function loadScopeData() {
   if (!authStore.accessToken) return
-  const [folderTree, documentList] = await Promise.all([
-    getFolderTree(authStore.accessToken),
-    getDocuments(authStore.accessToken, { status: 'Approved' }),
-  ])
-  folders.value = folderTree
-  documents.value = documentList
+  try {
+    const [documentList] = await Promise.all([
+      getDocuments(authStore.accessToken, { status: 'Approved' }),
+      loadFolders(authStore.accessToken),
+    ])
+    documents.value = documentList
+  } catch {
+    // Không chặn hỏi AI khi tải dữ liệu scope thất bại — scope mặc định "Tất cả" vẫn dùng được
+  }
+}
+
+// Auto-grow textarea 2→8 dòng
+function resizeTextarea() {
+  const element = textareaRef.value
+  if (!element) return
+  element.style.height = 'auto'
+  const lineHeight = 24
+  element.style.height = `${Math.min(element.scrollHeight, lineHeight * 8 + 16)}px`
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    void submitQuestion()
+  }
 }
 
 async function submitQuestion() {
-  if (!authStore.accessToken || !canSubmit.value) return
+  if (!authStore.accessToken || !canSubmit.value || isLoading.value) return
   errorMessage.value = ''
-  feedbackMessage.value = ''
-  feedbackNote.value = ''
   answer.value = null
   isLoading.value = true
 
@@ -68,119 +98,128 @@ async function submitQuestion() {
   }
 }
 
-async function submitFeedback(value: AiFeedbackValue) {
-  if (!authStore.accessToken || !answer.value) return
-  errorMessage.value = ''
-  feedbackMessage.value = ''
+async function submitFeedback(value: AiFeedbackValue, note: string) {
+  if (!authStore.accessToken || !answer.value || isSubmittingFeedback.value) return
+  isSubmittingFeedback.value = true
 
   try {
-    await submitAiFeedback(
-      answer.value.interactionId,
-      {
-        value,
-        note: feedbackNote.value,
-      },
-      authStore.accessToken,
+    await submitAiFeedback(answer.value.interactionId, { value, note }, authStore.accessToken)
+    toast.success(
+      value === 'Correct' ? 'Đã ghi nhận câu trả lời đúng.' : 'Đã gửi phản hồi sai cho reviewer.',
     )
-    feedbackMessage.value = value === 'Correct' ? 'Đã ghi nhận câu trả lời đúng.' : 'Đã gửi feedback sai cho reviewer.'
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể gửi feedback.'
+    toast.error(error instanceof ApiError || error instanceof Error ? error.message : 'Không thể gửi phản hồi.')
+  } finally {
+    isSubmittingFeedback.value = false
   }
 }
 
-function flattenFolders(items: FolderTreeItem[], level = 0): Array<FolderTreeItem & { label: string }> {
-  return items.flatMap((item) => [
-    { ...item, label: `${'--'.repeat(level)} ${item.name}`.trim() },
-    ...flattenFolders(item.children, level + 1),
-  ])
+async function useFollowUp(question: string) {
+  form.value.question = question
+  await nextTick()
+  resizeTextarea()
+  void submitQuestion()
 }
 
 onMounted(loadScopeData)
 </script>
 
 <template>
-  <section class="panel management-page">
-    <div>
-      <h2>Hỏi AI</h2>
-      <p>Đặt câu hỏi trên các tài liệu đã được duyệt và index trong phạm vi bạn có quyền xem.</p>
+  <div class="mx-auto grid max-w-3xl gap-6">
+    <div class="text-center">
+      <h1 class="text-2xl font-semibold tracking-tight">Hỏi AI</h1>
+      <p class="mt-1 text-sm text-muted-foreground">
+        Đặt câu hỏi trên các tài liệu đã duyệt và lập chỉ mục trong phạm vi bạn có quyền xem.
+      </p>
     </div>
 
-    <form class="ai-form" @submit.prevent="submitQuestion">
-      <label>
-        Câu hỏi
-        <textarea v-model="form.question" rows="5" placeholder="Nhập câu hỏi cần tra cứu..." required />
-      </label>
-
-      <div class="management-form">
-        <select v-model="form.scopeType">
-          <option value="All">Tất cả nguồn được phép</option>
-          <option value="Folder">Theo folder</option>
-          <option value="Document">Theo tài liệu</option>
-        </select>
-
-        <select v-if="form.scopeType === 'Folder'" v-model="form.folderId" required>
-          <option value="">Chọn folder</option>
-          <option v-for="folder in flattenedFolders" :key="folder.id" :value="folder.id">{{ folder.label }}</option>
-        </select>
-
-        <select v-if="form.scopeType === 'Document'" v-model="form.documentId" required>
-          <option value="">Chọn tài liệu đã index</option>
-          <option v-for="document in indexedDocuments" :key="document.id" :value="document.id">
-            {{ document.title }} - {{ document.folderPath }}
-          </option>
-        </select>
-
-        <button type="submit" :disabled="isLoading || !canSubmit">{{ isLoading ? 'Đang hỏi...' : 'Hỏi AI' }}</button>
+    <form
+      class="grid gap-3 rounded-xl border bg-card p-4 text-card-foreground transition-shadow focus-within:ring-2 focus-within:ring-ring/40"
+      @submit.prevent="submitQuestion"
+    >
+      <textarea
+        ref="textareaRef"
+        v-model="form.question"
+        rows="2"
+        required
+        placeholder="Nhập câu hỏi cần tra cứu... (Enter để gửi, Shift+Enter xuống dòng)"
+        aria-label="Câu hỏi cho AI"
+        class="w-full resize-none bg-transparent text-base leading-6 outline-none placeholder:text-muted-foreground"
+        @input="resizeTextarea"
+        @keydown="handleKeydown"
+      ></textarea>
+      <div class="flex items-center justify-between gap-3">
+        <ScopeSelector
+          v-model:scope-type="form.scopeType"
+          v-model:folder-id="form.folderId"
+          v-model:document-id="form.documentId"
+          :folders="flatFolders"
+          :documents="indexedDocuments"
+        />
+        <Button type="submit" size="icon" :disabled="isLoading || !canSubmit" aria-label="Gửi câu hỏi">
+          <SendIcon class="size-4" />
+        </Button>
       </div>
     </form>
 
-    <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
-    <p v-if="feedbackMessage" class="form-success">{{ feedbackMessage }}</p>
+    <ErrorState v-if="errorMessage" :message="errorMessage" hide-retry />
 
-    <div v-if="answer" class="answer-layout">
-      <section class="answer-panel">
-        <h3>Câu trả lời</h3>
-        <p v-if="answer.needsClarification" class="form-error">AI cần thêm ngữ cảnh để trả lời chắc chắn.</p>
-        <p>Confidence: {{ answer.confidence }}</p>
-        <pre>{{ answer.answer }}</pre>
-        <div v-if="answer.missingInformation.length || answer.conflicts.length || answer.suggestedFollowUps.length" class="feedback-box">
-          <div v-if="answer.missingInformation.length">
-            <strong>Thông tin còn thiếu</strong>
-            <ul>
-              <li v-for="item in answer.missingInformation" :key="item">{{ item }}</li>
-            </ul>
-          </div>
-          <div v-if="answer.conflicts.length">
-            <strong>Conflicts</strong>
-            <ul>
-              <li v-for="item in answer.conflicts" :key="item">{{ item }}</li>
-            </ul>
-          </div>
-          <div v-if="answer.suggestedFollowUps.length">
-            <strong>Suggested follow-ups</strong>
-            <ul>
-              <li v-for="item in answer.suggestedFollowUps" :key="item">{{ item }}</li>
-            </ul>
-          </div>
-        </div>
-        <div class="feedback-box">
-          <textarea v-model="feedbackNote" rows="3" placeholder="Ghi chú feedback nếu cần..." />
-          <div class="button-row">
-            <button type="button" @click="submitFeedback('Correct')">Đúng</button>
-            <button type="button" class="danger-button" @click="submitFeedback('Incorrect')">Sai</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="answer-panel">
-        <h3>Nguồn</h3>
-        <p v-if="answer.citations.length === 0">Chưa có nguồn đủ phù hợp trong phạm vi đã chọn.</p>
-        <article v-for="citation in answer.citations" :key="`${citation.sourceType}-${citation.title}-${citation.excerpt}`" class="citation-item">
-          <strong>{{ citation.sourceType }} - {{ citation.title }}</strong>
-          <small>{{ [citation.folderPath, citation.sectionTitle].filter(Boolean).join(' / ') || '-' }}</small>
-          <p>{{ citation.excerpt }}</p>
-        </article>
-      </section>
+    <div v-if="isLoading" class="grid gap-3 rounded-xl border bg-card p-5">
+      <p class="text-sm text-muted-foreground">Đang tìm trong kho tri thức...</p>
+      <Skeleton class="h-4 w-full" />
+      <Skeleton class="h-4 w-11/12" />
+      <Skeleton class="h-4 w-full" />
+      <Skeleton class="h-4 w-2/3" />
     </div>
-  </section>
+
+    <Transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="translate-y-2 opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+    >
+      <div v-if="answer" class="grid gap-4">
+        <AnswerPanel :answer="answer" :is-submitting-feedback="isSubmittingFeedback" @feedback="submitFeedback">
+          <template #follow-ups>
+            <button
+              v-for="followUp in answer.suggestedFollowUps"
+              :key="followUp"
+              type="button"
+              class="rounded-full border px-3 py-1 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              @click="useFollowUp(followUp)"
+            >
+              {{ followUp }}
+            </button>
+          </template>
+        </AnswerPanel>
+
+        <div>
+          <p class="mb-2 text-sm font-medium">Nguồn tham khảo</p>
+          <EmptyState
+            v-if="answer.citations.length === 0"
+            title="Chưa có nguồn đủ phù hợp trong phạm vi đã chọn"
+            description="Thử mở rộng phạm vi hoặc diễn đạt lại câu hỏi."
+          />
+          <div v-else class="grid gap-3 sm:grid-cols-2">
+            <CitationCard
+              v-for="(citation, index) in answer.citations"
+              :key="`${citation.sourceType}-${citation.title}-${index}`"
+              :index="index + 1"
+              :source-type="citation.sourceType"
+              :title="citation.title"
+              :folder-path="citation.folderPath"
+              :section-title="citation.sectionTitle"
+              :excerpt="citation.excerpt"
+            />
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <EmptyState
+      v-if="!answer && !isLoading && !errorMessage"
+      :icon="SparklesIcon"
+      title="Bắt đầu bằng một câu hỏi"
+      description="Ví dụ: “Quy trình xin nghỉ phép của công ty như thế nào?”"
+    />
+  </div>
 </template>
