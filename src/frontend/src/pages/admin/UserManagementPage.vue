@@ -1,42 +1,111 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import type { UserRole } from '../../api/auth'
-import { ApiError } from '../../api/http'
-import type { Team } from '../../api/teams'
-import { getTeams } from '../../api/teams'
-import type { UserListItem } from '../../api/users'
-import { createUser, getUsers } from '../../api/users'
-import { useAuthStore } from '../../stores/auth'
+import { h, onMounted, ref } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import { PlusIcon } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import DataTable from '@/components/app/DataTable.vue'
+import ErrorState from '@/components/app/ErrorState.vue'
+import PageHeader from '@/components/app/PageHeader.vue'
+import StatusBadge from '@/components/app/StatusBadge.vue'
+import type { UserRole } from '@/api/auth'
+import { ApiError } from '@/api/http'
+import type { Team } from '@/api/teams'
+import { getTeams } from '@/api/teams'
+import type { UserListItem } from '@/api/users'
+import { createUser, getUsers } from '@/api/users'
+import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
 
 const authStore = useAuthStore()
+const toast = useToast()
+
 const users = ref<UserListItem[]>([])
 const teams = ref<Team[]>([])
-const errorMessage = ref('')
+const isLoading = ref(false)
+const isSaving = ref(false)
+const loadError = ref('')
+const formError = ref('')
+const isDialogOpen = ref(false)
 
-const form = ref({
+const roleLabels: Record<UserRole, string> = {
+  Admin: 'Quản trị viên',
+  Reviewer: 'Người duyệt',
+  User: 'Nhân viên',
+}
+
+const emptyForm = {
   email: '',
   displayName: '',
   role: 'User' as UserRole,
   primaryTeamId: '',
   // Không hardcode mật khẩu mặc định — admin phải tự nhập mật khẩu ban đầu
   initialPassword: '',
-})
+}
+const form = ref({ ...emptyForm })
+
+const columns: ColumnDef<UserListItem>[] = [
+  { accessorKey: 'email', header: 'Email' },
+  { accessorKey: 'displayName', header: 'Tên hiển thị' },
+  { accessorKey: 'role', header: 'Vai trò', cell: ({ row }) => roleLabels[row.original.role] },
+  {
+    accessorKey: 'primaryTeamName',
+    header: 'Team',
+    cell: ({ row }) => row.original.primaryTeamName ?? 'Chưa gán',
+  },
+  {
+    accessorKey: 'isActive',
+    header: 'Trạng thái',
+    cell: ({ row }) =>
+      h(StatusBadge, {
+        status: row.original.isActive ? 'Active' : 'Disabled',
+        label: row.original.isActive ? 'Hoạt động' : 'Tạm khóa',
+      }),
+  },
+]
 
 async function loadData() {
-  if (!authStore.accessToken) {
-    return
-  }
+  if (!authStore.accessToken) return
+  loadError.value = ''
+  isLoading.value = true
 
-  users.value = await getUsers(authStore.accessToken)
-  teams.value = await getTeams(authStore.accessToken)
+  try {
+    users.value = await getUsers(authStore.accessToken)
+    teams.value = await getTeams(authStore.accessToken)
+  } catch (error) {
+    loadError.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải danh sách người dùng.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function openCreateDialog() {
+  form.value = { ...emptyForm }
+  formError.value = ''
+  isDialogOpen.value = true
 }
 
 async function submitCreateUser() {
-  if (!authStore.accessToken) {
-    return
-  }
+  if (!authStore.accessToken || isSaving.value) return
+  formError.value = ''
+  isSaving.value = true
 
-  errorMessage.value = ''
   try {
     await createUser(
       {
@@ -45,12 +114,13 @@ async function submitCreateUser() {
       },
       authStore.accessToken,
     )
-    form.value.email = ''
-    form.value.displayName = ''
-    form.value.initialPassword = ''
+    isDialogOpen.value = false
+    toast.success('Đã tạo người dùng.')
     await loadData()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError ? error.message : 'Không thể tạo user.'
+    formError.value = error instanceof ApiError ? error.message : 'Không thể tạo người dùng.'
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -58,49 +128,78 @@ onMounted(loadData)
 </script>
 
 <template>
-  <section class="panel management-page">
-    <div>
-      <h2>Quản trị người dùng</h2>
-      <p>Tạo user, gán role và team chính cho tài khoản nội bộ.</p>
-    </div>
+  <div class="mx-auto max-w-6xl">
+    <PageHeader title="Người dùng" description="Tạo tài khoản, gán vai trò và team chính cho nhân sự nội bộ.">
+      <template #actions>
+        <Button @click="openCreateDialog">
+          <PlusIcon class="size-4" />
+          Tạo người dùng
+        </Button>
+      </template>
+    </PageHeader>
 
-    <form class="management-form" @submit.prevent="submitCreateUser">
-      <input v-model="form.email" type="email" placeholder="Email" required />
-      <input v-model="form.displayName" type="text" placeholder="Tên hiển thị" required />
-      <select v-model="form.role">
-        <option value="User">User</option>
-        <option value="Reviewer">Reviewer</option>
-        <option value="Admin">Admin</option>
-      </select>
-      <select v-model="form.primaryTeamId">
-        <option value="">Chưa chọn team</option>
-        <option v-for="team in teams" :key="team.id" :value="team.id">{{ team.name }}</option>
-      </select>
-      <input v-model="form.initialPassword" type="text" placeholder="Mật khẩu ban đầu" required />
-      <button type="submit">Tạo user</button>
-    </form>
+    <ErrorState v-if="loadError" :message="loadError" class="mb-4" @retry="loadData" />
 
-    <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+    <DataTable
+      :columns="columns"
+      :data="users"
+      :is-loading="isLoading"
+      empty-title="Chưa có người dùng nào"
+      empty-description="Bấm “Tạo người dùng” để thêm tài khoản đầu tiên."
+    />
 
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Email</th>
-          <th>Tên</th>
-          <th>Role</th>
-          <th>Team</th>
-          <th>Trạng thái</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="user in users" :key="user.id">
-          <td>{{ user.email }}</td>
-          <td>{{ user.displayName }}</td>
-          <td>{{ user.role }}</td>
-          <td>{{ user.primaryTeamName ?? 'Chưa gán' }}</td>
-          <td>{{ user.isActive ? 'Hoạt động' : 'Tạm khóa' }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+    <Dialog v-model:open="isDialogOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Tạo người dùng</DialogTitle>
+          <DialogDescription>Tài khoản mới sẽ phải đổi mật khẩu ở lần đăng nhập đầu tiên.</DialogDescription>
+        </DialogHeader>
+        <form id="create-user-form" class="grid gap-4" @submit.prevent="submitCreateUser">
+          <div class="grid gap-1.5">
+            <Label for="user-email">Email</Label>
+            <Input id="user-email" v-model="form.email" type="email" autocomplete="off" required />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="user-display-name">Tên hiển thị</Label>
+            <Input id="user-display-name" v-model="form.displayName" type="text" required />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="user-role">Vai trò</Label>
+            <Select v-model="form.role">
+              <SelectTrigger id="user-role" class="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="User">Nhân viên</SelectItem>
+                <SelectItem value="Reviewer">Người duyệt</SelectItem>
+                <SelectItem value="Admin">Quản trị viên</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="user-team">Team chính</Label>
+            <Select v-model="form.primaryTeamId">
+              <SelectTrigger id="user-team" class="w-full">
+                <SelectValue placeholder="Chưa chọn team" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="team in teams" :key="team.id" :value="team.id">{{ team.name }}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="user-password">Mật khẩu ban đầu</Label>
+            <Input id="user-password" v-model="form.initialPassword" type="text" autocomplete="off" required />
+          </div>
+          <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
+        </form>
+        <DialogFooter>
+          <Button variant="outline" type="button" :disabled="isSaving" @click="isDialogOpen = false">Hủy</Button>
+          <Button type="submit" form="create-user-form" :disabled="isSaving">
+            {{ isSaving ? 'Đang tạo...' : 'Tạo người dùng' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
 </template>

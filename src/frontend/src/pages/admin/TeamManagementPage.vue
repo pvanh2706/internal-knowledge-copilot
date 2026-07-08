@@ -1,37 +1,83 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ApiError } from '../../api/http'
-import type { Team } from '../../api/teams'
-import { createTeam, getTeams } from '../../api/teams'
-import { useAuthStore } from '../../stores/auth'
+import type { ColumnDef } from '@tanstack/vue-table'
+import { PlusIcon } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import DataTable from '@/components/app/DataTable.vue'
+import ErrorState from '@/components/app/ErrorState.vue'
+import PageHeader from '@/components/app/PageHeader.vue'
+import { ApiError } from '@/api/http'
+import type { Team } from '@/api/teams'
+import { createTeam, getTeams } from '@/api/teams'
+import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
 
 const authStore = useAuthStore()
+const toast = useToast()
+
 const teams = ref<Team[]>([])
-const name = ref('')
-const description = ref('')
-const errorMessage = ref('')
+const isLoading = ref(false)
+const isSaving = ref(false)
+const loadError = ref('')
+const formError = ref('')
+const isDialogOpen = ref(false)
+
+const form = ref({ name: '', description: '' })
+
+const columns: ColumnDef<Team>[] = [
+  { accessorKey: 'name', header: 'Tên team' },
+  {
+    accessorKey: 'description',
+    header: 'Mô tả',
+    enableSorting: false,
+    cell: ({ row }) => row.original.description ?? '—',
+  },
+]
 
 async function loadTeams() {
-  if (!authStore.accessToken) {
-    return
-  }
+  if (!authStore.accessToken) return
+  loadError.value = ''
+  isLoading.value = true
 
-  teams.value = await getTeams(authStore.accessToken)
+  try {
+    teams.value = await getTeams(authStore.accessToken)
+  } catch (error) {
+    loadError.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải danh sách team.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function openCreateDialog() {
+  form.value = { name: '', description: '' }
+  formError.value = ''
+  isDialogOpen.value = true
 }
 
 async function submitCreateTeam() {
-  if (!authStore.accessToken) {
-    return
-  }
+  if (!authStore.accessToken || isSaving.value) return
+  formError.value = ''
+  isSaving.value = true
 
-  errorMessage.value = ''
   try {
-    await createTeam({ name: name.value, description: description.value }, authStore.accessToken)
-    name.value = ''
-    description.value = ''
+    await createTeam({ name: form.value.name, description: form.value.description }, authStore.accessToken)
+    isDialogOpen.value = false
+    toast.success('Đã tạo team.')
     await loadTeams()
   } catch (error) {
-    errorMessage.value = error instanceof ApiError ? error.message : 'Không thể tạo team.'
+    formError.value = error instanceof ApiError ? error.message : 'Không thể tạo team.'
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -39,33 +85,50 @@ onMounted(loadTeams)
 </script>
 
 <template>
-  <section class="panel management-page">
-    <div>
-      <h2>Quản trị team</h2>
-      <p>Tạo team/phòng ban dùng cho phân quyền tài liệu.</p>
-    </div>
+  <div class="mx-auto max-w-6xl">
+    <PageHeader title="Team" description="Tạo team/phòng ban dùng cho phân quyền tài liệu.">
+      <template #actions>
+        <Button @click="openCreateDialog">
+          <PlusIcon class="size-4" />
+          Tạo team
+        </Button>
+      </template>
+    </PageHeader>
 
-    <form class="management-form" @submit.prevent="submitCreateTeam">
-      <input v-model="name" type="text" placeholder="Tên team" required />
-      <input v-model="description" type="text" placeholder="Mô tả" />
-      <button type="submit">Tạo team</button>
-    </form>
+    <ErrorState v-if="loadError" :message="loadError" class="mb-4" @retry="loadTeams" />
 
-    <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+    <DataTable
+      :columns="columns"
+      :data="teams"
+      :is-loading="isLoading"
+      empty-title="Chưa có team nào"
+      empty-description="Bấm “Tạo team” để thêm phòng ban đầu tiên."
+    />
 
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Tên team</th>
-          <th>Mô tả</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="team in teams" :key="team.id">
-          <td>{{ team.name }}</td>
-          <td>{{ team.description ?? '' }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+    <Dialog v-model:open="isDialogOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Tạo team</DialogTitle>
+          <DialogDescription>Team dùng để gán quyền truy cập thư mục tài liệu.</DialogDescription>
+        </DialogHeader>
+        <form id="create-team-form" class="grid gap-4" @submit.prevent="submitCreateTeam">
+          <div class="grid gap-1.5">
+            <Label for="team-name">Tên team</Label>
+            <Input id="team-name" v-model="form.name" type="text" required />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="team-description">Mô tả</Label>
+            <Input id="team-description" v-model="form.description" type="text" />
+          </div>
+          <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
+        </form>
+        <DialogFooter>
+          <Button variant="outline" type="button" :disabled="isSaving" @click="isDialogOpen = false">Hủy</Button>
+          <Button type="submit" form="create-team-form" :disabled="isSaving">
+            {{ isSaving ? 'Đang tạo...' : 'Tạo team' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
 </template>

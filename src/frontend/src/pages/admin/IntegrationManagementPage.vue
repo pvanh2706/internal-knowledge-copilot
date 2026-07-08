@@ -1,20 +1,51 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import type { Application } from '../../api/applications'
-import { getApplications } from '../../api/applications'
-import { ApiError } from '../../api/http'
-import type { IntegrationAuthMode, IntegrationConnection, IntegrationConnectionStatus } from '../../api/integrations'
-import { createIntegrationConnection, getIntegrationConnections } from '../../api/integrations'
-import { useAuthStore } from '../../stores/auth'
+import { h, onMounted, ref } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import { PlusIcon } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import DataTable from '@/components/app/DataTable.vue'
+import ErrorState from '@/components/app/ErrorState.vue'
+import FilterBar from '@/components/app/FilterBar.vue'
+import PageHeader from '@/components/app/PageHeader.vue'
+import StatusBadge from '@/components/app/StatusBadge.vue'
+import type { Application } from '@/api/applications'
+import { getApplications } from '@/api/applications'
+import { ApiError } from '@/api/http'
+import type { IntegrationAuthMode, IntegrationConnection, IntegrationConnectionStatus } from '@/api/integrations'
+import { createIntegrationConnection, getIntegrationConnections } from '@/api/integrations'
+import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
+import { formatDateTime } from '@/lib/format'
 
 const authStore = useAuthStore()
+const toast = useToast()
+
 const applications = ref<Application[]>([])
 const connections = ref<IntegrationConnection[]>([])
-const selectedApplicationId = ref('')
+// Sentinel 'all' vì SelectItem của reka-ui không nhận value rỗng
+const applicationFilter = ref('all')
 const isLoading = ref(false)
 const isSaving = ref(false)
-const errorMessage = ref('')
-const successMessage = ref('')
+const loadError = ref('')
+const formError = ref('')
+const isDialogOpen = ref(false)
 
 const form = ref({
   applicationId: '',
@@ -27,9 +58,42 @@ const form = ref({
   metadataJson: '',
 })
 
+const columns: ColumnDef<IntegrationConnection>[] = [
+  { accessorKey: 'applicationCode', header: 'Application' },
+  { accessorKey: 'name', header: 'Tên kết nối' },
+  { accessorKey: 'baseUrl', header: 'Base URL' },
+  {
+    accessorKey: 'authMode',
+    header: 'Xác thực',
+    cell: ({ row }) => (row.original.authMode === 'InternalApiKey' ? 'API key nội bộ' : 'Không'),
+  },
+  {
+    accessorKey: 'status',
+    header: 'Trạng thái',
+    cell: ({ row }) => h(StatusBadge, { status: row.original.status }),
+  },
+  {
+    accessorKey: 'secretReference',
+    header: 'Secret',
+    cell: ({ row }) =>
+      h('span', { class: 'inline-flex items-center gap-1.5' }, [
+        h('span', { class: 'font-mono text-xs' }, row.original.secretReference),
+        h(StatusBadge, {
+          status: row.original.secretConfigured ? 'Active' : 'Failed',
+          label: row.original.secretConfigured ? 'Đã cấu hình' : 'Thiếu',
+        }),
+      ]),
+  },
+  {
+    accessorKey: 'secretRotatedAt',
+    header: 'Xoay secret',
+    cell: ({ row }) => formatDateTime(row.original.secretRotatedAt),
+  },
+]
+
 async function loadData() {
   if (!authStore.accessToken) return
-  errorMessage.value = ''
+  loadError.value = ''
   isLoading.value = true
 
   try {
@@ -37,18 +101,35 @@ async function loadData() {
     if (!form.value.applicationId && applications.value.length > 0) {
       form.value.applicationId = applications.value[0].id
     }
-    connections.value = await getIntegrationConnections(authStore.accessToken, selectedApplicationId.value || undefined)
+    connections.value = await getIntegrationConnections(
+      authStore.accessToken,
+      applicationFilter.value === 'all' ? undefined : applicationFilter.value,
+    )
   } catch (error) {
-    errorMessage.value = toMessage(error, 'Cannot load integration settings.')
+    loadError.value = toMessage(error, 'Không thể tải cấu hình tích hợp.')
   } finally {
     isLoading.value = false
   }
 }
 
+function openCreateDialog() {
+  form.value = {
+    applicationId: applications.value[0]?.id ?? '',
+    name: '',
+    baseUrl: '',
+    authMode: 'InternalApiKey',
+    secretReference: '',
+    secretValue: '',
+    status: 'Active',
+    metadataJson: '',
+  }
+  formError.value = ''
+  isDialogOpen.value = true
+}
+
 async function submitConnection() {
   if (!authStore.accessToken || isSaving.value) return
-  errorMessage.value = ''
-  successMessage.value = ''
+  formError.value = ''
   isSaving.value = true
 
   try {
@@ -65,22 +146,14 @@ async function submitConnection() {
       },
       authStore.accessToken,
     )
-    successMessage.value = 'Integration connection created.'
-    form.value.name = ''
-    form.value.baseUrl = ''
-    form.value.secretReference = ''
-    form.value.secretValue = ''
-    form.value.metadataJson = ''
+    isDialogOpen.value = false
+    toast.success('Đã tạo kết nối tích hợp.')
     await loadData()
   } catch (error) {
-    errorMessage.value = toMessage(error, 'Cannot create integration connection.')
+    formError.value = toMessage(error, 'Không thể tạo kết nối tích hợp.')
   } finally {
     isSaving.value = false
   }
-}
-
-function formatDate(value?: string | null) {
-  return value ? new Date(value).toLocaleString() : '-'
 }
 
 function toMessage(error: unknown, fallback: string) {
@@ -91,77 +164,120 @@ onMounted(loadData)
 </script>
 
 <template>
-  <section class="panel management-page">
-    <div class="section-header">
-      <div>
-        <h2>Integration settings</h2>
-        <p>Configure connector endpoints used for context, permission checks, validation, and execution.</p>
+  <div class="mx-auto max-w-6xl">
+    <PageHeader
+      title="Tích hợp"
+      description="Cấu hình endpoint connector dùng cho ngữ cảnh, kiểm tra quyền, xác thực và thực thi hành động."
+    >
+      <template #actions>
+        <Button @click="openCreateDialog">
+          <PlusIcon class="size-4" />
+          Tạo kết nối
+        </Button>
+      </template>
+    </PageHeader>
+
+    <ErrorState v-if="loadError" :message="loadError" class="mb-4" @retry="loadData" />
+
+    <FilterBar>
+      <div class="grid gap-1.5">
+        <Label for="integration-app-filter">Lọc theo application</Label>
+        <Select v-model="applicationFilter" @update:model-value="loadData">
+          <SelectTrigger id="integration-app-filter" class="w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tất cả application</SelectItem>
+            <SelectItem v-for="application in applications" :key="application.id" :value="application.id">
+              {{ application.tenantCode }} / {{ application.code }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      <button class="login-link" type="button" :disabled="isLoading" @click="loadData">Refresh</button>
-    </div>
+    </FilterBar>
 
-    <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
-    <p v-if="successMessage" class="form-success">{{ successMessage }}</p>
+    <DataTable
+      :columns="columns"
+      :data="connections"
+      :is-loading="isLoading"
+      empty-title="Chưa có kết nối tích hợp nào"
+      empty-description="Bấm “Tạo kết nối” để cấu hình connector đầu tiên."
+    />
 
-    <form class="management-form" @submit.prevent="submitConnection">
-      <select v-model="form.applicationId" required>
-        <option value="" disabled>Application</option>
-        <option v-for="application in applications" :key="application.id" :value="application.id">
-          {{ application.tenantCode }} / {{ application.code }}
-        </option>
-      </select>
-      <input v-model="form.name" type="text" placeholder="Connection name" required />
-      <input v-model="form.baseUrl" type="url" placeholder="Base URL" required />
-      <select v-model="form.authMode">
-        <option value="InternalApiKey">Internal API key</option>
-        <option value="None">None</option>
-      </select>
-      <input v-model="form.secretReference" type="text" placeholder="Secret key id" required />
-      <input v-model="form.secretValue" type="password" placeholder="Secret value" />
-      <select v-model="form.status">
-        <option value="Active">Active</option>
-        <option value="Disabled">Disabled</option>
-        <option value="Archived">Archived</option>
-      </select>
-      <input v-model="form.metadataJson" type="text" placeholder="Metadata JSON, e.g. {&quot;owner&quot;:&quot;sales&quot;}" />
-      <button type="submit" :disabled="isSaving">Create connection</button>
-    </form>
-
-    <div class="toolbar-row">
-      <label>
-        Application filter
-        <select v-model="selectedApplicationId" @change="loadData">
-          <option value="">All applications</option>
-          <option v-for="application in applications" :key="application.id" :value="application.id">
-            {{ application.tenantCode }} / {{ application.code }}
-          </option>
-        </select>
-      </label>
-    </div>
-
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Application</th>
-          <th>Name</th>
-          <th>Base URL</th>
-          <th>Auth</th>
-          <th>Status</th>
-          <th>Secret</th>
-          <th>Rotated</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="connection in connections" :key="connection.id">
-          <td>{{ connection.applicationCode }}</td>
-          <td>{{ connection.name }}</td>
-          <td>{{ connection.baseUrl }}</td>
-          <td>{{ connection.authMode }}</td>
-          <td><span class="status-pill">{{ connection.status }}</span></td>
-          <td>{{ connection.secretReference }} / {{ connection.secretConfigured ? 'configured' : 'missing' }}</td>
-          <td>{{ formatDate(connection.secretRotatedAt) }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+    <Dialog v-model:open="isDialogOpen">
+      <DialogContent class="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Tạo kết nối tích hợp</DialogTitle>
+          <DialogDescription>Secret được mã hóa phía server; giá trị chỉ nhập khi tạo hoặc xoay khóa.</DialogDescription>
+        </DialogHeader>
+        <form id="integration-form" class="grid gap-4" @submit.prevent="submitConnection">
+          <div class="grid gap-1.5">
+            <Label for="integration-app">Application</Label>
+            <Select v-model="form.applicationId" required>
+              <SelectTrigger id="integration-app" class="w-full">
+                <SelectValue placeholder="Chọn application" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="application in applications" :key="application.id" :value="application.id">
+                  {{ application.tenantCode }} / {{ application.code }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="integration-name">Tên kết nối</Label>
+            <Input id="integration-name" v-model="form.name" type="text" required />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="integration-base-url">Base URL</Label>
+            <Input id="integration-base-url" v-model="form.baseUrl" type="url" placeholder="https://..." required />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="integration-auth-mode">Chế độ xác thực</Label>
+            <Select v-model="form.authMode">
+              <SelectTrigger id="integration-auth-mode" class="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="InternalApiKey">API key nội bộ</SelectItem>
+                <SelectItem value="None">Không</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="integration-secret-ref">Mã định danh secret</Label>
+            <Input id="integration-secret-ref" v-model="form.secretReference" type="text" required />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="integration-secret-value">Giá trị secret</Label>
+            <Input id="integration-secret-value" v-model="form.secretValue" type="password" autocomplete="new-password" />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="integration-status">Trạng thái</Label>
+            <Select v-model="form.status">
+              <SelectTrigger id="integration-status" class="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Active">Hoạt động</SelectItem>
+                <SelectItem value="Disabled">Vô hiệu</SelectItem>
+                <SelectItem value="Archived">Đã lưu trữ</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="integration-metadata">Metadata JSON</Label>
+            <Input id="integration-metadata" v-model="form.metadataJson" type="text" placeholder="{&quot;owner&quot;:&quot;sales&quot;}" />
+          </div>
+          <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
+        </form>
+        <DialogFooter>
+          <Button variant="outline" type="button" :disabled="isSaving" @click="isDialogOpen = false">Hủy</Button>
+          <Button type="submit" form="integration-form" :disabled="isSaving">
+            {{ isSaving ? 'Đang tạo...' : 'Tạo kết nối' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
 </template>

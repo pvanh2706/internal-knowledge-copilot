@@ -45,7 +45,7 @@ describe('Phase 8 pages', () => {
       },
     })
 
-    expect(tenants.text()).toContain('Tenant management')
+    expect(tenants.text()).toContain('Quản trị tenant')
     expect(sources.text()).toContain('Knowledge sources')
   })
 })

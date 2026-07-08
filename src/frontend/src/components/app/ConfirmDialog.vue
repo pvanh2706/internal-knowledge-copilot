@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { useConfirmHost } from '@/composables/useConfirm'
 
 // Host duy nhất cho useConfirm() — đặt 1 lần ở App.vue
@@ -31,16 +29,15 @@ function onOpenChange(open: boolean) {
           {{ options.description }}
         </AlertDialogDescription>
       </AlertDialogHeader>
+      <!-- Button thường thay AlertDialogAction/Cancel: reka tự đóng dialog trước khi @click chạy
+           khiến promise resolve sai giá trị — tự settle rồi dialog đóng theo isOpen -->
       <AlertDialogFooter>
-        <AlertDialogCancel @click="settle(false)">
+        <Button variant="outline" @click="settle(false)">
           {{ options.cancelText ?? 'Hủy' }}
-        </AlertDialogCancel>
-        <AlertDialogAction
-          :class="options.destructive ? buttonVariants({ variant: 'destructive' }) : ''"
-          @click="settle(true)"
-        >
+        </Button>
+        <Button :variant="options.destructive ? 'destructive' : 'default'" @click="settle(true)">
           {{ options.confirmText ?? 'Xác nhận' }}
-        </AlertDialogAction>
+        </Button>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>

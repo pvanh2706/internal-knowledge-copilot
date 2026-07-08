@@ -23,15 +23,15 @@ const expectedLayoutByRoute: Record<string, LayoutName> = {
   'knowledge-sources': 'legacy',
   'workflow-recommendations': 'legacy',
   'workflow-actions': 'legacy',
-  'admin-tenants': 'legacy',
-  'admin-applications': 'legacy',
-  'admin-integrations': 'legacy',
-  'admin-users': 'legacy',
-  'admin-teams': 'legacy',
+  'admin-tenants': 'app',
+  'admin-applications': 'app',
+  'admin-integrations': 'app',
+  'admin-users': 'app',
+  'admin-teams': 'app',
   'admin-folders': 'legacy',
   'admin-ai-settings': 'legacy',
   'admin-data-reset': 'legacy',
-  'admin-audit-logs': 'legacy',
+  'admin-audit-logs': 'app',
 }
 
 describe('router layouts', () => {
