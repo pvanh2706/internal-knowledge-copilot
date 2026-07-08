@@ -24,32 +24,44 @@ import RetrievalExplainPage from '../pages/review/RetrievalExplainPage.vue'
 import WikiDraftPage from '../pages/wiki/WikiDraftPage.vue'
 import { useAuthStore } from '../stores/auth'
 
+// Layout khai báo qua meta.layout, App.vue switch component theo giá trị này.
+// (Phương án nested 3 record cha cùng path '/' bị matcher vue-router khớp nhầm record cha —
+// đây là phương án dự phòng chính thức của kế hoạch redesign, xem mục 5.3.)
+// Migrate 1 trang = đổi meta.layout của trang đó từ 'legacy' sang 'app'.
+export type LayoutName = 'app' | 'auth' | 'legacy'
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    layout?: LayoutName
+  }
+}
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'dashboard', component: DashboardPage, meta: { requiresAuth: true } },
-    { path: '/login', name: 'login', component: LoginPage },
-    { path: '/change-password', name: 'change-password', component: ChangePasswordPage, meta: { requiresAuth: true } },
-    { path: '/documents', name: 'documents', component: DocumentListPage, meta: { requiresAuth: true } },
-    { path: '/ai', name: 'ai', component: AiQuestionPage, meta: { requiresAuth: true } },
-    { path: '/wiki', name: 'wiki', component: WikiDraftPage, meta: { requiresAuth: true, requiresReviewer: true } },
-    { path: '/review', name: 'review', component: DocumentReviewPage, meta: { requiresAuth: true, requiresReviewer: true } },
-    { path: '/feedback', name: 'feedback', component: FeedbackReviewPage, meta: { requiresAuth: true, requiresReviewer: true } },
-    { path: '/evaluation', name: 'evaluation', component: EvaluationPage, meta: { requiresAuth: true, requiresReviewer: true } },
-    { path: '/retrieval-explain', name: 'retrieval-explain', component: RetrievalExplainPage, meta: { requiresAuth: true, requiresReviewer: true } },
-    { path: '/knowledge-index', name: 'knowledge-index', component: KnowledgeIndexPage, meta: { requiresAuth: true, requiresReviewer: true } },
-    { path: '/knowledge-sources', name: 'knowledge-sources', component: KnowledgeSourcePage, meta: { requiresAuth: true, requiresReviewer: true } },
-    { path: '/workflow/recommendations', name: 'workflow-recommendations', component: RecommendationListPage, meta: { requiresAuth: true } },
-    { path: '/workflow/actions', name: 'workflow-actions', component: ActionApprovalQueuePage, meta: { requiresAuth: true } },
-    { path: '/admin/tenants', name: 'admin-tenants', component: TenantManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/admin/applications', name: 'admin-applications', component: ApplicationManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/admin/integrations', name: 'admin-integrations', component: IntegrationManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/admin/users', name: 'admin-users', component: UserManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/admin/teams', name: 'admin-teams', component: TeamManagementPage, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/admin/folders', name: 'admin-folders', component: FolderManagementPage, meta: { requiresAuth: true, requiresReviewer: true } },
-    { path: '/admin/ai-settings', name: 'admin-ai-settings', component: AiSettingsPage, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/admin/data-reset', name: 'admin-data-reset', component: DataResetPage, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/admin/audit-logs', name: 'admin-audit-logs', component: AuditLogPage, meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: '/', name: 'dashboard', component: DashboardPage, meta: { requiresAuth: true, layout: 'legacy' } },
+    { path: '/login', name: 'login', component: LoginPage, meta: { layout: 'auth' } },
+    { path: '/change-password', name: 'change-password', component: ChangePasswordPage, meta: { requiresAuth: true, layout: 'auth' } },
+    { path: '/documents', name: 'documents', component: DocumentListPage, meta: { requiresAuth: true, layout: 'legacy' } },
+    { path: '/ai', name: 'ai', component: AiQuestionPage, meta: { requiresAuth: true, layout: 'legacy' } },
+    { path: '/wiki', name: 'wiki', component: WikiDraftPage, meta: { requiresAuth: true, requiresReviewer: true, layout: 'legacy' } },
+    { path: '/review', name: 'review', component: DocumentReviewPage, meta: { requiresAuth: true, requiresReviewer: true, layout: 'legacy' } },
+    { path: '/feedback', name: 'feedback', component: FeedbackReviewPage, meta: { requiresAuth: true, requiresReviewer: true, layout: 'legacy' } },
+    { path: '/evaluation', name: 'evaluation', component: EvaluationPage, meta: { requiresAuth: true, requiresReviewer: true, layout: 'legacy' } },
+    { path: '/retrieval-explain', name: 'retrieval-explain', component: RetrievalExplainPage, meta: { requiresAuth: true, requiresReviewer: true, layout: 'legacy' } },
+    { path: '/knowledge-index', name: 'knowledge-index', component: KnowledgeIndexPage, meta: { requiresAuth: true, requiresReviewer: true, layout: 'legacy' } },
+    { path: '/knowledge-sources', name: 'knowledge-sources', component: KnowledgeSourcePage, meta: { requiresAuth: true, requiresReviewer: true, layout: 'legacy' } },
+    { path: '/workflow/recommendations', name: 'workflow-recommendations', component: RecommendationListPage, meta: { requiresAuth: true, layout: 'legacy' } },
+    { path: '/workflow/actions', name: 'workflow-actions', component: ActionApprovalQueuePage, meta: { requiresAuth: true, layout: 'legacy' } },
+    { path: '/admin/tenants', name: 'admin-tenants', component: TenantManagementPage, meta: { requiresAuth: true, requiresAdmin: true, layout: 'legacy' } },
+    { path: '/admin/applications', name: 'admin-applications', component: ApplicationManagementPage, meta: { requiresAuth: true, requiresAdmin: true, layout: 'legacy' } },
+    { path: '/admin/integrations', name: 'admin-integrations', component: IntegrationManagementPage, meta: { requiresAuth: true, requiresAdmin: true, layout: 'legacy' } },
+    { path: '/admin/users', name: 'admin-users', component: UserManagementPage, meta: { requiresAuth: true, requiresAdmin: true, layout: 'legacy' } },
+    { path: '/admin/teams', name: 'admin-teams', component: TeamManagementPage, meta: { requiresAuth: true, requiresAdmin: true, layout: 'legacy' } },
+    { path: '/admin/folders', name: 'admin-folders', component: FolderManagementPage, meta: { requiresAuth: true, requiresReviewer: true, layout: 'legacy' } },
+    { path: '/admin/ai-settings', name: 'admin-ai-settings', component: AiSettingsPage, meta: { requiresAuth: true, requiresAdmin: true, layout: 'legacy' } },
+    { path: '/admin/data-reset', name: 'admin-data-reset', component: DataResetPage, meta: { requiresAuth: true, requiresAdmin: true, layout: 'legacy' } },
+    { path: '/admin/audit-logs', name: 'admin-audit-logs', component: AuditLogPage, meta: { requiresAuth: true, requiresAdmin: true, layout: 'legacy' } },
   ],
 })
 

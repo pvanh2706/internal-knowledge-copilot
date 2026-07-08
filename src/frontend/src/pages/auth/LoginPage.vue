@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ApiError } from '../../api/http'
-import { useAuthStore } from '../../stores/auth'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ApiError } from '@/api/http'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,38 +36,55 @@ async function submitLogin() {
 </script>
 
 <template>
-  <section class="auth-panel">
-    <form class="login-form" @submit.prevent="submitLogin">
-      <h2>Đăng nhập</h2>
+  <Card class="w-full max-w-sm">
+    <CardHeader>
+      <CardTitle class="text-lg">Đăng nhập</CardTitle>
+      <CardDescription>Truy cập kho tri thức nội bộ của công ty bạn.</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <form class="grid gap-4" @submit.prevent="submitLogin">
+        <p
+          v-if="sessionExpired"
+          class="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm"
+          role="status"
+        >
+          Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.
+        </p>
 
-      <p v-if="sessionExpired" class="form-error">Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.</p>
+        <div class="grid gap-1.5">
+          <Label for="login-tenant">Mã tenant</Label>
+          <Input
+            id="login-tenant"
+            v-model="authStore.tenantCode"
+            type="text"
+            autocomplete="organization"
+            required
+            @change="authStore.setTenantCode(authStore.tenantCode)"
+          />
+        </div>
 
-      <label>
-        Tenant code
-        <input
-          v-model="authStore.tenantCode"
-          type="text"
-          autocomplete="organization"
-          required
-          @change="authStore.setTenantCode(authStore.tenantCode)"
-        />
-      </label>
+        <div class="grid gap-1.5">
+          <Label for="login-email">Email</Label>
+          <Input id="login-email" v-model="email" type="email" autocomplete="email" required />
+        </div>
 
-      <label>
-        Email
-        <input v-model="email" type="email" autocomplete="email" required />
-      </label>
+        <div class="grid gap-1.5">
+          <Label for="login-password">Mật khẩu</Label>
+          <Input id="login-password" v-model="password" type="password" autocomplete="current-password" required />
+        </div>
 
-      <label>
-        Mật khẩu
-        <input v-model="password" type="password" autocomplete="current-password" required />
-      </label>
+        <p
+          v-if="errorMessage"
+          class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+          role="alert"
+        >
+          {{ errorMessage }}
+        </p>
 
-      <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
-
-      <button type="submit" :disabled="isSubmitting">
-        {{ isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập' }}
-      </button>
-    </form>
-  </section>
+        <Button type="submit" :disabled="isSubmitting">
+          {{ isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập' }}
+        </Button>
+      </form>
+    </CardContent>
+  </Card>
 </template>

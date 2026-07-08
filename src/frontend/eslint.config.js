@@ -34,4 +34,13 @@ export default tseslint.config(
       'vue/html-self-closing': 'off',
     },
   },
+  {
+    // Component do shadcn-vue generate — không áp quy ước đặt tên/prop của codebase lên code sinh máy
+    files: ['src/components/ui/**'],
+    rules: {
+      'vue/multi-word-component-names': 'off',
+      'vue/require-default-prop': 'off',
+      'vue/require-prop-types': 'off',
+    },
+  },
 )

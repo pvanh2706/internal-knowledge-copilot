@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Internal Knowledge Copilot</title>
+    <script>
+      // Chống FOUC: set class dark trước khi Vue mount — cùng key localStorage `theme` với useTheme()
+      ;(function () {
+        try {
+          var theme = localStorage.getItem('theme') || 'auto'
+          var dark =
+            theme === 'dark' ||
+            (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.classList.toggle('dark', dark)
+        } catch (e) {
+          /* bỏ qua khi localStorage không khả dụng */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>
