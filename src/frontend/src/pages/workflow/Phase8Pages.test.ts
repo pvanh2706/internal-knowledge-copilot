@@ -26,8 +26,8 @@ describe('Phase 8 pages', () => {
       },
     })
 
-    expect(recommendations.text()).toContain('Workflow recommendations')
-    expect(actions.text()).toContain('Action approval queue')
+    expect(recommendations.text()).toContain('Gợi ý quy trình')
+    expect(actions.text()).toContain('Hàng đợi hành động')
   })
 
   it('renders admin and review platform pages', () => {
@@ -46,7 +46,7 @@ describe('Phase 8 pages', () => {
     })
 
     expect(tenants.text()).toContain('Quản trị tenant')
-    expect(sources.text()).toContain('Knowledge sources')
+    expect(sources.text()).toContain('Nguồn tri thức')
   })
 })
 

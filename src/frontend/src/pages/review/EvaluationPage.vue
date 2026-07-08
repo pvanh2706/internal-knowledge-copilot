@@ -1,36 +1,132 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import type { EvaluationCase, EvaluationRun } from '../../api/evaluation'
-import { getEvaluationCases, getEvaluationRuns, runEvaluation } from '../../api/evaluation'
-import { ApiError } from '../../api/http'
-import { useAuthStore } from '../../stores/auth'
+import { h, onMounted, ref } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import { PlayIcon } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import DataTable from '@/components/app/DataTable.vue'
+import ErrorState from '@/components/app/ErrorState.vue'
+import FilterBar from '@/components/app/FilterBar.vue'
+import PageHeader from '@/components/app/PageHeader.vue'
+import StatusBadge from '@/components/app/StatusBadge.vue'
+import type { EvaluationCase, EvaluationRun, EvaluationRunResult } from '@/api/evaluation'
+import { getEvaluationCases, getEvaluationRuns, runEvaluation } from '@/api/evaluation'
+import { ApiError } from '@/api/http'
+import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
+import { formatDateTime } from '@/lib/format'
 
 const authStore = useAuthStore()
+const toast = useToast()
+
 const cases = ref<EvaluationCase[]>([])
 const runs = ref<EvaluationRun[]>([])
 const selectedRun = ref<EvaluationRun | null>(null)
 const runName = ref('')
-const errorMessage = ref('')
-const successMessage = ref('')
+const isLoading = ref(false)
 const isRunning = ref(false)
+const loadError = ref('')
+
+const caseColumns: ColumnDef<EvaluationCase>[] = [
+  { accessorKey: 'question', header: 'Câu hỏi' },
+  {
+    accessorKey: 'expectedKeywords',
+    header: 'Từ khóa kỳ vọng',
+    enableSorting: false,
+    cell: ({ row }) => row.original.expectedKeywords.join(', ') || '—',
+  },
+  { accessorKey: 'scopeType', header: 'Phạm vi' },
+  {
+    id: 'run',
+    header: '',
+    enableSorting: false,
+    cell: ({ row }) =>
+      h(
+        Button,
+        {
+          variant: 'ghost',
+          size: 'sm',
+          disabled: isRunning.value,
+          onClick: () => void submitRun(row.original.id),
+        },
+        () => 'Chạy',
+      ),
+  },
+]
+
+const runColumns: ColumnDef<EvaluationRun>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Tên',
+    cell: ({ row }) => row.original.name || 'Lần chạy evaluation',
+  },
+  {
+    accessorKey: 'passRate',
+    header: 'Pass',
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'tabular-nums' },
+        `${row.original.passedCases}/${row.original.totalCases} (${Math.round(row.original.passRate)}%)`,
+      ),
+  },
+  {
+    accessorKey: 'createdAt',
+    header: 'Thời gian',
+    cell: ({ row }) => formatDateTime(row.original.finishedAt || row.original.createdAt),
+  },
+]
+
+const resultColumns: ColumnDef<EvaluationRunResult>[] = [
+  { accessorKey: 'question', header: 'Câu hỏi' },
+  {
+    accessorKey: 'passed',
+    header: 'Trạng thái',
+    cell: ({ row }) =>
+      h(StatusBadge, {
+        status: row.original.passed ? 'Approved' : 'Failed',
+        label: row.original.passed ? 'Pass' : 'Fail',
+      }),
+  },
+  {
+    accessorKey: 'score',
+    header: 'Điểm',
+    cell: ({ row }) => h('span', { class: 'tabular-nums' }, `${Math.round(row.original.score * 100)}%`),
+  },
+  {
+    accessorKey: 'failureReason',
+    header: 'Lỗi',
+    enableSorting: false,
+    cell: ({ row }) => row.original.failureReason || '—',
+  },
+]
 
 async function loadData() {
   if (!authStore.accessToken) return
-  const [loadedCases, loadedRuns] = await Promise.all([
-    getEvaluationCases(authStore.accessToken),
-    getEvaluationRuns(authStore.accessToken),
-  ])
-  cases.value = loadedCases
-  runs.value = loadedRuns
-  selectedRun.value = selectedRun.value
-    ? loadedRuns.find((run) => run.id === selectedRun.value?.id) ?? loadedRuns[0] ?? null
-    : loadedRuns[0] ?? null
+  loadError.value = ''
+  isLoading.value = true
+
+  try {
+    const [loadedCases, loadedRuns] = await Promise.all([
+      getEvaluationCases(authStore.accessToken),
+      getEvaluationRuns(authStore.accessToken),
+    ])
+    cases.value = loadedCases
+    runs.value = loadedRuns
+    selectedRun.value = selectedRun.value
+      ? loadedRuns.find((run) => run.id === selectedRun.value?.id) ?? loadedRuns[0] ?? null
+      : loadedRuns[0] ?? null
+  } catch (error) {
+    loadError.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải evaluation.'
+  } finally {
+    isLoading.value = false
+  }
 }
 
 async function submitRun(caseId?: string) {
-  if (!authStore.accessToken) return
-  errorMessage.value = ''
-  successMessage.value = ''
+  if (!authStore.accessToken || isRunning.value) return
   isRunning.value = true
 
   try {
@@ -41,122 +137,73 @@ async function submitRun(caseId?: string) {
       },
       authStore.accessToken,
     )
-    successMessage.value = `Eval run xong: ${run.passedCases}/${run.totalCases} pass.`
+    toast.success(`Eval chạy xong: ${run.passedCases}/${run.totalCases} pass.`)
     runName.value = ''
     await loadData()
     selectedRun.value = run
   } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể chạy eval.'
+    toast.error(error instanceof ApiError || error instanceof Error ? error.message : 'Không thể chạy eval.')
   } finally {
     isRunning.value = false
   }
 }
 
-function selectRun(run: EvaluationRun) {
-  selectedRun.value = run
-}
-
-function formatPassRate(run: EvaluationRun) {
-  return `${Math.round(run.passRate)}%`
-}
-
-function formatKeywords(item: EvaluationCase) {
-  return item.expectedKeywords.join(', ') || '-'
-}
-
-onMounted(async () => {
-  try {
-    await loadData()
-  } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải evaluation.'
-  }
-})
+onMounted(loadData)
 </script>
 
 <template>
-  <section class="panel management-page">
-    <div>
-      <h2>Đánh giá</h2>
-      <p>Chạy eval cases để đo chất lượng câu trả lời AI theo baseline before/after.</p>
-    </div>
+  <div class="mx-auto max-w-6xl">
+    <PageHeader
+      title="Đánh giá"
+      description="Chạy eval case để đo chất lượng câu trả lời AI theo baseline before/after."
+    />
 
-    <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
-    <p v-if="successMessage" class="form-success">{{ successMessage }}</p>
+    <ErrorState v-if="loadError" :message="loadError" class="mb-4" @retry="loadData" />
 
-    <form class="stack-form" @submit.prevent="submitRun()">
-      <label>
-        Tên lần chạy
-        <input v-model="runName" placeholder="baseline, after correction..." />
-      </label>
-      <button type="submit" :disabled="isRunning">Chạy tất cả case đang bật</button>
+    <form @submit.prevent="submitRun()">
+      <FilterBar>
+        <div class="grid gap-1.5">
+          <Label for="eval-run-name">Tên lần chạy</Label>
+          <Input id="eval-run-name" v-model="runName" type="text" class="w-64" placeholder="baseline, after correction..." />
+        </div>
+        <Button type="submit" :disabled="isRunning">
+          <PlayIcon class="size-4" />
+          {{ isRunning ? 'Đang chạy...' : 'Chạy tất cả case đang bật' }}
+        </Button>
+      </FilterBar>
     </form>
 
-    <div class="split-layout">
-      <section class="answer-panel">
-        <h3>Eval case</h3>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Câu hỏi</th>
-              <th>Từ khóa</th>
-              <th>Phạm vi</th>
-              <th>Chạy</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in cases" :key="item.id">
-              <td>{{ item.question }}</td>
-              <td>{{ formatKeywords(item) }}</td>
-              <td>{{ item.scopeType }}</td>
-              <td>
-                <button type="button" class="text-button" :disabled="isRunning" @click="submitRun(item.id)">Chạy</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section class="answer-panel">
-        <h3>Lần chạy</h3>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Tên</th>
-              <th>Pass</th>
-              <th>Thời gian</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="run in runs" :key="run.id" class="clickable-row" @click="selectRun(run)">
-              <td>{{ run.name || 'Lần chạy evaluation' }}</td>
-              <td>{{ run.passedCases }}/{{ run.totalCases }} ({{ formatPassRate(run) }})</td>
-              <td>{{ run.finishedAt || run.createdAt }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+    <div class="grid items-start gap-6 xl:grid-cols-2">
+      <div>
+        <p class="mb-2 text-sm font-medium">Eval case</p>
+        <DataTable
+          :columns="caseColumns"
+          :data="cases"
+          :is-loading="isLoading"
+          empty-title="Chưa có eval case nào"
+          empty-description="Eval case được tạo từ phản hồi sai ở trang Phản hồi."
+        />
+      </div>
+      <div>
+        <p class="mb-2 text-sm font-medium">Lần chạy</p>
+        <DataTable
+          :columns="runColumns"
+          :data="runs"
+          :is-loading="isLoading"
+          clickable-rows
+          empty-title="Chưa có lần chạy nào"
+          @row-click="(run) => (selectedRun = run)"
+        />
+      </div>
     </div>
 
-    <section v-if="selectedRun" class="answer-panel">
-      <h3>Kết quả chạy</h3>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Câu hỏi</th>
-            <th>Trạng thái</th>
-            <th>Điểm</th>
-            <th>Lỗi</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="result in selectedRun.results" :key="result.id">
-            <td>{{ result.question }}</td>
-            <td>{{ result.passed ? 'Pass' : 'Fail' }}</td>
-            <td>{{ Math.round(result.score * 100) }}%</td>
-            <td>{{ result.failureReason || '-' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-  </section>
+    <Card v-if="selectedRun" class="mt-6">
+      <CardHeader>
+        <CardTitle class="text-lg">Kết quả: {{ selectedRun.name || 'Lần chạy evaluation' }}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <DataTable :columns="resultColumns" :data="selectedRun.results" empty-title="Không có kết quả" />
+      </CardContent>
+    </Card>
+  </div>
 </template>
