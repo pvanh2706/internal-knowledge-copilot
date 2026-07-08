@@ -7,7 +7,7 @@ import AppLayout from './layouts/AppLayout.vue'
 import AuthLayout from './layouts/AuthLayout.vue'
 import { accessTokenStorageKey, userStorageKey } from './api/http'
 
-// Cặp (route name, layout) kỳ vọng — cập nhật khi migrate trang từ 'legacy' sang 'app'
+// Cặp (route name, layout) — sau đợt 5b toàn bộ 23 route chạy trên AppLayout/AuthLayout
 const expectedLayoutByRoute: Record<string, LayoutName> = {
   'login': 'auth',
   'change-password': 'auth',
@@ -16,7 +16,7 @@ const expectedLayoutByRoute: Record<string, LayoutName> = {
   'ai': 'app',
   'wiki': 'app',
   'review': 'app',
-  'feedback': 'legacy',
+  'feedback': 'app',
   'evaluation': 'app',
   'retrieval-explain': 'app',
   'knowledge-index': 'app',
@@ -29,8 +29,8 @@ const expectedLayoutByRoute: Record<string, LayoutName> = {
   'admin-users': 'app',
   'admin-teams': 'app',
   'admin-folders': 'app',
-  'admin-ai-settings': 'legacy',
-  'admin-data-reset': 'legacy',
+  'admin-ai-settings': 'app',
+  'admin-data-reset': 'app',
   'admin-audit-logs': 'app',
 }
 

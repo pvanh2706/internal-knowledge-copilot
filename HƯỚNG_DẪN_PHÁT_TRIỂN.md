@@ -69,33 +69,39 @@ Recommended backend choices:
 - Serilog or built-in logging to file
 - xUnit or NUnit for backend tests
 
-## Suggested Frontend Structure
+## Frontend Structure (implemented)
 
 ```text
 src/frontend/
+  components.json          # shadcn-vue config — add component đích danh, không re-init
   src/
-    api/
+    api/                   # API client theo module — KHÔNG đổi chữ ký khi làm UI
+    assets/main.css        # Tailwind v4 + design tokens (cấu hình bằng CSS, KHÔNG có tailwind.config.js)
     components/
-    layouts/
-    pages/
-      auth/
-      documents/
-      ai/
-      wiki/
-      review/
-      admin/
-      dashboard/
-    router/
+      ui/                  # shadcn-vue generate — sửa tay phải đánh dấu "// [đã sửa tay]"
+      app/                 # component nghiệp vụ: DataTable, StatusBadge (+ status.ts), PageHeader,
+                           # FilterBar, ConfirmDialog, EmptyState, ErrorState, CitationCard,
+                           # ScopeSelector, AnswerPanel, FolderSelect, FileUpload, JsonViewer...
+    composables/           # useTheme, useToast, useConfirm, useFolderTree, useAiSettingsForm
+    layouts/               # AppLayout (sidebar + topbar) / AuthLayout — chọn theo route meta.layout
+    lib/                   # cn(), formatDateTime
+    pages/                 # auth/ documents/ ai/ wiki/ review/ admin/ workflow/
+    router/                # route lazy-load, meta.layout + guard role
     stores/
+    test/setup.ts          # stub ResizeObserver/matchMedia/scrollIntoView cho jsdom
 ```
 
-Recommended frontend choices:
+Frontend stack (đã triển khai từ redesign UI 2026-07):
 
-- Vue with Vite
-- Pinia for state if shared auth/session state is needed
-- Vue Router
-- Vitest for unit tests
-- Playwright only if end-to-end smoke tests are added
+- Vue 3 + Vite, Pinia, Vue Router (layout chọn qua `meta.layout`)
+- Tailwind CSS v4 + shadcn-vue (Reka UI), icon `@lucide/vue` (chỉ import đích danh)
+- Font Inter Variable self-host (`@fontsource-variable/inter`) — không gọi CDN
+- Dark mode: `useTheme()` 3 chế độ, key localStorage `theme`, inline script chống FOUC trong `index.html`
+- Toast: vue-sonner qua `useToast()`; confirm hành động phá hủy qua `useConfirm()` (bắt buộc)
+- Bảng dữ liệu: `DataTable` (@tanstack/vue-table, phân trang client-side)
+- Vitest cho unit test; test đặt cạnh file nguồn
+
+Quy ước khi sửa UI: cấm hardcode hex (chỉ dùng token qua utility như `bg-background`, `text-muted-foreground`), cấm tạo `tailwind.config.js`/`@tailwind base` (cú pháp v3), UI text tiếng Việt có dấu, badge trạng thái map qua `components/app/status.ts`. Chi tiết: [docs/KẾ_HOẠCH_THIẾT_KẾ_LẠI_GIAO_DIỆN.md](docs/KẾ_HOẠCH_THIẾT_KẾ_LẠI_GIAO_DIỆN.md) mục 3 và 5.4.
 
 ## Local Services
 
@@ -169,9 +175,12 @@ Frontend:
 cd src/frontend
 npm install
 npm run dev
+npm run lint
 npm run build
 npm test
 ```
+
+Yêu cầu Node >= 18 (khuyến nghị Node 22). 3 gate `lint`/`build`/`test` phải pass trước khi commit thay đổi frontend.
 
 Infrastructure:
 

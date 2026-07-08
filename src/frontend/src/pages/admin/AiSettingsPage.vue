@@ -1,443 +1,282 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
+import { FlaskConicalIcon, RefreshCwIcon, SaveIcon } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
-  getAiProviderSettings,
-  testAiProviderSettings,
-  updateAiProviderSettings,
-  type AiProviderSettings,
-  type TestAiProviderSettingsResponse,
-} from '../../api/aiSettings'
-import { ApiError } from '../../api/http'
-import { useAuthStore } from '../../stores/auth'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import ErrorState from '@/components/app/ErrorState.vue'
+import PageHeader from '@/components/app/PageHeader.vue'
+import StatCard from '@/components/app/StatCard.vue'
+import StatusBadge from '@/components/app/StatusBadge.vue'
+import { useAiSettingsForm } from '@/composables/useAiSettingsForm'
 
-const authStore = useAuthStore()
-const isLoading = ref(false)
-const isSaving = ref(false)
-const isTesting = ref(false)
-const showAdvanced = ref(false)
-const useSharedKeyForEmbedding = ref(true)
-const errorMessage = ref('')
-const successMessage = ref('')
-const testResult = ref<TestAiProviderSettingsResponse | null>(null)
-const hasSavedApiKey = ref(false)
-const hasSavedEmbeddingApiKey = ref(false)
-const updatedText = ref('-')
-
-const form = ref({
-  name: 'mock',
-  baseUrl: 'https://api.openai.com/v1',
-  apiKey: '',
-  clearApiKey: false,
-  apiKeyHeaderName: 'Authorization',
-  chatEndpointMode: 'responses',
-  chatModel: 'gpt-5.5',
-  fastModel: 'gpt-5.5',
-  embeddingProviderName: 'mock',
-  embeddingBaseUrl: 'https://api.openai.com/v1',
-  embeddingApiKey: '',
-  clearEmbeddingApiKey: false,
-  embeddingApiKeyHeaderName: 'Authorization',
-  embeddingModel: 'text-embedding-3-large',
-  embeddingDimension: 3072,
-  reasoningEffort: 'medium',
-  temperature: null as number | null,
-  maxOutputTokens: 2500,
-  timeoutSeconds: 60,
-})
-
-const isMockProvider = computed(() => form.value.name === 'mock')
-const isOpenAiProvider = computed(() => form.value.name === 'openai')
-const isAnthropicProvider = computed(() => form.value.name === 'anthropic')
-const isExternalProvider = computed(() => isOpenAiProvider.value || isAnthropicProvider.value)
-const hasEffectiveEmbeddingKey = computed(() => {
-  return (
-    isAnthropicProvider.value ||
-    hasSavedEmbeddingApiKey.value ||
-    (isOpenAiProvider.value && hasSavedApiKey.value && useSharedKeyForEmbedding.value)
-  )
-})
-const canSave = computed(() => {
-  if (isMockProvider.value) return true
-  return hasSavedApiKey.value || Boolean(form.value.apiKey.trim())
-})
-const providerStatus = computed(() => {
-  if (isOpenAiProvider.value) return 'OpenAI'
-  if (isAnthropicProvider.value) return 'Anthropic'
-  return 'Mock local'
-})
-
-function applyOpenAiPreset() {
-  form.value.baseUrl = 'https://api.openai.com/v1'
-  form.value.apiKeyHeaderName = 'Authorization'
-  form.value.chatEndpointMode = 'responses'
-  form.value.chatModel = 'gpt-5.5'
-  form.value.fastModel = 'gpt-5.5'
-  form.value.embeddingProviderName = 'openai'
-  form.value.embeddingBaseUrl = 'https://api.openai.com/v1'
-  form.value.embeddingApiKeyHeaderName = 'Authorization'
-  form.value.embeddingModel = 'text-embedding-3-large'
-  form.value.embeddingDimension = 3072
-  form.value.reasoningEffort = 'medium'
-  form.value.temperature = null
-  form.value.maxOutputTokens = 2500
-  form.value.timeoutSeconds = 60
-  useSharedKeyForEmbedding.value = true
-}
-
-function applyMockPreset() {
-  form.value.baseUrl = 'https://api.openai.com/v1'
-  form.value.apiKey = ''
-  form.value.clearApiKey = false
-  form.value.apiKeyHeaderName = 'Authorization'
-  form.value.chatEndpointMode = 'responses'
-  form.value.chatModel = 'mock'
-  form.value.fastModel = 'mock'
-  form.value.embeddingProviderName = 'mock'
-  form.value.embeddingApiKey = ''
-  form.value.clearEmbeddingApiKey = false
-  form.value.embeddingBaseUrl = 'https://api.openai.com/v1'
-  form.value.embeddingApiKeyHeaderName = 'Authorization'
-  form.value.embeddingModel = 'mock'
-  form.value.embeddingDimension = 64
-  form.value.reasoningEffort = 'medium'
-  form.value.temperature = null
-  form.value.maxOutputTokens = 2500
-  form.value.timeoutSeconds = 60
-  useSharedKeyForEmbedding.value = true
-}
-
-function applyAnthropicPreset() {
-  form.value.baseUrl = 'https://api.anthropic.com/v1'
-  form.value.apiKeyHeaderName = 'x-api-key'
-  form.value.chatEndpointMode = 'messages'
-  form.value.chatModel = 'claude-sonnet-4-5'
-  form.value.fastModel = 'claude-sonnet-4-5'
-  form.value.embeddingProviderName = 'mock'
-  form.value.embeddingBaseUrl = 'https://api.openai.com/v1'
-  form.value.embeddingApiKey = ''
-  form.value.clearEmbeddingApiKey = false
-  form.value.embeddingApiKeyHeaderName = 'Authorization'
-  form.value.embeddingModel = 'mock'
-  form.value.embeddingDimension = 64
-  form.value.reasoningEffort = 'medium'
-  form.value.temperature = null
-  form.value.maxOutputTokens = 2500
-  form.value.timeoutSeconds = 60
-  useSharedKeyForEmbedding.value = false
-}
-
-function onProviderChange() {
-  testResult.value = null
-  successMessage.value = ''
-  if (isOpenAiProvider.value) {
-    applyOpenAiPreset()
-  } else if (isAnthropicProvider.value) {
-    applyAnthropicPreset()
-  } else {
-    applyMockPreset()
-  }
-}
-
-function applySettings(settings: AiProviderSettings) {
-  hasSavedApiKey.value = settings.hasApiKey
-  hasSavedEmbeddingApiKey.value = settings.hasEmbeddingApiKey
-  form.value = {
-    name: settings.name === 'openai' || settings.name === 'anthropic' ? settings.name : 'mock',
-    baseUrl: settings.baseUrl,
-    apiKey: settings.apiKey ?? '',
-    clearApiKey: false,
-    apiKeyHeaderName: settings.apiKeyHeaderName,
-    chatEndpointMode: settings.chatEndpointMode,
-    chatModel: settings.chatModel,
-    fastModel: settings.fastModel,
-    embeddingProviderName: settings.embeddingProviderName,
-    embeddingBaseUrl: settings.embeddingBaseUrl,
-    embeddingApiKey: settings.embeddingApiKey ?? '',
-    clearEmbeddingApiKey: false,
-    embeddingApiKeyHeaderName: settings.embeddingApiKeyHeaderName,
-    embeddingModel: settings.embeddingModel,
-    embeddingDimension: settings.embeddingDimension,
-    reasoningEffort: settings.reasoningEffort,
-    temperature: settings.temperature ?? null,
-    maxOutputTokens: settings.maxOutputTokens,
-    timeoutSeconds: settings.timeoutSeconds,
-  }
-
-  if (form.value.name === 'openai' && form.value.embeddingProviderName !== 'openai') {
-    form.value.embeddingProviderName = 'openai'
-  }
-
-  useSharedKeyForEmbedding.value = form.value.name === 'openai'
-  updatedText.value = settings.updatedAt ? new Date(settings.updatedAt).toLocaleString() : '-'
-}
-
-async function loadSettings() {
-  if (!authStore.accessToken) return
-  errorMessage.value = ''
-  isLoading.value = true
-
-  try {
-    applySettings(await getAiProviderSettings(authStore.accessToken))
-  } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải cấu hình AI.'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-function buildPayload() {
-  const apiKey = form.value.apiKey.trim()
-  const embeddingApiKey = form.value.embeddingApiKey.trim()
-  const useSharedEmbedding = isOpenAiProvider.value && useSharedKeyForEmbedding.value
-
-  return {
-    ...form.value,
-    name: isOpenAiProvider.value ? 'openai' : isAnthropicProvider.value ? 'anthropic' : 'mock',
-    apiKey: isMockProvider.value || !apiKey ? null : apiKey,
-    clearApiKey: isMockProvider.value ? false : form.value.clearApiKey,
-    embeddingProviderName: isMockProvider.value || isAnthropicProvider.value ? 'mock' : form.value.embeddingProviderName,
-    embeddingApiKey: isMockProvider.value || isAnthropicProvider.value
-      ? null
-      : useSharedEmbedding
-        ? apiKey || null
-        : embeddingApiKey || null,
-    clearEmbeddingApiKey: isMockProvider.value || isAnthropicProvider.value
-      ? false
-      : useSharedEmbedding
-        ? form.value.clearApiKey
-        : form.value.clearEmbeddingApiKey,
-    temperature: form.value.temperature === null || Number.isNaN(form.value.temperature) ? null : form.value.temperature,
-  }
-}
-
-async function saveSettings(runTestAfterSave = false) {
-  if (!authStore.accessToken || isSaving.value || !canSave.value) return
-  errorMessage.value = ''
-  successMessage.value = ''
-  testResult.value = null
-  isSaving.value = true
-
-  try {
-    const updated = await updateAiProviderSettings(buildPayload(), authStore.accessToken)
-    applySettings(updated)
-    successMessage.value = 'Đã lưu cấu hình AI.'
-
-    if (runTestAfterSave) {
-      await submitTest()
-      successMessage.value = 'Đã lưu cấu hình AI.'
-    }
-  } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể lưu cấu hình AI.'
-  } finally {
-    isSaving.value = false
-  }
-}
-
-async function submitTest() {
-  if (!authStore.accessToken || isTesting.value) return
-  errorMessage.value = ''
-  testResult.value = null
-  isTesting.value = true
-
-  try {
-    testResult.value = await testAiProviderSettings(authStore.accessToken)
-  } catch (error) {
-    errorMessage.value = error instanceof ApiError || error instanceof Error ? error.message : 'Không thể test AI provider.'
-  } finally {
-    isTesting.value = false
-  }
-}
+const {
+  form,
+  isLoading,
+  isSaving,
+  isTesting,
+  useSharedKeyForEmbedding,
+  errorMessage,
+  successMessage,
+  testResult,
+  hasSavedApiKey,
+  hasSavedEmbeddingApiKey,
+  updatedText,
+  isMockProvider,
+  isOpenAiProvider,
+  isAnthropicProvider,
+  isExternalProvider,
+  hasEffectiveEmbeddingKey,
+  canSave,
+  providerStatus,
+  onProviderChange,
+  loadSettings,
+  saveSettings,
+  submitTest,
+} = useAiSettingsForm()
 
 onMounted(loadSettings)
 </script>
 
 <template>
-  <section class="panel management-page">
-    <div>
-      <h2>Cấu hình AI</h2>
-      <p>Chọn nhà cung cấp và nhập API key. Các thông số model, endpoint và embedding đã có preset mặc định.</p>
+  <div class="mx-auto max-w-6xl">
+    <PageHeader
+      title="Cấu hình AI"
+      description="Chọn nhà cung cấp và nhập API key. Các thông số model, endpoint và embedding đã có preset mặc định."
+    >
+      <template #actions>
+        <Button variant="outline" :disabled="isLoading" @click="loadSettings">
+          <RefreshCwIcon class="size-4" />
+          Làm mới
+        </Button>
+      </template>
+    </PageHeader>
+
+    <ErrorState v-if="errorMessage" :message="errorMessage" class="mb-4" @retry="loadSettings" />
+    <p
+      v-if="successMessage"
+      class="mb-4 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success"
+      role="status"
+    >
+      {{ successMessage }}
+    </p>
+
+    <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <StatCard label="Nhà cung cấp" :value="providerStatus" />
+      <StatCard label="API key" :value="hasSavedApiKey ? 'Đã lưu' : 'Chưa có'" />
+      <StatCard label="Embedding" :value="hasEffectiveEmbeddingKey || isMockProvider ? 'Sẵn sàng' : 'Chưa có key'" />
+      <StatCard label="Cập nhật" value="" :hint="updatedText" />
     </div>
 
-    <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
-    <p v-if="successMessage" class="form-success">{{ successMessage }}</p>
+    <form @submit.prevent="saveSettings(false)">
+      <Tabs default-value="basic">
+        <TabsList>
+          <TabsTrigger value="basic">Cơ bản</TabsTrigger>
+          <TabsTrigger value="advanced">Nâng cao</TabsTrigger>
+        </TabsList>
 
-    <div class="stat-grid">
-      <div class="stat-card">
-        <span>Provider</span>
-        <strong>{{ providerStatus }}</strong>
-      </div>
-      <div class="stat-card">
-        <span>API key</span>
-        <strong>{{ hasSavedApiKey ? 'Đã lưu' : 'Chưa có' }}</strong>
-      </div>
-      <div class="stat-card">
-        <span>Embedding</span>
-        <strong>{{ hasEffectiveEmbeddingKey || isMockProvider ? 'Sẵn sàng' : 'Chưa có key' }}</strong>
-      </div>
-      <div class="stat-card">
-        <span>Cập nhật</span>
-        <small>{{ updatedText }}</small>
-      </div>
-    </div>
+        <TabsContent value="basic">
+          <Card>
+            <CardContent class="grid max-w-xl gap-4 pt-6">
+              <div class="grid gap-1.5">
+                <Label for="ai-provider">Nhà cung cấp</Label>
+                <Select v-model="form.name" @update:model-value="onProviderChange">
+                  <SelectTrigger id="ai-provider" class="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mock">Mock local</SelectItem>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="anthropic">Anthropic / Claude</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-    <form class="stack-form" @submit.prevent="saveSettings(false)">
-      <section class="settings-section">
-        <label>
-          Nhà cung cấp
-          <select v-model="form.name" @change="onProviderChange">
-            <option value="mock">Mock local</option>
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic / Claude</option>
-          </select>
-        </label>
+              <div v-if="isExternalProvider" class="grid gap-1.5">
+                <Label for="ai-api-key">{{ isAnthropicProvider ? 'Anthropic API key' : 'OpenAI API key' }}</Label>
+                <Input
+                  id="ai-api-key"
+                  v-model="form.apiKey"
+                  type="text"
+                  autocomplete="off"
+                  :required="!hasSavedApiKey"
+                  :placeholder="hasSavedApiKey ? 'API key đang lưu' : isAnthropicProvider ? 'Dán API key của Anthropic' : 'Dán API key của OpenAI'"
+                />
+              </div>
 
-        <label v-if="isExternalProvider">
-          {{ isAnthropicProvider ? 'Anthropic API key' : 'OpenAI API key' }}
-          <input
-            v-model="form.apiKey"
-            type="text"
-            autocomplete="off"
-            :required="!hasSavedApiKey"
-            :placeholder="hasSavedApiKey ? 'API key đang lưu' : isAnthropicProvider ? 'Dán API key của Anthropic' : 'Dán API key của OpenAI'"
-          />
-        </label>
+              <label v-if="isExternalProvider && hasSavedApiKey" class="flex cursor-pointer items-center gap-2.5 text-sm">
+                <Checkbox v-model="form.clearApiKey" />
+                Xóa API key đang lưu
+              </label>
 
-        <label v-if="isExternalProvider && hasSavedApiKey" class="checkbox-line">
-          <input v-model="form.clearApiKey" type="checkbox" />
-          Xóa API key đang lưu
-        </label>
+              <p v-if="isMockProvider" class="rounded-md border-l-2 border-info bg-info/10 p-3 text-sm text-muted-foreground">
+                Mock local không gọi LLM bên ngoài. Chế độ này chỉ phù hợp để demo luồng, câu trả lời sẽ là bản ghép từ
+                các đoạn tìm kiếm.
+              </p>
+              <p v-else class="rounded-md border-l-2 border-info bg-info/10 p-3 text-sm text-muted-foreground">
+                Preset {{ isAnthropicProvider ? 'Anthropic' : 'OpenAI' }} dùng endpoint {{ form.chatEndpointMode }},
+                model {{ form.chatModel }}.
+                {{ isAnthropicProvider ? 'Embedding đang dùng mock để không cần thêm key khác.' : 'Embedding sẽ dùng chung API key ở trên.' }}
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        <p v-if="isMockProvider" class="settings-note">
-          Mock local không gọi LLM bên ngoài. Chế độ này chỉ phù hợp để demo luồng, câu trả lời sẽ là bản ghép từ các đoạn tìm kiếm.
-        </p>
-        <p v-else class="settings-note">
-          Preset {{ isAnthropicProvider ? 'Anthropic' : 'OpenAI' }} dùng endpoint {{ form.chatEndpointMode }}, model {{ form.chatModel }}.
-          {{ isAnthropicProvider ? 'Embedding đang dùng mock để không cần thêm key khác.' : 'Embedding sẽ dùng chung API key ở trên.' }}
-        </p>
-      </section>
+        <TabsContent value="advanced">
+          <Card>
+            <CardContent class="grid gap-5 pt-6">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div class="grid gap-1.5">
+                  <Label for="ai-base-url">Base URL</Label>
+                  <Input id="ai-base-url" v-model.trim="form.baseUrl" type="url" />
+                </div>
+                <div class="grid gap-1.5">
+                  <Label for="ai-endpoint-mode">Chat endpoint</Label>
+                  <Select v-model="form.chatEndpointMode" :disabled="isMockProvider">
+                    <SelectTrigger id="ai-endpoint-mode" class="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="responses">Responses API</SelectItem>
+                      <SelectItem value="chat-completions">Chat Completions</SelectItem>
+                      <SelectItem value="messages">Anthropic Messages</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div class="grid gap-1.5">
+                  <Label for="ai-chat-model">Chat model</Label>
+                  <Input id="ai-chat-model" v-model.trim="form.chatModel" type="text" :disabled="isMockProvider" />
+                </div>
+                <div class="grid gap-1.5">
+                  <Label for="ai-fast-model">Fast model</Label>
+                  <Input id="ai-fast-model" v-model.trim="form.fastModel" type="text" :disabled="isMockProvider" />
+                </div>
+                <div class="grid gap-1.5">
+                  <Label for="ai-reasoning">Reasoning effort</Label>
+                  <Select v-model="form.reasoningEffort" :disabled="isMockProvider">
+                    <SelectTrigger id="ai-reasoning" class="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">low</SelectItem>
+                      <SelectItem value="medium">medium</SelectItem>
+                      <SelectItem value="high">high</SelectItem>
+                      <SelectItem value="xhigh">xhigh</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div class="grid gap-1.5">
+                  <Label for="ai-timeout">Timeout (giây)</Label>
+                  <Input id="ai-timeout" v-model.number="form.timeoutSeconds" type="number" min="1" max="600" />
+                </div>
+              </div>
 
-      <label class="checkbox-line">
-        <input v-model="showAdvanced" type="checkbox" />
-        Hiển thị cấu hình nâng cao
-      </label>
+              <label v-if="isOpenAiProvider" class="flex cursor-pointer items-center gap-2.5 text-sm">
+                <Checkbox v-model="useSharedKeyForEmbedding" />
+                Dùng chung OpenAI API key cho embedding
+              </label>
 
-      <section v-if="showAdvanced" class="settings-section">
-        <h3>Nâng cao</h3>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div class="grid gap-1.5">
+                  <Label for="ai-embedding-provider">Embedding provider</Label>
+                  <Select v-model="form.embeddingProviderName" :disabled="isMockProvider || isAnthropicProvider">
+                    <SelectTrigger id="ai-embedding-provider" class="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="mock">Mock</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div class="grid gap-1.5">
+                  <Label for="ai-embedding-model">Embedding model</Label>
+                  <Input
+                    id="ai-embedding-model"
+                    v-model.trim="form.embeddingModel"
+                    type="text"
+                    :disabled="isMockProvider || form.embeddingProviderName === 'mock'"
+                  />
+                </div>
+                <div class="grid gap-1.5">
+                  <Label for="ai-embedding-base-url">Embedding Base URL</Label>
+                  <Input
+                    id="ai-embedding-base-url"
+                    v-model.trim="form.embeddingBaseUrl"
+                    type="url"
+                    :disabled="isMockProvider || form.embeddingProviderName === 'mock'"
+                  />
+                </div>
+                <div class="grid gap-1.5">
+                  <Label for="ai-embedding-dimension">Embedding dimension</Label>
+                  <Input
+                    id="ai-embedding-dimension"
+                    v-model.number="form.embeddingDimension"
+                    type="number"
+                    min="1"
+                    max="20000"
+                    :disabled="isMockProvider || form.embeddingProviderName === 'mock'"
+                  />
+                </div>
+              </div>
 
-        <div class="form-grid">
-          <label>
-            Base URL
-            <input v-model.trim="form.baseUrl" type="url" />
-          </label>
+              <div v-if="isOpenAiProvider && !useSharedKeyForEmbedding" class="grid max-w-xl gap-1.5">
+                <Label for="ai-embedding-key">Embedding API key</Label>
+                <Input
+                  id="ai-embedding-key"
+                  v-model="form.embeddingApiKey"
+                  type="password"
+                  autocomplete="new-password"
+                  :placeholder="hasSavedEmbeddingApiKey ? 'Để trống nếu vẫn dùng key đã lưu' : 'Dán embedding API key'"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-          <label>
-            Chat endpoint
-            <select v-model="form.chatEndpointMode" :disabled="isMockProvider">
-              <option value="responses">Responses API</option>
-              <option value="chat-completions">Chat Completions</option>
-              <option value="messages">Anthropic Messages</option>
-            </select>
-          </label>
-
-          <label>
-            Chat model
-            <input v-model.trim="form.chatModel" type="text" :disabled="isMockProvider" />
-          </label>
-
-          <label>
-            Fast model
-            <input v-model.trim="form.fastModel" type="text" :disabled="isMockProvider" />
-          </label>
-
-          <label>
-            Reasoning effort
-            <select v-model="form.reasoningEffort" :disabled="isMockProvider">
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-              <option value="xhigh">xhigh</option>
-            </select>
-          </label>
-
-          <label>
-            Timeout seconds
-            <input v-model.number="form.timeoutSeconds" type="number" min="1" max="600" />
-          </label>
-        </div>
-
-        <label v-if="isOpenAiProvider" class="checkbox-line">
-          <input v-model="useSharedKeyForEmbedding" type="checkbox" />
-          Dùng chung OpenAI API key cho embedding
-        </label>
-
-        <div class="form-grid">
-          <label>
-            Embedding provider
-            <select v-model="form.embeddingProviderName" :disabled="isMockProvider || isAnthropicProvider">
-              <option value="openai">OpenAI</option>
-              <option value="mock">Mock</option>
-            </select>
-          </label>
-
-          <label>
-            Embedding model
-            <input v-model.trim="form.embeddingModel" type="text" :disabled="isMockProvider || form.embeddingProviderName === 'mock'" />
-          </label>
-
-          <label>
-            Embedding Base URL
-            <input v-model.trim="form.embeddingBaseUrl" type="url" :disabled="isMockProvider || form.embeddingProviderName === 'mock'" />
-          </label>
-
-          <label>
-            Embedding dimension
-            <input
-              v-model.number="form.embeddingDimension"
-              type="number"
-              min="1"
-              max="20000"
-              :disabled="isMockProvider || form.embeddingProviderName === 'mock'"
-            />
-          </label>
-        </div>
-
-        <label v-if="isOpenAiProvider && !useSharedKeyForEmbedding">
-          Embedding API key
-          <input
-            v-model="form.embeddingApiKey"
-            type="password"
-            autocomplete="off"
-            :placeholder="hasSavedEmbeddingApiKey ? 'Để trống nếu vẫn dùng key đã lưu' : 'Dán embedding API key'"
-          />
-        </label>
-      </section>
-
-      <div class="button-row">
-        <button type="submit" :disabled="isSaving || isLoading || !canSave">
+      <div class="mt-4 flex flex-wrap gap-2">
+        <Button type="submit" :disabled="isSaving || isLoading || !canSave">
+          <SaveIcon class="size-4" />
           {{ isSaving ? 'Đang lưu...' : 'Lưu cấu hình' }}
-        </button>
-        <button type="button" :disabled="isSaving || isTesting || isLoading || !canSave" @click="saveSettings(true)">
+        </Button>
+        <Button variant="outline" type="button" :disabled="isSaving || isTesting || isLoading || !canSave" @click="saveSettings(true)">
           {{ isSaving || isTesting ? 'Đang test...' : 'Lưu và test' }}
-        </button>
-        <button type="button" :disabled="isTesting || isLoading" @click="submitTest">
+        </Button>
+        <Button variant="outline" type="button" :disabled="isTesting || isLoading" @click="submitTest">
+          <FlaskConicalIcon class="size-4" />
           {{ isTesting ? 'Đang test...' : 'Test cấu hình đã lưu' }}
-        </button>
-        <button type="button" :disabled="isLoading" @click="loadSettings">Làm mới</button>
+        </Button>
       </div>
     </form>
 
-    <section v-if="testResult" class="answer-panel">
-      <h3>Kết quả test</h3>
-      <p><strong>Trạng thái:</strong> {{ testResult.success ? 'OK' : 'Thất bại' }}</p>
-      <p><strong>Provider:</strong> {{ testResult.providerName }}</p>
-      <p>{{ testResult.message }}</p>
-    </section>
+    <Card v-if="testResult" class="mt-6">
+      <CardContent class="grid gap-2 pt-6 text-sm">
+        <div class="flex items-center gap-2">
+          <p class="font-medium">Kết quả test</p>
+          <StatusBadge
+            :status="testResult.success ? 'Approved' : 'Failed'"
+            :label="testResult.success ? 'OK' : 'Thất bại'"
+          />
+        </div>
+        <p><span class="text-muted-foreground">Provider:</span> {{ testResult.providerName }}</p>
+        <p>{{ testResult.message }}</p>
+      </CardContent>
+    </Card>
 
-    <section class="answer-panel">
-      <h3>Lưu ý</h3>
-      <p>
-        Nếu các tài liệu cũ được index bằng mock embedding, sau khi chuyển sang OpenAI embedding nên chạy Knowledge Index rebuild để truy xuất ổn định hơn.
-      </p>
-    </section>
-  </section>
+    <p class="mt-6 rounded-md border-l-2 border-warning bg-warning/10 p-3 text-sm text-muted-foreground">
+      Nếu các tài liệu cũ được index bằng mock embedding, sau khi chuyển sang OpenAI embedding nên chạy rebuild ở trang
+      Chỉ mục tri thức để truy xuất ổn định hơn.
+    </p>
+  </div>
 </template>
