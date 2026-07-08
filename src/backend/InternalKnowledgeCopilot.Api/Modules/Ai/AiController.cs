@@ -3,12 +3,14 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace InternalKnowledgeCopilot.Api.Modules.Ai;
 
 [ApiController]
 [Route("api/ai")]
 [Authorize]
+[EnableRateLimiting("ai")]
 public sealed class AiController(IAiQuestionService aiQuestionService, IAiFeedbackService feedbackService) : ControllerBase
 {
     [HttpPost("ask")]

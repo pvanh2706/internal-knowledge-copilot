@@ -123,7 +123,7 @@ onMounted(loadData)
         <option value="Disabled">Disabled</option>
         <option value="Archived">Archived</option>
       </select>
-      <input v-model="form.metadataJson" type="text" placeholder='Metadata JSON, e.g. {"owner":"sales"}' />
+      <input v-model="form.metadataJson" type="text" placeholder="Metadata JSON, e.g. {&quot;owner&quot;:&quot;sales&quot;}" />
       <button type="submit" :disabled="isSaving">Create connection</button>
     </form>
 

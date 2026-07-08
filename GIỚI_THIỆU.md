@@ -37,6 +37,7 @@ scripts/
 Product và điều phối:
 
 - [docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md](docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md)
+- [docs/KẾ_HOẠCH_THƯƠNG_MẠI_HÓA.md](docs/KẾ_HOẠCH_THƯƠNG_MẠI_HÓA.md)
 - [KIẾN_TRÚC_MVP.md](KIẾN_TRÚC_MVP.md)
 - [ĐẶC_TẢ_API.md](ĐẶC_TẢ_API.md)
 - [MÔ_HÌNH_DỮ_LIỆU.md](MÔ_HÌNH_DỮ_LIỆU.md)

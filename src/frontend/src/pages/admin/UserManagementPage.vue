@@ -18,7 +18,8 @@ const form = ref({
   displayName: '',
   role: 'User' as UserRole,
   primaryTeamId: '',
-  initialPassword: 'ChangeMe123!',
+  // Không hardcode mật khẩu mặc định — admin phải tự nhập mật khẩu ban đầu
+  initialPassword: '',
 })
 
 async function loadData() {
@@ -46,6 +47,7 @@ async function submitCreateUser() {
     )
     form.value.email = ''
     form.value.displayName = ''
+    form.value.initialPassword = ''
     await loadData()
   } catch (error) {
     errorMessage.value = error instanceof ApiError ? error.message : 'Không thể tạo user.'

@@ -16,6 +16,7 @@ Ngày cập nhật: 2026-06-07
 | Tích hợp hệ thống bên thứ 3 | [Hướng dẫn tích hợp và triển khai kỹ thuật cho bên thứ 3](technical/HUONG_DAN_TICH_HOP_BEN_THU_3.md), [Postman collection](postman/InternalKnowledgeCopilot_ThirdPartyIntegration.postman_collection.json) |
 | Test hoặc demo | [Testing guide](../HƯỚNG_DẪN_KIỂM_THỬ.md), [Smart AI test guide](technical/HƯỚNG_DẪN_TEST_AI_THÔNG_MINH.md), [Hướng dẫn trình bày và demo](presentation/HƯỚNG_DẪN_TRÌNH_BÀY_VÀ_DEMO.md) |
 | Đào tạo team triển khai/tư vấn khách hàng | [Hướng dẫn đào tạo team triển khai](training/HƯỚNG_DẪN_ĐÀO_TẠO_TEAM_TRIỂN_KHAI.md), [Hướng dẫn pilot và sử dụng](pilot/HƯỚNG_DẪN_PILOT_VÀ_SỬ_DỤNG.md) |
+| Thương mại hóa, bán hàng, định giá | [Kế hoạch thương mại hóa](KẾ_HOẠCH_THƯƠNG_MẠI_HÓA.md) |
 | Chuẩn bị pilot | [Hướng dẫn pilot và sử dụng](pilot/HƯỚNG_DẪN_PILOT_VÀ_SỬ_DỤNG.md), [Support templates](pilot/MẪU_HỖ_TRỢ_VÀ_BÁO_LỖI.md), [Pilot report template](pilot/MẪU_BÁO_CÁO_KẾT_QUẢ_PILOT.md) |
 | Bàn giao cho AI/người mới | [AI handoff](../BÀN_GIAO_AI.md), [Technical system overview](technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md), [Coding rules](../QUY_TẮC_CODE.md) |
 
@@ -25,6 +26,8 @@ Ngày cập nhật: 2026-06-07
 | --- | --- | --- |
 | current | [README](../GIỚI_THIỆU.md) | Điểm vào repo, stack, lệnh chạy và link chính. |
 | current | [Tổng quan trạng thái roadmap](TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md) | Mục tiêu, scope, KPI, trạng thái, giới hạn và roadmap. |
+| current | [Kế hoạch thương mại hóa](KẾ_HOẠCH_THƯƠNG_MẠI_HÓA.md) | Thị trường Việt Nam, gói/giá, tính năng đáng giá và backlog kỹ thuật theo mốc bán hàng. |
+| current | [Kế hoạch thiết kế lại giao diện](KẾ_HOẠCH_THIẾT_KẾ_LẠI_GIAO_DIỆN.md) | Design system (shadcn-vue + Tailwind, light/dark), kiến trúc UI mới và lộ trình migrate 7 đợt. |
 | current | [Technical system overview](technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md) | Tài liệu kỹ thuật tập trung cho team và AI coding agent. |
 | current | [Architecture MVP](../KIẾN_TRÚC_MVP.md) | Kiến trúc gọn theo implementation hiện tại. |
 | current | [Data model](../MÔ_HÌNH_DỮ_LIỆU.md) | Tóm tắt model và nguyên tắc source of truth. |

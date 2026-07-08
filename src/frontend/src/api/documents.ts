@@ -1,4 +1,4 @@
-import { API_BASE_URL, apiRequest } from './http'
+import { apiRequest, apiRequestBlob } from './http'
 
 export type DocumentStatus = 'PendingReview' | 'Approved' | 'Rejected' | 'Archived' | 'Deleted'
 export type DocumentVersionStatus = 'PendingReview' | 'Approved' | 'Rejected' | 'Processing' | 'Indexed' | 'ProcessingFailed'
@@ -97,23 +97,12 @@ export function rejectDocument(id: string, versionId: string, reason: string, to
 
 export async function downloadDocument(id: string, token: string, versionId?: string) {
   const search = versionId ? `?versionId=${encodeURIComponent(versionId)}` : ''
-  const response = await fetch(`${API_BASE_URL}/documents/${id}/download${search}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error('Không thể tải file.')
-  }
-
-  const blob = await response.blob()
-  const disposition = response.headers.get('content-disposition') ?? ''
-  const fileName = disposition.match(/filename="?([^"]+)"?/i)?.[1] ?? 'document'
+  // Tải file qua client chung để có đủ header Authorization + X-Tenant-Code và xử lý lỗi thống nhất
+  const { blob, fileName } = await apiRequestBlob(`/documents/${id}/download${search}`, token)
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = decodeURIComponent(fileName)
+  link.download = fileName ?? 'document'
   link.click()
   URL.revokeObjectURL(url)
 }

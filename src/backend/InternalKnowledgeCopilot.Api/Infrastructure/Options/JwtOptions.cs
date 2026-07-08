@@ -8,7 +8,8 @@ public sealed class JwtOptions
 
     public string Audience { get; init; } = "InternalKnowledgeCopilot";
 
-    public string SigningKey { get; init; } = "replace-with-local-development-signing-key";
+    // Không có default: key bắt buộc cấu hình qua appsettings môi trường hoặc biến môi trường Jwt__SigningKey.
+    public string SigningKey { get; init; } = string.Empty;
 
     public int AccessTokenMinutes { get; init; } = 120;
 }

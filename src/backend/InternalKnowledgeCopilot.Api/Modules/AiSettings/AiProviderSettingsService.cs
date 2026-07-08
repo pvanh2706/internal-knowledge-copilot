@@ -30,7 +30,8 @@ public sealed class AiProviderSettingsService(
     IOptions<AiProviderOptions> fallbackOptions,
     OpenAiCompatibleClient openAiClient,
     ITenantContext tenantContext,
-    IAuditLogService auditLogService) : IAiProviderSettingsService
+    IAuditLogService auditLogService,
+    IApiKeyProtector apiKeyProtector) : IAiProviderSettingsService
 {
     public AiProviderOptions GetCurrent()
     {
@@ -78,14 +79,14 @@ public sealed class AiProviderSettingsService(
                 TenantId = tenantId,
                 Name = normalized.Name,
                 BaseUrl = normalized.BaseUrl,
-                ApiKey = normalized.ApiKey,
+                ApiKey = apiKeyProtector.Protect(IsMaskedKey(normalized.ApiKey) ? null : normalized.ApiKey),
                 ApiKeyHeaderName = normalized.ApiKeyHeaderName,
                 ChatEndpointMode = normalized.ChatEndpointMode,
                 ChatModel = normalized.ChatModel,
                 FastModel = normalized.FastModel,
                 EmbeddingProviderName = normalized.EmbeddingProviderName,
                 EmbeddingBaseUrl = normalized.EmbeddingBaseUrl,
-                EmbeddingApiKey = normalized.EmbeddingApiKey,
+                EmbeddingApiKey = apiKeyProtector.Protect(IsMaskedKey(normalized.EmbeddingApiKey) ? null : normalized.EmbeddingApiKey),
                 EmbeddingApiKeyHeaderName = normalized.EmbeddingApiKeyHeaderName,
                 EmbeddingModel = normalized.EmbeddingModel,
                 EmbeddingDimension = normalized.EmbeddingDimension,
@@ -106,9 +107,10 @@ public sealed class AiProviderSettingsService(
             {
                 existing.ApiKey = null;
             }
-            else if (!string.IsNullOrWhiteSpace(normalized.ApiKey))
+            else if (!string.IsNullOrWhiteSpace(normalized.ApiKey) && !IsMaskedKey(normalized.ApiKey))
             {
-                existing.ApiKey = normalized.ApiKey;
+                // Giá trị masked do UI echo lại không được ghi đè key thật.
+                existing.ApiKey = apiKeyProtector.Protect(normalized.ApiKey);
             }
 
             existing.ApiKeyHeaderName = normalized.ApiKeyHeaderName;
@@ -121,9 +123,9 @@ public sealed class AiProviderSettingsService(
             {
                 existing.EmbeddingApiKey = null;
             }
-            else if (!string.IsNullOrWhiteSpace(normalized.EmbeddingApiKey))
+            else if (!string.IsNullOrWhiteSpace(normalized.EmbeddingApiKey) && !IsMaskedKey(normalized.EmbeddingApiKey))
             {
-                existing.EmbeddingApiKey = normalized.EmbeddingApiKey;
+                existing.EmbeddingApiKey = apiKeyProtector.Protect(normalized.EmbeddingApiKey);
             }
 
             existing.EmbeddingApiKeyHeaderName = normalized.EmbeddingApiKeyHeaderName;
@@ -220,14 +222,14 @@ public sealed class AiProviderSettingsService(
         {
             Name = entity.Name,
             BaseUrl = entity.BaseUrl,
-            ApiKey = entity.ApiKey ?? string.Empty,
+            ApiKey = apiKeyProtector.Unprotect(entity.ApiKey) ?? string.Empty,
             ApiKeyHeaderName = entity.ApiKeyHeaderName,
             ChatEndpointMode = entity.ChatEndpointMode,
             ChatModel = entity.ChatModel,
             FastModel = entity.FastModel,
             EmbeddingProviderName = string.IsNullOrWhiteSpace(entity.EmbeddingProviderName) ? fallback.EmbeddingProviderName : entity.EmbeddingProviderName,
             EmbeddingBaseUrl = string.IsNullOrWhiteSpace(entity.EmbeddingBaseUrl) ? fallback.EmbeddingBaseUrl : entity.EmbeddingBaseUrl,
-            EmbeddingApiKey = entity.EmbeddingApiKey ?? string.Empty,
+            EmbeddingApiKey = apiKeyProtector.Unprotect(entity.EmbeddingApiKey) ?? string.Empty,
             EmbeddingApiKeyHeaderName = string.IsNullOrWhiteSpace(entity.EmbeddingApiKeyHeaderName) ? fallback.EmbeddingApiKeyHeaderName : entity.EmbeddingApiKeyHeaderName,
             EmbeddingModel = entity.EmbeddingModel,
             EmbeddingDimension = entity.EmbeddingDimension,
@@ -405,6 +407,22 @@ public sealed class AiProviderSettingsService(
         return !string.IsNullOrWhiteSpace(options.ApiKey);
     }
 
+    // Giá trị masked mà response trả về cho UI; nếu UI gửi lại nguyên giá trị này thì bỏ qua.
+    private static bool IsMaskedKey(string? value)
+    {
+        return value is not null && value.StartsWith("****", StringComparison.Ordinal);
+    }
+
+    private static string? MaskKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Length > 4 ? $"****{value[^4..]}" : "****";
+    }
+
     private static bool HasEmbeddingApiKey(AiProviderOptions options)
     {
         return !string.IsNullOrWhiteSpace(options.EmbeddingApiKey);
@@ -419,7 +437,7 @@ public sealed class AiProviderSettingsService(
         return new AiProviderSettingsResponse(
             options.Name,
             options.BaseUrl,
-            string.IsNullOrWhiteSpace(options.ApiKey) ? null : options.ApiKey,
+            MaskKey(options.ApiKey),
             hasApiKey,
             options.ApiKeyHeaderName,
             options.ChatEndpointMode,
@@ -427,7 +445,7 @@ public sealed class AiProviderSettingsService(
             options.FastModel,
             options.EmbeddingProviderName,
             options.EmbeddingBaseUrl,
-            string.IsNullOrWhiteSpace(options.EmbeddingApiKey) ? null : options.EmbeddingApiKey,
+            MaskKey(options.EmbeddingApiKey),
             hasEmbeddingApiKey,
             options.EmbeddingApiKeyHeaderName,
             options.EmbeddingModel,

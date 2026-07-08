@@ -28,12 +28,18 @@ using InternalKnowledgeCopilot.Api.Modules.Operations;
 using InternalKnowledgeCopilot.Api.Modules.Tenants;
 using InternalKnowledgeCopilot.Api.Modules.WorkflowCopilot;
 using InternalKnowledgeCopilot.Api.Modules.Wiki;
+using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.ErrorHandling;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Options;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +56,9 @@ builder.Services.AddControllers()
     });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddExceptionHandler<ApiErrorExceptionHandler>();
+builder.Services.AddProblemDetails();
+builder.Services.AddSingleton<IApiKeyProtector, DataProtectionApiKeyProtector>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
@@ -118,6 +127,53 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite($"Data Source={sqlitePath}");
 });
 
+// Key ring Data Protection phải nằm trên đĩa để API key mã hóa trong DB vẫn giải mã được sau khi redeploy.
+var dataProtectionKeysPath = builder.Configuration.GetValue<string>("DataProtection:KeysPath")
+    ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(sqlitePath))!, "dataprotection-keys");
+Directory.CreateDirectory(dataProtectionKeysPath);
+var dataProtectionBuilder = builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+    .SetApplicationName("InternalKnowledgeCopilot");
+if (OperatingSystem.IsWindows())
+{
+    dataProtectionBuilder.ProtectKeysWithDpapi();
+}
+
+var rateLimitingOptions = builder.Configuration.GetSection(RateLimitingOptions.SectionName).Get<RateLimitingOptions>()
+    ?? new RateLimitingOptions();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new ApiError("rate_limited", "Quá nhiều yêu cầu. Vui lòng thử lại sau."),
+            cancellationToken);
+    };
+    // Endpoint AI giới hạn theo user vì mỗi request có thể tốn chi phí LLM/embedding.
+    options.AddPolicy("ai", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = rateLimitingOptions.AiRequestsPerMinute,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+    // Endpoint tích hợp giới hạn theo integration key để một đối tác lỗi không làm nghẽn đối tác khác.
+    options.AddPolicy("integrations", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Request.Headers["X-Integration-Key"].FirstOrDefault()
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = rateLimitingOptions.IntegrationRequestsPerMinute,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -130,6 +186,7 @@ builder.Services.AddCors(options =>
 });
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+ValidateJwtSigningKey(jwtOptions, builder.Environment);
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -149,13 +206,21 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+// Production chỉ migrate khi bật cờ tường minh để installer/update script kiểm soát được thời điểm migrate.
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Database:MigrateOnStartup", false))
 {
+    using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await dbContext.Database.MigrateAsync();
 }
 
-await DevelopmentSeeder.SeedAsync(app.Services, app.Configuration);
+// Dữ liệu demo tuyệt đối không được seed vào Production.
+if (!app.Environment.IsProduction())
+{
+    await DevelopmentSeeder.SeedAsync(app.Services, app.Configuration);
+}
+
+await AiProviderKeyStartupMigration.RunAsync(app.Services);
 
 if (app.Environment.IsDevelopment())
 {
@@ -163,16 +228,51 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseExceptionHandler();
 app.UseCors();
 app.UseHttpsRedirection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
+if (rateLimitingOptions.Enabled)
+{
+    app.UseRateLimiter();
+}
+
 app.UseAuthorization();
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+// Chặn khởi động khi JWT signing key thiếu hoặc là key development đã công khai trong repo.
+static void ValidateJwtSigningKey(JwtOptions jwtOptions, IWebHostEnvironment environment)
+{
+    string[] knownDevelopmentKeys =
+    [
+        "replace-with-local-development-signing-key",
+        "local-development-signing-key-change-before-production",
+    ];
+
+    if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey))
+    {
+        throw new InvalidOperationException(
+            "Jwt:SigningKey chưa được cấu hình. Đặt key qua appsettings của môi trường hoặc biến môi trường Jwt__SigningKey.");
+    }
+
+    if (!environment.IsProduction())
+    {
+        return;
+    }
+
+    if (jwtOptions.SigningKey.Length < 32
+        || knownDevelopmentKeys.Contains(jwtOptions.SigningKey)
+        || jwtOptions.SigningKey.Contains("local-development", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "Jwt:SigningKey không hợp lệ cho Production: cần tối thiểu 32 ký tự và không được dùng key development mặc định.");
+    }
+}
 
 public partial class Program;

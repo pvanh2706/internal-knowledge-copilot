@@ -2,11 +2,13 @@ using System.Security.Claims;
 using InternalKnowledgeCopilot.Api.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace InternalKnowledgeCopilot.Api.Modules.Integrations;
 
 [ApiController]
 [Route("api/integrations")]
+[EnableRateLimiting("integrations")]
 public sealed class IntegrationsController(IIntegrationService integrationService) : ControllerBase
 {
     private const string IntegrationKeyHeaderName = "X-Integration-Key";

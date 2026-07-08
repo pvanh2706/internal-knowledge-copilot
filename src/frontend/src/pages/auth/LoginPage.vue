@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
 
+const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
-const email = ref('admin@example.local')
-const password = ref('ChangeMe123!')
+const email = ref('')
+const password = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
+
+// Hiện thông báo khi bị chuyển về từ xử lý 401 tập trung (query ?expired=1)
+const sessionExpired = computed(() => route.query.expired === '1')
 
 async function submitLogin() {
   errorMessage.value = ''
@@ -31,6 +35,8 @@ async function submitLogin() {
   <section class="auth-panel">
     <form class="login-form" @submit.prevent="submitLogin">
       <h2>Đăng nhập</h2>
+
+      <p v-if="sessionExpired" class="form-error">Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.</p>
 
       <label>
         Tenant code

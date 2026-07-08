@@ -2,10 +2,12 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { AuthUser } from '../api/auth'
 import { login as loginRequest } from '../api/auth'
-import { getTenantCode, setTenantCode as persistTenantCode } from '../api/http'
-
-const tokenStorageKey = 'ikc.accessToken'
-const userStorageKey = 'ikc.user'
+import {
+  accessTokenStorageKey as tokenStorageKey,
+  getTenantCode,
+  setTenantCode as persistTenantCode,
+  userStorageKey,
+} from '../api/http'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(localStorage.getItem(tokenStorageKey))

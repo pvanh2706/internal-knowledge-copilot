@@ -1,11 +1,16 @@
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
+using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
 
 namespace InternalKnowledgeCopilot.Api.Infrastructure.Database;
 
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext? tenantContext = null) : DbContext(options)
 {
+    // Tenant hiện tại của scope; null với background worker/seeder/test nên filter sẽ tự tắt.
+    private Guid? CurrentTenantId => tenantContext?.TenantId;
+
     public DbSet<TenantEntity> Tenants => Set<TenantEntity>();
 
     public DbSet<ApplicationEntity> Applications => Set<ApplicationEntity>();
@@ -1330,5 +1335,32 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .HasForeignKey(template => template.CreatedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
+        ApplyTenantQueryFilters(modelBuilder);
+    }
+
+    // Lưới an toàn cô lập tenant: mọi entity có TenantId đều bị lọc theo tenant của request.
+    // Các Where(x => x.TenantId == ...) thủ công trong service vẫn giữ nguyên như filter nghiệp vụ bổ sung.
+    private void ApplyTenantQueryFilters(ModelBuilder modelBuilder)
+    {
+        var applyMethod = typeof(AppDbContext).GetMethod(
+            nameof(ApplyTenantQueryFilter),
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (entityType.ClrType.GetProperty("TenantId")?.PropertyType == typeof(Guid))
+            {
+                applyMethod.MakeGenericMethod(entityType.ClrType).Invoke(this, [modelBuilder]);
+            }
+        }
+    }
+
+    private void ApplyTenantQueryFilter<TEntity>(ModelBuilder modelBuilder)
+        where TEntity : class
+    {
+        // CurrentTenantId null nghĩa là scope không gắn tenant (worker/seeder/test) nên không lọc.
+        modelBuilder.Entity<TEntity>().HasQueryFilter(entity =>
+            CurrentTenantId == null || EF.Property<Guid>(entity, "TenantId") == CurrentTenantId);
     }
 }
