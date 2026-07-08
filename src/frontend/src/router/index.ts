@@ -39,7 +39,7 @@ declare module 'vue-router' {
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'dashboard', component: DashboardPage, meta: { requiresAuth: true, layout: 'legacy' } },
+    { path: '/', name: 'dashboard', component: DashboardPage, meta: { requiresAuth: true, layout: 'app' } },
     { path: '/login', name: 'login', component: LoginPage, meta: { layout: 'auth' } },
     { path: '/change-password', name: 'change-password', component: ChangePasswordPage, meta: { requiresAuth: true, layout: 'auth' } },
     { path: '/documents', name: 'documents', component: DocumentListPage, meta: { requiresAuth: true, layout: 'legacy' } },

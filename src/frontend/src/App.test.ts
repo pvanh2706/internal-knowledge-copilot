@@ -3,15 +3,15 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, describe, expect, it } from 'vitest'
 import App from './App.vue'
 import router, { type LayoutName } from './router'
+import AppLayout from './layouts/AppLayout.vue'
 import AuthLayout from './layouts/AuthLayout.vue'
-import LegacyLayout from './layouts/LegacyLayout.vue'
 import { accessTokenStorageKey, userStorageKey } from './api/http'
 
 // Cặp (route name, layout) kỳ vọng — cập nhật khi migrate trang từ 'legacy' sang 'app'
 const expectedLayoutByRoute: Record<string, LayoutName> = {
   'login': 'auth',
   'change-password': 'auth',
-  'dashboard': 'legacy',
+  'dashboard': 'app',
   'documents': 'legacy',
   'ai': 'legacy',
   'wiki': 'legacy',
@@ -51,7 +51,7 @@ describe('router layouts', () => {
   it('resolve "/" theo path về dashboard', () => {
     const resolved = router.resolve('/')
     expect(resolved.name).toBe('dashboard')
-    expect(resolved.meta.layout).toBe('legacy')
+    expect(resolved.meta.layout).toBe('app')
   })
 
   it('resolve "/login" theo path về layout auth', () => {
@@ -66,7 +66,7 @@ describe('App', () => {
     localStorage.clear()
   })
 
-  it('render shell legacy khi vào dashboard', async () => {
+  it('render AppLayout khi vào dashboard', async () => {
     localStorage.setItem(accessTokenStorageKey, 'token')
     localStorage.setItem(userStorageKey, JSON.stringify({ id: '1', displayName: 'Test', role: 'Admin' }))
     const pinia = createPinia()
@@ -81,8 +81,8 @@ describe('App', () => {
       },
     })
 
-    expect(wrapper.findComponent(LegacyLayout).exists()).toBe(true)
-    expect(wrapper.text()).toContain('Internal Knowledge Copilot')
+    expect(wrapper.findComponent(AppLayout).exists()).toBe(true)
+    expect(wrapper.text()).toContain('Knowledge Copilot')
     expect(wrapper.text()).toContain('Tổng quan')
   })
 
