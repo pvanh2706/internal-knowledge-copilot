@@ -1,72 +1,62 @@
 # Enterprise AI Copilot — Decision Log
 
-**Version:** 0.1  
-**Document status:** APPROVED  
+**Version:** 0.2  
+**Document status:** PO APPROVED CONTENT — Documentation Publication PR pending merge  
 **Last updated:** 2026-10-29  
 **Owner:** Product Owner
 
 ## 1. Purpose
 
-Tài liệu này quản lý các quyết định sản phẩm và kiến trúc chính thức của Enterprise AI Copilot.
-
-GitHub B là nguồn lưu trữ quyết định dài hạn.
-
-Một quyết định chỉ được xem là APPROVED khi Product Owner xác nhận.
+Version-controlled registry of PO-approved product and architecture decisions. A decision's APPROVED status does not grant source-code implementation or PR merge permission.
 
 ## 2. Decision Registry
 
 | ID | Decision | Category | Status |
 |---|---|---|---|
-| [DEC-0001](DEC-0001.md) | Select Internal Knowledge Copilot B as Primary Product | Product Strategy | APPROVED |
-| [DEC-0002](DEC-0002.md) | Enterprise Context-Aware AI Copilot Direction | Product Strategy | APPROVED |
-| [DEC-0003](DEC-0003.md) | Source System Ownership and Capability Reuse | Product Architecture | APPROVED |
+| [DEC-0001](DEC-0001.md) | B as Primary Product | Product Strategy | APPROVED |
+| [DEC-0002](DEC-0002.md) | Enterprise Context-Aware Direction | Product Strategy | APPROVED |
+| [DEC-0003](DEC-0003.md) | Source System Ownership | Product Architecture | APPROVED |
+| [DEC-0004](DEC-0004.md) | Strict Security Boundary (Option A) | Security Architecture | APPROVED |
+| [DEC-0005](DEC-0005.md) | Platform Admin vs Tenant Admin (D1=B) | Identity & Access Architecture | APPROVED |
+| [DEC-0006](DEC-0006.md) | Centralized Authorization and Revalidation (D2=B) | Security & Retrieval Architecture | APPROVED |
+| [DEC-0007](DEC-0007.md) | Incremental Enterprise Hardening (D3=B) | Platform Architecture | APPROVED |
 
-Các nội dung trên đã được PO thống nhất trong hội thoại; tài liệu được đề xuất đưa vào main qua Pull Request Gate A, chưa đồng nghĩa đã merge.
+DEC-0001..03 have been merged to `main`. DEC-0004..07 were approved by PO in conversation on 2026-10-29, awaiting review and authorized merge of this Documentation Publication PR.
 
-## 3. Decision Lifecycle
+## 3. Review Registry
 
-**PROPOSED**
-- Đang được xem xét.
-- Không được tự động áp dụng như kiến trúc đã duyệt.
+| Review | PO status | Remediation |
+|---|---|---|
+| AR-B-01 — Architecture Baseline | APPROVED | Baseline only |
+| AR-B-02 — Security & Integration Boundary, SEC-01..07 | APPROVED | OPEN |
+| AR-B-03 — Technical Debt, TD-01..06 | APPROVED | OPEN |
+| AR-B-04 — Consolidation, To-Be, S01..05 preliminary plan | APPROVED | Implementation NOT AUTHORIZED |
 
-**APPROVED**
-- Product Owner đã phê duyệt.
-- Có hiệu lực trong phạm vi được xác định.
-- Không đồng nghĩa đã triển khai code.
+[Consolidated Architecture Review](../architecture/AR-B-01_TO_AR-B-04_ARCHITECTURE_REVIEW.md).
 
-**SUPERSEDED**
-- Đã được thay thế bằng quyết định mới.
-- Phải ghi rõ mã quyết định thay thế.
-- Giữ lịch sử để truy vết.
+## 4. Decision Lifecycle
 
-## 4. Decision Record Requirements
+- **PROPOSED:** Under PO consideration.
+- **APPROVED:** PO accepts decision scope/content; not equivalent to IMPLEMENTED, VERIFIED or production-ready.
+- **SUPERSEDED:** Replaced by a newer linked decision; keep history.
 
-Mỗi decision record phải có:
+Documentation publication, implementation authorization and merge permission are separate gates.
 
-- Decision ID và title.
-- Category.
-- Status.
-- Context/problem.
-- Options considered.
-- Decision.
-- Rationale.
-- Consequences/trade-offs.
-- Related decisions.
-- Approval information.
+## 5. Decision Record Requirements
 
-## 5. Governance Rules
+ID/title, category, status, context, options, selected decision, rationale, consequences/trade-offs, related decisions and approval authority/date. Changes of major architecture require review and a new/superseding record where appropriate.
 
-1. Chỉ PO có quyền phê duyệt quyết định.
-2. ChatGPT được đề xuất và phản biện.
-3. Coding agent không được tự ý thay đổi quyết định đã phê duyệt.
-4. Thay đổi quyết định quan trọng phải được review.
-5. Khi thay thế quyết định cũ, tạo record mới và đánh dấu record cũ SUPERSEDED.
-6. Không xóa lịch sử quyết định.
-7. Cập nhật GitHub chỉ khi được PO cho phép.
+## 6. Governance Rules
 
-## 6. Related Documents
+1. Only PO approves product/architecture decisions.
+2. ChatGPT analyzes and reviews; coding agents execute only within explicitly authorized scope.
+3. Source, DB and runtime modifications require separate PO approval.
+4. GitHub changes go through branch/PR; never merge without PO approval.
+5. Accepted findings remain OPEN until verified remediation; don't conflate analysis with testing.
+
+## 7. References
 
 - [Project Context](../../PROJECT_CONTEXT.md)
 - [Project Status](../../PROJECT_STATUS.md)
+- [Architecture Review](../architecture/AR-B-01_TO_AR-B-04_ARCHITECTURE_REVIEW.md)
 - [AI Handoff](../../BÀN_GIAO_AI.md)
-- [MVP Roadmap](../TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md)

@@ -1,163 +1,89 @@
 # Enterprise AI Copilot — Project Status
 
-**Version:** 0.1.1  
-**Document status:** APPROVED  
+**Version:** 0.2.0  
+**Document status:** PO APPROVED CONTENT — Documentation Publication PR pending merge  
 **Last updated:** 2026-10-29  
 **Primary repository:** pvanh2706/internal-knowledge-copilot  
-**Branch:** main
+**Publication source:** Documentation branch; `main` is the authoritative branch after PO-authorized merge
 
 ## 1. Executive Summary
 
-Enterprise AI Copilot đã hoàn thành Project Foundation (thiết lập Product Governance) và sẵn sàng chuyển sang giai đoạn đánh giá kiến trúc sản phẩm B. Chưa bắt đầu Architecture Review B.
+Project Foundation đã COMPLETED. **Workstream 01 — Architecture Review B COMPLETED / APPROVED** (AR-B-01..AR-B-04). Strict Security Boundary A, SEC-01..07, TD-01..06, Incremental Enterprise Hardening, To-Be và preliminary S01..05 được PO phê duyệt. Architecture decisions D1=B, D2=B, D3=B được ghi thành DEC-0005..07.
 
-Các quyết định chiến lược chính đã được PO phê duyệt:
+**Important:** Accepted findings are not remediated. No fresh runtime testing or enterprise production certification. **Implementation authorization: NOT AUTHORIZED.**
 
-- Internal Knowledge Copilot (B) là sản phẩm chính.
-- Tạm dừng mở rộng AI Operational Platform (A).
-- Phát triển B thành Enterprise Context-Aware AI Copilot.
-- Tích hợp Jira, CRM, ERP qua API.
-- Không tái xây dựng nghiệp vụ đã được hệ thống nguồn quản lý tốt.
+## 2. Governance and Review Status
 
-**Current phase:** Project Foundation — COMPLETED. Next proposed phase: Architecture Review B (NOT STARTED).
-
-**Implementation authorization:** Chưa cấp phép triển khai code mới.
-
-## 2. Project Governance Status
-
-| Công việc | Trạng thái |
+| Item | Status |
 |---|---|
-| Project Instructions | COMPLETED |
-| GitHub Source of Truth reference | COMPLETED |
-| Decision Management mechanism | APPROVED |
-| Conversation Handoff Protocol | COMPLETED |
-| Documentation structure | APPROVED |
-| PROJECT_CONTEXT.md v0.1 | APPROVED — ON MAIN |
-| PROJECT_STATUS.md v0.1.1 | APPROVED — STATUS UPDATE IN REVIEW PR |
-| DECISION_LOG.md v0.1 | APPROVED — ON MAIN |
-| Individual decision records DEC-0001..0003 | APPROVED — ON MAIN |
-| Repository governance documentation update | GATE A — COMPLETED (PR #1) |
-| Merge into main | GATE B — COMPLETED (PR #1, merge commit `7a416693400b1f22decbe966b0d73b7889a9183d`) |
+| Project foundation, governance and PR #1/#2 | COMPLETED; PR #1 and #2 merged |
+| DEC-0001..03 | APPROVED; present on `main` |
+| AR-B-01 — Architecture Baseline | APPROVED |
+| AR-B-02 — Security & Integration Boundary | APPROVED |
+| AR-B-03 — Technical Debt & Enterprise Readiness | APPROVED |
+| AR-B-04 — Architecture Consolidation | APPROVED |
+| Strict Security Boundary / Incremental Enterprise Hardening | APPROVED DIRECTION |
+| SEC-01..07 / TD-01..06 | APPROVED FINDINGS; REMEDIATION OPEN |
+| DEC-0004..07 | PO APPROVED CONTENT; publication pending PR merge |
+| S01..05 | PRELIMINARY PLAN APPROVED; EXECUTION NOT AUTHORIZED |
+| Documentation Publication Gate | Authorized for branch/commit/push/PR; merge NOT AUTHORIZED |
+| New code implementation | NOT AUTHORIZED |
 
-Project Instructions và Conversation Handoff Protocol được cấu hình trong ChatGPT Project. Bộ tài liệu governance từ PR #1 đã được kiểm tra và xác nhận trên `main`. Riêng bản điều chỉnh trạng thái v0.1.1 này vẫn chờ PO review PR và cho phép merge.
+## 3. Reviewed Technical Baseline
 
-## 3. Existing Technical Baseline
+Reference: `main` commit `15badea17f4e7eddcd8dc71ee0a643fea4e1a47d`. .NET 8 modular backend + Vue 3 UI; SQLite metadata, ChromaDB vectors, local storage and hosted worker; internal document/wiki RAG and generic external connector foundation. **Verification level:** static code/document review only. Test files exist, but no fresh execution, penetration testing, load testing or restore drill was performed for the review.
 
-Theo tài liệu hiện hành của repository B, hệ thống đã có nền tảng:
+See [AR-B-01..04 report](docs/architecture/AR-B-01_TO_AR-B-04_ARCHITECTURE_REVIEW.md).
 
-**Application**
-- ASP.NET Core API.
-- Vue 3, TypeScript, Vite.
-- SQLite metadata database.
-- ChromaDB vector store.
-- Vector-store abstraction cho khả năng thay thế backend.
-- Windows Server / IIS deployment documentation.
+## 4. Open Risks
 
-**Knowledge & AI**
-- Document upload và versioning.
-- Reviewer approval.
-- Document processing và indexing.
-- AI Q&A có citation.
-- Vector và keyword retrieval.
-- Wiki generation/publishing.
-- Feedback, dashboard và audit log.
+- **SEC-01..07:** tenant/role and action authorization, RAG/workflow permission revalidation, inbound/outbound connector authentication and SSRF boundary. Status **OPEN**; Security Gate required before enterprise production integration.
+- **TD-01..04:** worker restart/atomic claim, consistency between indexes, backup/restore. Status **OPEN**.
+- **TD-05..06:** dependency-aware health, observability, CI/deployment consistency. Status **OPEN**.
+- **Integration gap:** native Jira/CRM adapters and external documents-changed content retrieval/indexing need separate design.
+- **RAG quality:** evaluate relevance/citations on real (authorized) data.
 
-**Enterprise Integration Foundation**
-- Tenant/application/connection model.
-- Inbound integration events.
-- External object metadata synchronization.
-- External ACL synchronization.
-- Connector boundary và permission revalidation.
-- Workflow recommendation capability.
+## 5. Workstreams
 
-**Verification status:** DOCUMENTED — chưa thực hiện independent architecture/code verification trong Project Enterprise AI Copilot.
-
-Không mặc định mọi tính năng đã sẵn sàng production.
-
-## 4. Known Technical Gaps & Risks
-
-Các vấn đề được tài liệu repository ghi nhận hoặc cần đánh giá:
-
-| Vấn đề | Trạng thái |
-|---|---|
-| Chất lượng retrieval trên dữ liệu thực tế | NEEDS EVALUATION |
-| Chunking và citation reliability | NEEDS EVALUATION |
-| Tích hợp lấy nội dung tài liệu ngoài tự động | DOCUMENTED GAP |
-| Outbound connector authentication | NEEDS REVIEW |
-| External permissions và tenant isolation | NEEDS REVIEW |
-| Enterprise scalability và observability | NEEDS REVIEW |
-| Khả năng tái sử dụng integration foundation cho Jira/CRM | NEEDS REVIEW |
-
-Các mục trên chưa được coi là implementation blockers chính thức cho đến khi hoàn thành review.
-
-## 5. Discussion Workstreams
-
-| ID | Workstream | Trạng thái |
+| ID | Scope | Status |
 |---|---|---|
-| 00 | Product Strategy & Decisions | STRATEGY APPROVED |
-| 01 | Architecture Review B | NOT STARTED |
+| 00 | Strategy and decisions | APPROVED |
+| 01 | Architecture Review B | COMPLETED / APPROVED |
 | 02 | Hybrid RAG Improvements | NOT STARTED |
 | 03 | Jira Integration | NOT STARTED |
 | 04 | CRM Integration | NOT STARTED |
 | 05 | Roadmap & Delivery | NOT STARTED |
 
-NOT STARTED chỉ phản ánh các workstream mới của Enterprise AI Copilot, không phủ nhận những năng lực hoặc tài liệu đã tồn tại trong B.
-
 ## 6. Approved Decisions
 
-Các quyết định nội dung đã được phê duyệt:
+[DEC-0001](docs/decisions/DEC-0001.md): B primary / A paused.  
+[DEC-0002](docs/decisions/DEC-0002.md): Enterprise Context-Aware direction.  
+[DEC-0003](docs/decisions/DEC-0003.md): Source System Ownership.  
+[DEC-0004](docs/decisions/DEC-0004.md): Strict Security Boundary A.  
+[DEC-0005](docs/decisions/DEC-0005.md): Platform vs Tenant Admin, D1=B.  
+[DEC-0006](docs/decisions/DEC-0006.md): Centralized authorization/revalidation, D2=B.  
+[DEC-0007](docs/decisions/DEC-0007.md): Incremental hardening, D3=B.
 
-- DEC-0001 — Primary Product Strategy.
-- DEC-0002 — Enterprise Context-Aware Direction.
-- DEC-0003 — Source System Ownership.
+[Decision Log](docs/decisions/DECISION_LOG.md) records decision authority and publication status.
 
-Decision records đã được merge qua PR #1. Nguồn tra cứu quyết định chính thức trên `main` là `docs/decisions/DECISION_LOG.md`.
+## 7. Preliminary Slices (NOT AUTHORIZED TO EXECUTE)
 
-## 7. Open Questions
+| Slice | Scope | Findings |
+|---|---|---|
+| S01 | Identity & Authorization Hardening | SEC-01..02 |
+| S02 | External Trust & Secure Retrieval | SEC-03..07 |
+| S03 | Background Job Reliability | TD-01..02 |
+| S04 | Data & Index Recovery | TD-03..04 |
+| S05 | Operational Readiness | TD-05..06 |
 
-Những câu hỏi cần giải quyết trong các workstream tiếp theo:
+Indicative order: S01 → S02 Security Gate; S03/S05 partially parallel when feasible; S04 after reliable job foundations. Technical designs, acceptance criteria, implementation authorization and verification are separate gates.
 
-1. Kiến trúc hiện tại của B có những điểm mạnh, giới hạn và technical debt nào?
-2. Những năng lực nào của B có thể tái sử dụng trực tiếp cho Enterprise Context Awareness?
-3. Hybrid RAG hiện tại đạt mức chất lượng nào?
-4. Nên sử dụng mô hình tích hợp nào cho Jira và CRM dựa trên foundation đang có?
-5. Những năng lực nào của A thực sự cần nghiên cứu để tái sử dụng?
+## 8. Next Action
 
-Đây là danh sách vấn đề cần nghiên cứu, chưa phải quyết định triển khai.
+1. PO reviews documentation PR; merge requires separate authorization.
+2. After approved publication, refine S01 design, threat model, dependencies and negative acceptance tests for PO.
+3. Do not run coding agent or start Jira/CRM production integration until authorized and Security Gate verified.
 
-## 8. Next Actions
+## 9. Governance
 
-**Current next action:** PO review PR cập nhật `PROJECT_STATUS.md` sau merge. Sau khi hoàn tất, mở cuộc trò chuyện mới `01 — Đánh giá kiến trúc B` và bắt đầu Architecture Review ở chế độ chỉ đọc.
-
-Đã hoàn thành và kiểm tra sau PR #1:
-
-- 6 tài liệu governance mới và mục lục đã có trên `main`.
-- PR #1 đã merge vào `main`; bộ tài liệu được xác nhận là hiện diện đầy đủ.
-
-Các bước tiếp theo được đề xuất:
-
-- PO review và quyết định merge PR cập nhật trạng thái này.
-- Bắt đầu workstream `01 — Architecture Review B` bằng việc đọc các quyết định APPROVED, tài liệu kỹ thuật và đối chiếu code thực tế (read-only).
-- Chỉ đề xuất thay đổi kiến trúc hoặc triển khai sau khi có phân tích và phê duyệt riêng.
-
-**Proposed next workstream:** 01 — Architecture Review B.
-
-Architecture Review phải đánh giá implementation thực tế trước khi đề xuất thay đổi kỹ thuật.
-
-## 9. Documentation References
-
-- `PROJECT_CONTEXT.md` — approved, present on main.
-- `BÀN_GIAO_AI.md` — existing technical handoff.
-- `docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md` — existing MVP roadmap.
-- `docs/technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md` — existing technical overview.
-- `docs/technical/HUONG_DAN_TICH_HOP_BEN_THU_3.md` — existing integration documentation.
-- `docs/decisions/DECISION_LOG.md` — approved, present on main.
-
-## 10. Status Maintenance Rules
-
-- Chỉ ghi APPROVED khi có xác nhận của PO.
-- Chỉ ghi VERIFIED khi có bằng chứng kiểm tra phù hợp.
-- Cập nhật trạng thái khi hoàn thành một milestone hoặc có thay đổi quan trọng.
-- Không sao chép chi tiết roadmap hoặc technical design vào file này.
-- Khi tài liệu hoặc trạng thái implementation mâu thuẫn, phải báo PO.
-- Không tự động chuyển từ APPROVED sang IMPLEMENTED.
-- Mọi thay đổi repository cần được PO cho phép.
+APPROVED ≠ IMPLEMENTED ≠ VERIFIED. The review report is source of review evidence and architecture direction; existing runtime/deployment docs describe current behavior. Source of truth becomes `main` only after a PO-approved merge. Any later architecture change needs explicit review and decision management.

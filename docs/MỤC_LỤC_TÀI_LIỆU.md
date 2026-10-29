@@ -33,6 +33,11 @@ Các quyết định và trạng thái của định hướng sản phẩm Enter
 | [DEC-0001](decisions/DEC-0001.md) | Chọn Internal Knowledge Copilot B là sản phẩm chính. |
 | [DEC-0002](decisions/DEC-0002.md) | Định hướng Enterprise Context-Aware AI Copilot. |
 | [DEC-0003](decisions/DEC-0003.md) | Quyền sở hữu nghiệp vụ của hệ thống nguồn và tái sử dụng A có kiểm soát. |
+| [DEC-0004](decisions/DEC-0004.md) | Strict Security Boundary: fail-closed, read-only ban đầu. |
+| [DEC-0005](decisions/DEC-0005.md) | Platform Admin và Tenant Admin Separation (D1=B). |
+| [DEC-0006](decisions/DEC-0006.md) | Centralized Authorization/Revalidation (D2=B). |
+| [DEC-0007](decisions/DEC-0007.md) | Incremental Enterprise Hardening (D3=B). |
+| [AR-B-01–AR-B-04 Architecture Review](architecture/AR-B-01_TO_AR-B-04_ARCHITECTURE_REVIEW.md) | Review đã duyệt: As-Is, To-Be, SEC/TD findings, sơ bộ S01–S05 và verification gaps. |
 
 ## Tài Liệu Hiện Hành
 
