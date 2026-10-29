@@ -1,6 +1,6 @@
 # Enterprise AI Copilot — Project Context
 
-**Version:** 0.1  
+**Version:** 0.2  
 **Document status:** APPROVED  
 **Last reviewed:** 2026-10-29  
 **Product Owner:** Project owner
@@ -60,6 +60,17 @@ Status: APPROVED
 - Không xây lại Case, Workflow hoặc Process nếu hệ thống nguồn đã quản lý tốt.
 - Hệ thống nguồn tiếp tục chịu trách nhiệm đối với nghiệp vụ do chính nó quản lý.
 - Chỉ tái sử dụng năng lực chuyên sâu của A khi có nhu cầu thực tế và được PO chấp thuận.
+
+### Newly Approved Enterprise Architecture Decisions
+
+PO approved 2026-10-29, documentation pending merge:
+
+- [DEC-0004](docs/decisions/DEC-0004.md) — Strict Security Boundary (Option A, fail-closed/read-only initially).
+- [DEC-0005](docs/decisions/DEC-0005.md) — Platform Admin and Tenant Admin separation (D1=B).
+- [DEC-0006](docs/decisions/DEC-0006.md) — Centralized Authorization/Revalidation (D2=B).
+- [DEC-0007](docs/decisions/DEC-0007.md) — Incremental Enterprise Hardening (D3=B).
+
+[AR-B-01..AR-B-04 Architecture Review](docs/architecture/AR-B-01_TO_AR-B-04_ARCHITECTURE_REVIEW.md) đã được PO phê duyệt. Findings SEC-01..07 và TD-01..06 còn OPEN; S01..05 chỉ là preliminary approved planning, không có implementation permission.
 
 Tham khảo: [Decision Log](docs/decisions/DECISION_LOG.md).
 
@@ -186,12 +197,10 @@ Không coi ChatGPT Memory hoặc lịch sử trò chuyện là bằng chứng v�
 
 ## 10. Next Planning Priorities
 
-Các nhóm công việc cần nghiên cứu, chưa mặc định được phê duyệt triển khai:
+1. Workstream 01 Architecture Review B: **COMPLETED / APPROVED** (AR-B-01..04); Documentation Publication PR pending PO review.
+2. Sau PO-authorized merge, chuẩn bị thiết kế chi tiết S01 — Identity & Authorization Hardening để PO review; chưa code.
+3. Đóng Security Gate dựa trên kiểm chứng thực tế trước khi triển khai tích hợp doanh nghiệp production.
+4. Nghiên cứu riêng Hybrid RAG, Jira, CRM và Roadmap trong các workstreams tương ứng.
+5. Benchmark trước khi quyết định DB/queue/storage migration; không mặc định microservices.
 
-1. Đánh giá kiến trúc B hiện tại.
-2. Xác định khoảng cách giữa B và Enterprise Context-Aware AI Copilot.
-3. Đánh giá chất lượng Hybrid RAG.
-4. Đánh giá các năng lực tích hợp hiện có trước khi thiết kế Jira/CRM.
-5. Xây dựng roadmap dựa trên kết quả đánh giá và quyết định của PO.
-
-Không bắt đầu implementation trước khi được PO phê duyệt.
+**Implementation authorization: NOT AUTHORIZED.** Các findings chưa được khắc phục hay kiểm chứng production.
