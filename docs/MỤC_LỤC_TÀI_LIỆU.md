@@ -1,6 +1,6 @@
 # Mục Lục Tài Liệu Dự Án
 
-Ngày cập nhật: 2026-06-07
+Ngày cập nhật: 2026-10-29
 
 Đây là điểm bắt đầu để đọc tài liệu Internal Knowledge Copilot. Mục lục ưu tiên tài liệu hiện hành; tài liệu trùng vai trò hoặc chỉ còn giá trị lịch sử đã chuyển vào `docs/archive/`.
 
@@ -8,6 +8,7 @@ Ngày cập nhật: 2026-06-07
 
 | Nhu cầu | Nên đọc |
 | --- | --- |
+| Quản trị dự án Enterprise AI Copilot | [Project Context](../PROJECT_CONTEXT.md), [Project Status](../PROJECT_STATUS.md), [Decision Log](decisions/DECISION_LOG.md) |
 | Hiểu tổng quan dự án | [README](../GIỚI_THIỆU.md), [Tổng quan trạng thái roadmap](TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md), [Technical system overview](technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md) |
 | Chạy local | [Local setup guide](technical/HƯỚNG_DẪN_CÀI_ĐẶT_LOCAL.md), [Development guide](../HƯỚNG_DẪN_PHÁT_TRIỂN.md), [Troubleshooting](technical/KHẮC_PHỤC_LỖI.md) |
 | Hiểu kiến trúc và dữ liệu | [Architecture MVP](../KIẾN_TRÚC_MVP.md), [Data model](../MÔ_HÌNH_DỮ_LIỆU.md), [Danh sách bảng hiện tại](technical/DANH_SACH_BANG_DU_LIEU_HE_THONG.md) |
@@ -19,6 +20,19 @@ Ngày cập nhật: 2026-06-07
 | Thương mại hóa, bán hàng, định giá | [Kế hoạch thương mại hóa](KẾ_HOẠCH_THƯƠNG_MẠI_HÓA.md) |
 | Chuẩn bị pilot | [Hướng dẫn pilot và sử dụng](pilot/HƯỚNG_DẪN_PILOT_VÀ_SỬ_DỤNG.md), [Support templates](pilot/MẪU_HỖ_TRỢ_VÀ_BÁO_LỖI.md), [Pilot report template](pilot/MẪU_BÁO_CÁO_KẾT_QUẢ_PILOT.md) |
 | Bàn giao cho AI/người mới | [AI handoff](../BÀN_GIAO_AI.md), [Technical system overview](technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md), [Coding rules](../QUY_TẮC_CODE.md) |
+
+## Quản Trị Enterprise AI Copilot
+
+Các quyết định và trạng thái của định hướng sản phẩm Enterprise AI Copilot được quản lý riêng, không thay thế tài liệu MVP hiện có.
+
+| Tài liệu | Vai trò |
+| --- | --- |
+| [Project Context](../PROJECT_CONTEXT.md) | Chiến lược, ranh giới sản phẩm, nguyên tắc cộng tác và các workstream. |
+| [Project Status](../PROJECT_STATUS.md) | Trạng thái quản trị, các vấn đề cần review và next action. |
+| [Decision Log](decisions/DECISION_LOG.md) | Danh mục quyết định đã được PO phê duyệt và lịch sử thay thế. |
+| [DEC-0001](decisions/DEC-0001.md) | Chọn Internal Knowledge Copilot B là sản phẩm chính. |
+| [DEC-0002](decisions/DEC-0002.md) | Định hướng Enterprise Context-Aware AI Copilot. |
+| [DEC-0003](decisions/DEC-0003.md) | Quyền sở hữu nghiệp vụ của hệ thống nguồn và tái sử dụng A có kiểm soát. |
 
 ## Tài Liệu Hiện Hành
 
@@ -92,3 +106,4 @@ Các file trong archive không phải source of truth hiện hành:
 - Nếu nội dung thuộc scope, trạng thái, roadmap hoặc giới hạn, cập nhật `TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md`.
 - Nếu nội dung thuộc schema hiện tại, cập nhật `technical/DANH_SACH_BANG_DU_LIEU_HE_THONG.md` và `../MÔ_HÌNH_DỮ_LIỆU.md`.
 - Nếu thêm hoặc archive tài liệu, cập nhật mục lục này trong cùng thay đổi.
+- Nếu thay đổi quyết định hoặc trạng thái Enterprise AI Copilot, duy trì `PROJECT_CONTEXT.md`, `PROJECT_STATUS.md` và `docs/decisions/DECISION_LOG.md` theo phạm vi tương ứng.
