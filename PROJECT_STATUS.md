@@ -1,14 +1,14 @@
 # Enterprise AI Copilot — Project Status
 
-**Version:** 0.1  
+**Version:** 0.1.1  
 **Document status:** APPROVED  
 **Last updated:** 2026-10-29  
 **Primary repository:** pvanh2706/internal-knowledge-copilot  
-**Branch:** main (target for documentation PR)
+**Branch:** main
 
 ## 1. Executive Summary
 
-Enterprise AI Copilot đang ở giai đoạn thiết lập Product Governance và chuẩn bị đánh giá kiến trúc sản phẩm B.
+Enterprise AI Copilot đã hoàn thành Project Foundation (thiết lập Product Governance) và sẵn sàng chuyển sang giai đoạn đánh giá kiến trúc sản phẩm B. Chưa bắt đầu Architecture Review B.
 
 Các quyết định chiến lược chính đã được PO phê duyệt:
 
@@ -18,7 +18,7 @@ Các quyết định chiến lược chính đã được PO phê duyệt:
 - Tích hợp Jira, CRM, ERP qua API.
 - Không tái xây dựng nghiệp vụ đã được hệ thống nguồn quản lý tốt.
 
-**Current phase:** Project Foundation — governance documentation review/merge pending.
+**Current phase:** Project Foundation — COMPLETED. Next proposed phase: Architecture Review B (NOT STARTED).
 
 **Implementation authorization:** Chưa cấp phép triển khai code mới.
 
@@ -31,14 +31,14 @@ Các quyết định chiến lược chính đã được PO phê duyệt:
 | Decision Management mechanism | APPROVED |
 | Conversation Handoff Protocol | COMPLETED |
 | Documentation structure | APPROVED |
-| PROJECT_CONTEXT.md v0.1 | CONTENT APPROVED — INCLUDED IN GATE A PR |
-| PROJECT_STATUS.md v0.1 | CONTENT APPROVED — INCLUDED IN GATE A PR |
-| DECISION_LOG.md v0.1 | CONTENT APPROVED — INCLUDED IN GATE A PR |
-| Individual decision records DEC-0001..0003 | CONTENT APPROVED — INCLUDED IN GATE A PR |
-| Repository governance documentation update | GATE A — PR REVIEW PENDING |
-| Merge into main | GATE B — NOT AUTHORIZED |
+| PROJECT_CONTEXT.md v0.1 | APPROVED — ON MAIN |
+| PROJECT_STATUS.md v0.1.1 | APPROVED — STATUS UPDATE IN REVIEW PR |
+| DECISION_LOG.md v0.1 | APPROVED — ON MAIN |
+| Individual decision records DEC-0001..0003 | APPROVED — ON MAIN |
+| Repository governance documentation update | GATE A — COMPLETED (PR #1) |
+| Merge into main | GATE B — COMPLETED (PR #1, merge commit `7a416693400b1f22decbe966b0d73b7889a9183d`) |
 
-COMPLETED ở đây phản ánh việc thiết lập trong ChatGPT Project; file trong Pull Request chưa được coi là đã merge vào main.
+Project Instructions và Conversation Handoff Protocol được cấu hình trong ChatGPT Project. Bộ tài liệu governance từ PR #1 đã được kiểm tra và xác nhận trên `main`. Riêng bản điều chỉnh trạng thái v0.1.1 này vẫn chờ PO review PR và cho phép merge.
 
 ## 3. Existing Technical Baseline
 
@@ -110,7 +110,7 @@ Các quyết định nội dung đã được phê duyệt:
 - DEC-0002 — Enterprise Context-Aware Direction.
 - DEC-0003 — Source System Ownership.
 
-Decision records đã được chuẩn bị trong Gate A PR; sau khi được merge, nguồn tra cứu chính thức trên main là `docs/decisions/DECISION_LOG.md`.
+Decision records đã được merge qua PR #1. Nguồn tra cứu quyết định chính thức trên `main` là `docs/decisions/DECISION_LOG.md`.
 
 ## 7. Open Questions
 
@@ -126,13 +126,18 @@ Những câu hỏi cần giải quyết trong các workstream tiếp theo:
 
 ## 8. Next Actions
 
-**Current next action:** PO review Gate A documentation PR, sau đó quyết định riêng về Gate B (merge vào main).
+**Current next action:** PO review PR cập nhật `PROJECT_STATUS.md` sau merge. Sau khi hoàn tất, mở cuộc trò chuyện mới `01 — Đánh giá kiến trúc B` và bắt đầu Architecture Review ở chế độ chỉ đọc.
 
-Sau khi PO phê duyệt và cho phép merge:
+Đã hoàn thành và kiểm tra sau PR #1:
 
-- Xác minh 6 tài liệu mới và mục lục đã có trên main.
-- Xác minh các liên kết và status sau merge.
-- Đề xuất bắt đầu workstream `01 — Architecture Review B`.
+- 6 tài liệu governance mới và mục lục đã có trên `main`.
+- PR #1 đã merge vào `main`; bộ tài liệu được xác nhận là hiện diện đầy đủ.
+
+Các bước tiếp theo được đề xuất:
+
+- PO review và quyết định merge PR cập nhật trạng thái này.
+- Bắt đầu workstream `01 — Architecture Review B` bằng việc đọc các quyết định APPROVED, tài liệu kỹ thuật và đối chiếu code thực tế (read-only).
+- Chỉ đề xuất thay đổi kiến trúc hoặc triển khai sau khi có phân tích và phê duyệt riêng.
 
 **Proposed next workstream:** 01 — Architecture Review B.
 
@@ -140,12 +145,12 @@ Architecture Review phải đánh giá implementation thực tế trước khi �
 
 ## 9. Documentation References
 
-- `PROJECT_CONTEXT.md` — approved content, pending merge into main.
+- `PROJECT_CONTEXT.md` — approved, present on main.
 - `BÀN_GIAO_AI.md` — existing technical handoff.
 - `docs/TỔNG_QUAN_TRẠNG_THÁI_ROADMAP.md` — existing MVP roadmap.
 - `docs/technical/TỔNG_QUAN_KỸ_THUẬT_CHO_TEAM_VÀ_AI.md` — existing technical overview.
 - `docs/technical/HUONG_DAN_TICH_HOP_BEN_THU_3.md` — existing integration documentation.
-- `docs/decisions/DECISION_LOG.md` — approved content, pending merge into main.
+- `docs/decisions/DECISION_LOG.md` — approved, present on main.
 
 ## 10. Status Maintenance Rules
 
