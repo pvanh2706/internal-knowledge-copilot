@@ -15,7 +15,7 @@ namespace InternalKnowledgeCopilot.Tests.Platform.S01C;
 public sealed record CliRun(int ExitCode, string Output);
 
 // Môi trường S01-C: file SQLite thật đã migrate (trigger S01-A có hiệu lực), authority LocalSeal ngoài thư mục DB
-// hoặc DynamoDB giả. Không có tài nguyên AWS nào được tạo hay gọi.
+// hoặc DynamoDB giả phía sau Authority Service chạy trong tiến trình (API Gateway giả). Không có tài nguyên AWS nào được tạo hay gọi.
 public sealed class S01CTestEnvironment : IAsyncDisposable
 {
     public const string AuthorityId = "s01c-test-authority";
@@ -41,6 +41,7 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
             DynamoDbRegion: "us-east-1",
             DynamoDbTimeout: TimeSpan.FromSeconds(1));
         Authority = new LocalSealAuthoritySimulator(LocalSealSettings);
+        AuthorityService = new AuthorityServiceTestHost(Dynamo, AuthorityId, [DeploymentId]);
     }
 
     public string Root { get; }
@@ -65,7 +66,16 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
 
     public FakeDynamoDbTable Dynamo { get; } = new(DynamoTableName);
 
-    public Func<IProvisioningAuthorityMutator, IProvisioningAuthorityMutator>? MutatorDecorator { get; set; }
+    // Authority Service (chỉ dùng ở chế độ DynamoDb): approver "bob", operator được chỉ định "alice".
+    public AuthorityServiceTestHost AuthorityService { get; }
+
+    public Func<IAuthorityTransitionClient, IAuthorityTransitionClient>? TransitionDecorator { get; set; }
+
+    // Credential operator mà CLI dùng ở chế độ DynamoDb (mặc định: operator được chỉ định).
+    public TestPrincipal? CliOperator { get; set; }
+
+    // Chạy bên trong transaction SQLite của CLI, trước commit (ví dụ tạo trigger chặn audit để mô phỏng audit bắt buộc thất bại).
+    public Func<AppDbContext, Task>? BeforeSqliteCommit { get; set; }
 
     public static async Task<S01CTestEnvironment> CreateAsync(bool useDynamoDb = false, string? targetMigration = null, bool createDatabase = true)
     {
@@ -90,6 +100,7 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
             ["ProvisioningAuthority:DynamoDb:TableName"] = DynamoTableName,
             ["ProvisioningAuthority:DynamoDb:Region"] = "us-east-1",
             ["ProvisioningAuthority:DynamoDb:TimeoutSeconds"] = "1",
+            ["ProvisioningAuthority:AuthorityService:Endpoint"] = AuthorityServiceTestHost.Endpoint.ToString(),
         }
         : new Dictionary<string, string?>
         {
@@ -101,9 +112,14 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
             ["ProvisioningAuthority:LocalSeal:IntegrityKey"] = IntegrityKey,
         };
 
-    // Provisioning authority độc lập cấp quyền bootstrap.
+    // Approver độc lập cấp quyền bootstrap (DynamoDb: qua route approval của Authority Service; LocalSeal: simulator).
     public ProvisioningAuthorityRecord AuthorizeBootstrap()
     {
+        if (UseDynamoDb)
+        {
+            return Approve(AuthorityApprovalAction.Bootstrap, expectedVersion: null);
+        }
+
         var record = new ProvisioningAuthorityRecord
         {
             DeploymentId = DeploymentId,
@@ -117,8 +133,18 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
         return record;
     }
 
+    public ProvisioningAuthorityRecord ReauthorizeBootstrap()
+    {
+        return UseDynamoDb ? Approve(AuthorityApprovalAction.ReauthorizeBootstrap, CurrentAuthority()!.Version) : Authority.Authorize();
+    }
+
     public ProvisioningAuthorityRecord AuthorizeAdminRecovery(Guid target)
     {
+        if (UseDynamoDb)
+        {
+            return Approve(AuthorityApprovalAction.AdminRecovery, CurrentAuthority()!.Version, target);
+        }
+
         var current = CurrentAuthority()!;
         return WriteAuthority(current with
         {
@@ -133,6 +159,11 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
 
     public ProvisioningAuthorityRecord AuthorizeReconciliation()
     {
+        if (UseDynamoDb)
+        {
+            return Approve(AuthorityApprovalAction.BootstrapReconciliation, CurrentAuthority()!.Version);
+        }
+
         var current = CurrentAuthority()!;
         return WriteAuthority(current with
         {
@@ -142,6 +173,12 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
             RecoveryPurpose = ProvisioningRecoveryPurpose.BootstrapReconciliation,
             RecoveryAuthorizedAt = AuthorityTimestamp.Now(),
         });
+    }
+
+    private ProvisioningAuthorityRecord Approve(AuthorityApprovalAction action, long? expectedVersion, Guid? target = null)
+    {
+        Task.Run(() => AuthorityService.MustApproveAsync(DeploymentId, action, expectedVersion, target)).GetAwaiter().GetResult();
+        return CurrentAuthority()!;
     }
 
     public ProvisioningAuthorityRecord WriteAuthority(ProvisioningAuthorityRecord record)
@@ -176,8 +213,14 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
         {
             EnvironmentName = environmentName,
             Configuration = configuration,
-            DynamoDbClientFactory = (_, forMutation) => Dynamo.CreateClient(forMutation ? "operator" : "operator-read", allowWrites: forMutation),
-            MutatorDecorator = MutatorDecorator,
+            DynamoDbReadClientFactory = _ => Dynamo.CreateClient("cli-read", allowWrites: false),
+            AuthorityServiceHandler = AuthorityService.CreateGatewayHandler(),
+            OperatorCredentials = () => (CliOperator ?? AuthorityService.Operator).Credentials,
+            TransitionClientDecorator = TransitionDecorator,
+            BeforeSqliteCommit = BeforeSqliteCommit,
+
+            // Tiến trình test không nâng quyền; kiểm tra nâng quyền thật được kiểm thử riêng (C-IR-03).
+            PrivilegeCheck = () => true,
         };
     }
 
@@ -201,32 +244,14 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
     public Task<CliRun> StatusAsync(string command = "status") => RunCliAsync([command]);
 
     // Chạy CLI thật trong tiến trình con (harness với câu trả lời qua stdin).
-    public async Task<CliRun> RunHarnessProcessAsync(string[] args, IEnumerable<string> answers, TimeSpan timeout)
+    public async Task<CliRun> RunHarnessProcessAsync(
+        string[] args,
+        IEnumerable<string> answers,
+        TimeSpan timeout,
+        string mode = "cli",
+        IReadOnlyDictionary<string, string?>? environment = null)
     {
-        var harness = Path.Combine(AppContext.BaseDirectory, "InternalKnowledgeCopilot.PlatformCli.TestHarness.dll");
-        var start = new ProcessStartInfo("dotnet")
-        {
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            WorkingDirectory = Root,
-        };
-        start.ArgumentList.Add(harness);
-        start.ArgumentList.Add("cli");
-        foreach (var arg in args)
-        {
-            start.ArgumentList.Add(arg);
-        }
-
-        start.Environment["DOTNET_ENVIRONMENT"] = "Testing";
-        start.Environment.Remove("ASPNETCORE_ENVIRONMENT");
-        foreach (var (key, value) in Configuration)
-        {
-            start.Environment[key.Replace(":", "__", StringComparison.Ordinal)] = value;
-        }
-
-        using var process = Process.Start(start)!;
+        using var process = StartHarnessProcess(mode, args, environment);
         foreach (var answer in answers)
         {
             await process.StandardInput.WriteLineAsync(answer);
@@ -247,6 +272,47 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
         }
 
         return new CliRun(process.ExitCode, await output + await error);
+    }
+
+    // environment: null value = xóa biến; mặc định DOTNET_ENVIRONMENT=Testing, không có ASPNETCORE_ENVIRONMENT.
+    public Process StartHarnessProcess(string mode, string[] args, IReadOnlyDictionary<string, string?>? environment = null)
+    {
+        var harness = Path.Combine(AppContext.BaseDirectory, "InternalKnowledgeCopilot.PlatformCli.TestHarness.dll");
+        var start = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            WorkingDirectory = Root,
+        };
+        start.ArgumentList.Add(harness);
+        start.ArgumentList.Add(mode);
+        foreach (var arg in args)
+        {
+            start.ArgumentList.Add(arg);
+        }
+
+        start.Environment["DOTNET_ENVIRONMENT"] = "Testing";
+        start.Environment.Remove("ASPNETCORE_ENVIRONMENT");
+        foreach (var (key, value) in Configuration)
+        {
+            start.Environment[key.Replace(":", "__", StringComparison.Ordinal)] = value;
+        }
+
+        foreach (var (key, value) in environment ?? new Dictionary<string, string?>())
+        {
+            if (value is null)
+            {
+                start.Environment.Remove(key);
+            }
+            else
+            {
+                start.Environment[key] = value;
+            }
+        }
+
+        return Process.Start(start)!;
     }
 
     public AppDbContext CreateDb()
@@ -302,24 +368,35 @@ public sealed class S01CTestEnvironment : IAsyncDisposable
     }
 }
 
-// Mutator bọc để tiêm lỗi vào đúng chuyển trạng thái (reserve/activate/finalize) của CLI.
-public sealed class FaultInjectingMutator(
-    IProvisioningAuthorityMutator inner,
-    Func<ProvisioningAuthorityRecord, ProvisioningAuthorityRecord, FaultPoint> fault) : IProvisioningAuthorityMutator
+// Client bọc để tiêm lỗi vào đúng bước (reserve/activate/claim/complete) của CLI. Đây là tiêm lỗi trong cùng tiến trình,
+// KHÔNG phải kill process thật (xem S01CProcessTerminationTests cho kill thật, C-IR-10).
+public sealed class FaultInjectingTransitionClient(IAuthorityTransitionClient inner, Func<string, FaultPoint> fault) : IAuthorityTransitionClient
 {
-    public async Task<AuthorityTransitionOutcome> TransitionAsync(ProvisioningAuthorityRecord expected, ProvisioningAuthorityRecord next, CancellationToken cancellationToken = default)
+    public Task<AuthorityStepResult> ReserveAsync(ProvisioningAuthorityRecord authorized, Guid reservedAdminId, string requestId, CancellationToken cancellationToken = default)
+        => InjectAsync("reserve", () => inner.ReserveAsync(authorized, reservedAdminId, requestId, cancellationToken));
+
+    public Task<AuthorityStepResult> ActivateAsync(ProvisioningAuthorityRecord reserved, DateTimeOffset bootstrapCompletedAt, string requestId, CancellationToken cancellationToken = default)
+        => InjectAsync("activate", () => inner.ActivateAsync(reserved, bootstrapCompletedAt, requestId, cancellationToken));
+
+    public Task<AuthorityStepResult> ClaimRecoveryAsync(ProvisioningAuthorityRecord pending, string requestId, CancellationToken cancellationToken = default)
+        => InjectAsync("claim", () => inner.ClaimRecoveryAsync(pending, requestId, cancellationToken));
+
+    public Task<AuthorityStepResult> CompleteRecoveryAsync(ProvisioningAuthorityRecord pending, int stateVersion, DateTimeOffset? bootstrapCompletedAt, string requestId, CancellationToken cancellationToken = default)
+        => InjectAsync("complete", () => inner.CompleteRecoveryAsync(pending, stateVersion, bootstrapCompletedAt, requestId, cancellationToken));
+
+    private async Task<AuthorityStepResult> InjectAsync(string step, Func<Task<AuthorityStepResult>> call)
     {
-        switch (fault(expected, next))
+        switch (fault(step))
         {
             case FaultPoint.FailBeforeApply:
-                throw new ProvisioningAuthorityUnavailableException("injected_failure");
+                return AuthorityStepResult.Unknown("injected_failure");
             case FaultPoint.FailAfterApply:
-                await inner.TransitionAsync(expected, next, cancellationToken);
-                throw new ProvisioningAuthorityUnavailableException("injected_failure_after_apply");
-            case FaultPoint.Crash:
-                throw new InvalidOperationException("injected_process_crash");
+                await call();
+                return AuthorityStepResult.Unknown("injected_failure_after_apply");
+            case FaultPoint.ThrowException:
+                throw new InvalidOperationException("injected_exception");
             default:
-                return await inner.TransitionAsync(expected, next, cancellationToken);
+                return await call();
         }
     }
 }
@@ -329,5 +406,7 @@ public enum FaultPoint
     None,
     FailBeforeApply,
     FailAfterApply,
-    Crash,
+
+    // Ném exception trong cùng tiến trình (mô phỏng lỗi không lường trước), không phải process bị kill.
+    ThrowException,
 }

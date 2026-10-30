@@ -86,8 +86,9 @@ public sealed class S01CBootstrapTests
     {
         await using var env = await S01CTestEnvironment.CreateAsync();
         env.AuthorizeBootstrap();
-        // Audit bắt buộc không ghi được → toàn bộ transaction SQLite phải rollback.
-        await env.ExecuteSqlAsync("CREATE TRIGGER test_block_audit BEFORE INSERT ON platform_audit_logs BEGIN SELECT RAISE(ABORT, 'audit_unavailable'); END;");
+        // Audit bắt buộc không ghi được → toàn bộ transaction SQLite phải rollback. Trigger chặn được tạo BÊN TRONG transaction
+        // (sau preflight), vì preflight từ chối mọi trigger lạ trên bảng platform (C-IR-09).
+        env.BeforeSqliteCommit = db => db.Database.ExecuteSqlRawAsync("CREATE TRIGGER test_block_audit BEFORE INSERT ON platform_audit_logs BEGIN SELECT RAISE(ABORT, 'audit_unavailable'); END;");
 
         var run = await env.BootstrapAsync();
 
@@ -104,7 +105,8 @@ public sealed class S01CBootstrapTests
         Assert.Contains("ReservationWithoutSqliteEvidence", check.Output);
 
         // Reservation không tự hết hạn thành cơ hội bootstrap mới, kể cả khi lỗi đã được khắc phục.
-        await env.ExecuteSqlAsync("DROP TRIGGER test_block_audit;");
+        env.BeforeSqliteCommit = null;
+        Assert.Equal(0L, await env.ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE name = 'test_block_audit'"));
         var retry = await env.BootstrapAsync();
         Assert.Equal(CliExitCodes.Denied, retry.ExitCode);
         Assert.Contains("authority_reservation_pending", retry.Output);
@@ -120,8 +122,7 @@ public sealed class S01CBootstrapTests
     {
         await using var env = await S01CTestEnvironment.CreateAsync();
         env.AuthorizeBootstrap();
-        env.MutatorDecorator = inner => new FaultInjectingMutator(inner, (expected, _) =>
-            expected.Status == ProvisioningAuthorityStatus.Reserved ? FaultPoint.FailBeforeApply : FaultPoint.None);
+        env.TransitionDecorator = inner => new FaultInjectingTransitionClient(inner, step => step == "activate" ? FaultPoint.FailBeforeApply : FaultPoint.None);
 
         var run = await env.BootstrapAsync();
 
@@ -136,7 +137,7 @@ public sealed class S01CBootstrapTests
         Assert.Contains("BootstrapActivationPending", (await env.StatusAsync("recovery-check")).Output);
 
         // recover-admin không có RecoveryPending độc lập thì bị từ chối.
-        env.MutatorDecorator = null;
+        env.TransitionDecorator = null;
         var unauthorized = await env.RunCliAsync(["recover-admin"], ["RECOVER"]);
         Assert.Equal(CliExitCodes.Denied, unauthorized.ExitCode);
         Assert.Contains("recovery_not_authorized", unauthorized.Output);
@@ -165,8 +166,7 @@ public sealed class S01CBootstrapTests
     {
         await using var env = await S01CTestEnvironment.CreateAsync();
         env.AuthorizeBootstrap();
-        env.MutatorDecorator = inner => new FaultInjectingMutator(inner, (expected, _) =>
-            expected.Status == ProvisioningAuthorityStatus.Reserved ? FaultPoint.FailAfterApply : FaultPoint.None);
+        env.TransitionDecorator = inner => new FaultInjectingTransitionClient(inner, step => step == "activate" ? FaultPoint.FailAfterApply : FaultPoint.None);
 
         var run = await env.BootstrapAsync();
 
@@ -175,12 +175,12 @@ public sealed class S01CBootstrapTests
     }
 
     [Fact]
-    public async Task Bootstrap_ProcessCrashBetweenCommitAndActivation_NeverReportsSuccessAndStaysDenied()
+    // C-IR-10: đây là exception tiêm trong cùng tiến trình, KHÔNG phải process bị kill (xem S01CProcessTerminationTests).
+    public async Task Bootstrap_ExceptionInjectedBetweenCommitAndActivation_NeverReportsSuccessAndStaysDenied()
     {
         await using var env = await S01CTestEnvironment.CreateAsync();
         env.AuthorizeBootstrap();
-        env.MutatorDecorator = inner => new FaultInjectingMutator(inner, (expected, _) =>
-            expected.Status == ProvisioningAuthorityStatus.Reserved ? FaultPoint.Crash : FaultPoint.None);
+        env.TransitionDecorator = inner => new FaultInjectingTransitionClient(inner, step => step == "activate" ? FaultPoint.ThrowException : FaultPoint.None);
 
         var run = await env.BootstrapAsync();
 
@@ -195,7 +195,7 @@ public sealed class S01CBootstrapTests
     {
         await using var env = await S01CTestEnvironment.CreateAsync();
         var authorized = env.AuthorizeBootstrap();
-        env.MutatorDecorator = inner => new FaultInjectingMutator(inner, (_, _) => FaultPoint.FailBeforeApply);
+        env.TransitionDecorator = inner => new FaultInjectingTransitionClient(inner, _ => FaultPoint.FailBeforeApply);
 
         var run = await env.BootstrapAsync();
 
