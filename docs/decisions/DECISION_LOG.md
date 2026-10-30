@@ -1,8 +1,8 @@
 # Enterprise AI Copilot — Decision Log
 
-**Version:** 0.2  
-**Document status:** PO APPROVED CONTENT — Documentation Publication PR pending merge  
-**Last updated:** 2026-10-29  
+**Version:** 0.3  
+**Document status:** S01 decisions PO APPROVED; this documentation PR pending review/merge  
+**Last updated:** 2026-10-30  
 **Owner:** Product Owner
 
 ## 1. Purpose
@@ -20,8 +20,9 @@ Version-controlled registry of PO-approved product and architecture decisions. A
 | [DEC-0005](DEC-0005.md) | Platform Admin vs Tenant Admin (D1=B) | Identity & Access Architecture | APPROVED |
 | [DEC-0006](DEC-0006.md) | Centralized Authorization and Revalidation (D2=B) | Security & Retrieval Architecture | APPROVED |
 | [DEC-0007](DEC-0007.md) | Incremental Enterprise Hardening (D3=B) | Platform Architecture | APPROVED |
+| [DEC-0008](DEC-0008.md) | S01: separate platform identity, local auth, CLI bootstrap, state table (Q01–Q04) | Identity & Authorization | APPROVED |
 
-DEC-0001..03 have been merged to `main`. DEC-0004..07 were approved by PO in conversation on 2026-10-29, awaiting review and authorized merge of this Documentation Publication PR.
+DEC-0001..07 have been published on `main` (DEC-0004..07 through merged PR #3). DEC-0008 and S01 design/recheck documents were approved by PO in conversation on 2026-10-30 and are included in a separate **documentation-only PR pending PO review/merge**.
 
 ## 3. Review Registry
 
@@ -31,6 +32,8 @@ DEC-0001..03 have been merged to `main`. DEC-0004..07 were approved by PO in con
 | AR-B-02 — Security & Integration Boundary, SEC-01..07 | APPROVED | OPEN |
 | AR-B-03 — Technical Debt, TD-01..06 | APPROVED | OPEN |
 | AR-B-04 — Consolidation, To-Be, S01..05 preliminary plan | APPROVED | Implementation NOT AUTHORIZED |
+| [S01 Technical Design Baseline v1.0](../architecture/S01_TECHNICAL_DESIGN_BASELINE_V1.0.md) | APPROVED 2026-10-30 | S01-R01–R09 addressed in design; runtime OPEN |
+| [S01 Architecture & Security Review/Recheck](../architecture/S01_ARCHITECTURE_SECURITY_REVIEW.md) | COMPLETED, design level | Implementation verification OPEN |
 
 [Consolidated Architecture Review](../architecture/AR-B-01_TO_AR-B-04_ARCHITECTURE_REVIEW.md).
 

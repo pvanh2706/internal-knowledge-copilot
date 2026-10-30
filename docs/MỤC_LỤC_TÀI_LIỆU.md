@@ -1,6 +1,6 @@
 # Mục Lục Tài Liệu Dự Án
 
-Ngày cập nhật: 2026-10-29
+Ngày cập nhật: 2026-10-30
 
 Đây là điểm bắt đầu để đọc tài liệu Internal Knowledge Copilot. Mục lục ưu tiên tài liệu hiện hành; tài liệu trùng vai trò hoặc chỉ còn giá trị lịch sử đã chuyển vào `docs/archive/`.
 
@@ -37,6 +37,9 @@ Các quyết định và trạng thái của định hướng sản phẩm Enter
 | [DEC-0005](decisions/DEC-0005.md) | Platform Admin và Tenant Admin Separation (D1=B). |
 | [DEC-0006](decisions/DEC-0006.md) | Centralized Authorization/Revalidation (D2=B). |
 | [DEC-0007](decisions/DEC-0007.md) | Incremental Enterprise Hardening (D3=B). |
+| [DEC-0008](decisions/DEC-0008.md) | S01-Q01–Q04: Platform Identity, Local Auth, CLI Bootstrap và state table — APPROVED. |
+| [S01 Technical Design Baseline v1.0](architecture/S01_TECHNICAL_DESIGN_BASELINE_V1.0.md) | Thiết kế S01 được PO phê duyệt; **implementation NOT AUTHORIZED**. |
+| [S01 Architecture & Security Review/Recheck](architecture/S01_ARCHITECTURE_SECURITY_REVIEW.md) | 9 findings addressed in design; runtime findings còn OPEN. |
 | [AR-B-01–AR-B-04 Architecture Review](architecture/AR-B-01_TO_AR-B-04_ARCHITECTURE_REVIEW.md) | Review đã duyệt: As-Is, To-Be, SEC/TD findings, sơ bộ S01–S05 và verification gaps. |
 
 ## Tài Liệu Hiện Hành
