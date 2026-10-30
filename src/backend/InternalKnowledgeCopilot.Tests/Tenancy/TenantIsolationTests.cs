@@ -4,6 +4,7 @@ using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
 using InternalKnowledgeCopilot.Api.Infrastructure.AccessControl;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
+using InternalKnowledgeCopilot.Api.Infrastructure.Authentication;
 using InternalKnowledgeCopilot.Api.Infrastructure.Connectors;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
@@ -181,8 +182,11 @@ public sealed class TenantIsolationTests
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Path = "/api/documents";
         httpContext.Request.Headers["X-Tenant-Code"] = "tenant-a";
+        // S01-B: principal tenant đã xác thực luôn có principal_type và tenant_id (đã được TenantJwt đối chiếu DB).
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
         [
+            new Claim(PrincipalClaimTypes.PrincipalType, PrincipalTypes.Tenant),
+            new Claim(TenantClaimTypes.TenantId, tenantBId.ToString()),
             new Claim(TenantClaimTypes.TenantCode, "tenant-b"),
         ], "Test"));
 

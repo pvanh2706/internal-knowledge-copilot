@@ -1,4 +1,5 @@
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.Authentication;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Primitives;
@@ -11,7 +12,8 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
 
     public async Task InvokeAsync(HttpContext httpContext, AppDbContext dbContext, ITenantContext tenantContext)
     {
-        if (!httpContext.Request.Path.StartsWithSegments("/api"))
+        // S01-B: đường dẫn platform không bao giờ nhận danh tính tenant từ header, claim hay default tenant.
+        if (!httpContext.Request.Path.StartsWithSegments("/api") || httpContext.Request.Path.StartsWithSegments("/api/platform"))
         {
             await next(httpContext);
             return;
@@ -29,21 +31,30 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
             return;
         }
 
-        var claimTenantCode = NormalizeCode(httpContext.User.FindFirst(TenantClaimTypes.TenantCode)?.Value);
-        if (!string.IsNullOrWhiteSpace(claimTenantCode)
-            && hasTenantHeader
-            && !string.Equals(headerTenantCode, claimTenantCode, StringComparison.OrdinalIgnoreCase))
+        // Principal tenant đã xác thực: TenantJwt đã đối chiếu tenant_id/tenant_code với tenant còn hoạt động trong DB,
+        // nên tenant lấy từ claim; header chỉ được phép trùng khớp, không bao giờ thay thế danh tính đã xác thực.
+        if (httpContext.User.Identity?.IsAuthenticated == true
+            && string.Equals(httpContext.User.FindFirst(PrincipalClaimTypes.PrincipalType)?.Value, PrincipalTypes.Tenant, StringComparison.Ordinal)
+            && Guid.TryParse(httpContext.User.FindFirst(TenantClaimTypes.TenantId)?.Value, out var authenticatedTenantId))
         {
-            httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
-            await httpContext.Response.WriteAsJsonAsync(
-                new ApiError("tenant_mismatch", "Tenant header does not match the authenticated token."),
-                httpContext.RequestAborted);
+            var claimTenantCode = NormalizeCode(httpContext.User.FindFirst(TenantClaimTypes.TenantCode)?.Value)!;
+            if (hasTenantHeader && !string.Equals(headerTenantCode, claimTenantCode, StringComparison.Ordinal))
+            {
+                httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
+                await httpContext.Response.WriteAsJsonAsync(
+                    new ApiError("tenant_mismatch", "Tenant header does not match the authenticated token."),
+                    httpContext.RequestAborted);
+                return;
+            }
+
+            tenantContext.SetTenant(authenticatedTenantId, claimTenantCode);
+            await next(httpContext);
             return;
         }
 
-        var tenantCode = string.IsNullOrWhiteSpace(claimTenantCode)
-            ? headerTenantCode ?? TenantDefaults.DefaultTenantCode
-            : claimTenantCode;
+        // Request chưa xác thực (đăng nhập tenant, tích hợp bằng integration key): chọn tenant theo header hoặc default
+        // như trước; không có principal nào được suy ra từ lựa chọn này.
+        var tenantCode = headerTenantCode ?? TenantDefaults.DefaultTenantCode;
         if (string.IsNullOrWhiteSpace(tenantCode))
         {
             await next(httpContext);

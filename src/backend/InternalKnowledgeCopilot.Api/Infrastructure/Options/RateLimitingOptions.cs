@@ -11,4 +11,7 @@ public sealed class RateLimitingOptions
 
     // Giới hạn theo integration key cho nhóm endpoint tích hợp bên thứ 3.
     public int IntegrationRequestsPerMinute { get; init; } = 120;
+
+    // Giới hạn theo IP cho đăng nhập Platform Admin.
+    public int PlatformAuthRequestsPerMinute { get; init; } = 10;
 }

@@ -1,5 +1,6 @@
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.AccessControl;
+using InternalKnowledgeCopilot.Api.Infrastructure.Authentication;
 using InternalKnowledgeCopilot.Api.Infrastructure.ActionExecution;
 using InternalKnowledgeCopilot.Api.Infrastructure.BackgroundJobs;
 using InternalKnowledgeCopilot.Api.Infrastructure.AiProvider;
@@ -25,19 +26,17 @@ using InternalKnowledgeCopilot.Api.Modules.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
 using InternalKnowledgeCopilot.Api.Modules.Integrations;
 using InternalKnowledgeCopilot.Api.Modules.Operations;
+using InternalKnowledgeCopilot.Api.Modules.Platform.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Tenants;
 using InternalKnowledgeCopilot.Api.Modules.WorkflowCopilot;
 using InternalKnowledgeCopilot.Api.Modules.Wiki;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.ErrorHandling;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
-using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
@@ -46,6 +45,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<AppStorageOptions>(builder.Configuration.GetSection(AppStorageOptions.SectionName));
 builder.Services.Configure<ChromaOptions>(builder.Configuration.GetSection(ChromaOptions.SectionName));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<PlatformJwtOptions>(builder.Configuration.GetSection(PlatformJwtOptions.SectionName));
+builder.Services.Configure<PlatformAuthOptions>(builder.Configuration.GetSection(PlatformAuthOptions.SectionName));
 builder.Services.Configure<BackgroundJobOptions>(builder.Configuration.GetSection(BackgroundJobOptions.SectionName));
 builder.Services.Configure<AiProviderOptions>(builder.Configuration.GetSection(AiProviderOptions.SectionName));
 builder.Services.Configure<DataResetOptions>(builder.Configuration.GetSection(DataResetOptions.SectionName));
@@ -61,6 +62,13 @@ builder.Services.AddProblemDetails();
 builder.Services.AddSingleton<IApiKeyProtector, DataProtectionApiKeyProtector>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddSingleton<IPlatformPasswordHasher, PlatformPasswordHasher>();
+builder.Services.AddSingleton<IPlatformJwtTokenService, PlatformJwtTokenService>();
+builder.Services.AddScoped<IPlatformAuditWriter, PlatformAuditWriter>();
+// Provisioning chưa được S01-C xác minh: mặc định luôn từ chối, không có cờ cấu hình nào bỏ qua được.
+builder.Services.AddSingleton<IPlatformProvisioningVerifier, UnverifiedPlatformProvisioningVerifier>();
+builder.Services.AddScoped<IPlatformProvisioningGate, PlatformProvisioningGate>();
+builder.Services.AddScoped<IPlatformAuthService, PlatformAuthService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddScoped<ITenantService, TenantService>();
@@ -172,6 +180,15 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
         }));
+    // Đăng nhập platform giới hạn theo IP, bổ sung cho khóa tài khoản theo số lần sai và giới hạn chi phí Argon2id.
+    options.AddPolicy(PlatformAuthController.RateLimitPolicy, httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = rateLimitingOptions.PlatformAuthRequestsPerMinute,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
 });
 
 builder.Services.AddCors(options =>
@@ -185,24 +202,11 @@ builder.Services.AddCors(options =>
     });
 });
 
+// S01-B: hai scheme độc lập TenantJwt/PlatformJwt; cấu hình thiếu hoặc không an toàn thì chặn khởi động.
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-ValidateJwtSigningKey(jwtOptions, builder.Environment);
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateIssuerSigningKey = true,
-            ValidateLifetime = true,
-            ValidIssuer = jwtOptions.Issuer,
-            ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
-        };
-    });
-builder.Services.AddAuthorization();
+var platformJwtOptions = builder.Configuration.GetSection(PlatformJwtOptions.SectionName).Get<PlatformJwtOptions>() ?? new PlatformJwtOptions();
+JwtConfigurationValidator.Validate(jwtOptions, platformJwtOptions, builder.Environment.IsProduction());
+builder.Services.AddAppAuthentication(jwtOptions, platformJwtOptions);
 
 var app = builder.Build();
 
@@ -245,34 +249,5 @@ app.MapControllers();
 app.MapFallbackToFile("index.html");
 
 app.Run();
-
-// Chặn khởi động khi JWT signing key thiếu hoặc là key development đã công khai trong repo.
-static void ValidateJwtSigningKey(JwtOptions jwtOptions, IWebHostEnvironment environment)
-{
-    string[] knownDevelopmentKeys =
-    [
-        "replace-with-local-development-signing-key",
-        "local-development-signing-key-change-before-production",
-    ];
-
-    if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey))
-    {
-        throw new InvalidOperationException(
-            "Jwt:SigningKey chưa được cấu hình. Đặt key qua appsettings của môi trường hoặc biến môi trường Jwt__SigningKey.");
-    }
-
-    if (!environment.IsProduction())
-    {
-        return;
-    }
-
-    if (jwtOptions.SigningKey.Length < 32
-        || knownDevelopmentKeys.Contains(jwtOptions.SigningKey)
-        || jwtOptions.SigningKey.Contains("local-development", StringComparison.OrdinalIgnoreCase))
-    {
-        throw new InvalidOperationException(
-            "Jwt:SigningKey không hợp lệ cho Production: cần tối thiểu 32 ký tự và không được dùng key development mặc định.");
-    }
-}
 
 public partial class Program;
