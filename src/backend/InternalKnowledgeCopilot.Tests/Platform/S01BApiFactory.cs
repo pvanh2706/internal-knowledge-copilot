@@ -54,11 +54,18 @@ public sealed class S01BApiFactory : WebApplicationFactory<Program>
 
     public CapturingLoggerProvider Logs { get; } = new();
 
+    // S01-C: CLI bootstrap/recovery chạy trực tiếp trên cùng file SQLite mà API dùng.
+    public string DatabasePath => Path.Combine(directory, "s01b.db");
+
+    public string TempDirectory => directory;
+
+    public Action<IServiceCollection>? ConfigureServices { get; init; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         Directory.CreateDirectory(directory);
         builder.UseEnvironment("Testing");
-        builder.UseSetting("Database:SqlitePath", Path.Combine(directory, "s01b.db"));
+        builder.UseSetting("Database:SqlitePath", DatabasePath);
         builder.UseSetting("Database:MigrateOnStartup", "true");
         builder.UseSetting("DataProtection:KeysPath", Path.Combine(directory, "keys"));
         builder.UseSetting("Jwt:SigningKey", TenantSigningKey);
@@ -88,6 +95,7 @@ public sealed class S01BApiFactory : WebApplicationFactory<Program>
             }
 
             services.AddControllers().AddApplicationPart(typeof(S01BProbeController).Assembly);
+            ConfigureServices?.Invoke(services);
         });
     }
 
