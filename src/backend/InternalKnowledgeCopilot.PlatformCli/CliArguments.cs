@@ -106,6 +106,9 @@ public sealed record CliArguments(string Command, IReadOnlyDictionary<string, st
           --email <email>         bootstrap: first admin email; recover-admin: confirms the target account.
           --display-name <name>   bootstrap: display name of the first admin.
 
+        Mutating commands require an elevated administrator session in every environment. With the DynamoDb provider,
+        authority changes go through the Authority Service using the operator's MFA-protected assume-role profile
+        (ProvisioningAuthority:DynamoDb:OperatorProfile); the MFA code is requested interactively.
         Passwords are never accepted as arguments; they are requested interactively without echo.
         Exit codes: 0 success/ready, 1 usage, 2 denied/not ready, 3 authority unavailable,
                     4 reconciliation required, 5 internal error, 6 cancelled, 7 configuration invalid.

@@ -15,6 +15,8 @@ public sealed class ProvisioningAuthorityOptions
     public LocalSealAuthorityOptions LocalSeal { get; init; } = new();
 
     public DynamoDbAuthorityOptions DynamoDb { get; init; } = new();
+
+    public AuthorityServiceOptions AuthorityService { get; init; } = new();
 }
 
 public static class ProvisioningAuthorityProviders
@@ -33,8 +35,9 @@ public sealed class LocalSealAuthorityOptions
     public string? IntegrityKey { get; init; }
 }
 
-// Credential AWS không bao giờ đọc từ appsettings: runtime dùng default credential chain (IAM role chỉ có GetItem),
-// CLI dùng OperatorProfile (named profile của operator, quyền UpdateItem có điều kiện).
+// Credential AWS không bao giờ đọc từ appsettings: runtime dùng default credential chain (IAM role chỉ có GetItem).
+// OperatorProfile là named profile assume-role có MFA của operator; role đó chỉ được gọi route operation của Authority Service
+// (S01-C-REM), không có quyền ghi DynamoDB nào.
 public sealed class DynamoDbAuthorityOptions
 {
     public string? TableName { get; init; }
@@ -44,4 +47,10 @@ public sealed class DynamoDbAuthorityOptions
     public int TimeoutSeconds { get; init; } = 3;
 
     public string? OperatorProfile { get; init; }
+}
+
+// S01-C-REM: endpoint HTTPS (API Gateway, IAM auth) của Authority Service. Chỉ CLI dùng; runtime API không gọi.
+public sealed class AuthorityServiceOptions
+{
+    public string? Endpoint { get; init; }
 }

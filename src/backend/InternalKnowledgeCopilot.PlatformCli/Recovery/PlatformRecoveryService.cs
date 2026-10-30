@@ -19,13 +19,14 @@ public sealed record RecoveryPreflight(
     public PlatformAdminSummary? Target => Plan?.TargetAdminId is { } id ? Inspection?.Admins.SingleOrDefault(admin => admin.Id == id) : null;
 }
 
-// Recovery (C5) chỉ chạy khi provisioning authority độc lập đã cấp RecoveryPending cho đúng deployment. Không chạy lại bootstrap,
+// Recovery (C5) chỉ chạy khi approver độc lập đã cấp RecoveryPending cho đúng deployment và operator được chỉ định đã nhận
+// approval đó qua Authority Service (claim-recovery, single-use). Không chạy lại bootstrap,
 // không đổi state Completed (chỉ tăng state_version), không xóa/sửa audit cũ. Mỗi recovery:
 // - AdminRecovery: đặt mật khẩu mới do operator nhập, must_change_password=true, mở khóa/kích hoạt lại, token_version+1
 //   (mọi JWT cũ bị PlatformPrincipalValidator từ chối).
 // - BootstrapReconciliation: không đổi credential, token_version+1, rồi kích hoạt authority với bằng chứng bootstrap từ SQLite.
 // Trong suốt RecoveryPending runtime từ chối mọi platform auth; recovery bị gián đoạn để lại đúng trạng thái đó.
-public sealed class PlatformRecoveryService(PlatformCliContext context, IProvisioningAuthorityMutator mutator)
+public sealed class PlatformRecoveryService(PlatformCliContext context, IAuthorityTransitionClient authority)
 {
     public async Task<RecoveryPreflight> PreflightAsync(CancellationToken cancellationToken = default)
     {
@@ -90,6 +91,24 @@ public sealed class PlatformRecoveryService(PlatformCliContext context, IProvisi
             throw new InvalidOperationException("recovery_credential_input_invalid");
         }
 
+        // Nhận approval trước khi đổi SQLite: chỉ operator được chỉ định, approval chưa hết hạn/chưa bị dùng. Chạy lại sau lỗi
+        // SQLite: cùng operator nhận lại không đổi gì. Kết quả không rõ ⇒ dừng, không đổi SQLite (chạy lại recover-admin).
+        var claim = await AuthorityCalls.WithRetryAsync(
+            id => authority.ClaimRecoveryAsync(record, id, cancellationToken),
+            AuthorityCalls.NewRequestId("claim-recovery"));
+        switch (claim.Outcome)
+        {
+            case AuthorityStepOutcome.Rejected:
+                return OperationResult.Denied(claim.Reason);
+            case AuthorityStepOutcome.Unknown:
+                return OperationResult.Unavailable(claim.Reason);
+        }
+
+        if (claim.Operator is not { } operatorIdentity)
+        {
+            return OperationResult.Denied("operator_identity_unconfirmed");
+        }
+
         var recoveryId = record.RecoveryId!.Value;
         var now = AuthorityTimestamp.Now();
         try
@@ -137,7 +156,9 @@ public sealed class PlatformRecoveryService(PlatformCliContext context, IProvisi
                     [PlatformAuditMetadataKeys.StateVersion] = state.StateVersion.ToString(CultureInfo.InvariantCulture),
                     [PlatformAuditMetadataKeys.TokenVersion] = admin.TokenVersion.ToString(CultureInfo.InvariantCulture),
                     [PlatformAuditMetadataKeys.AuthorityProvider] = context.Authority!.ProviderCode,
-                },
+                    [PlatformAuditMetadataKeys.OperatorPersonId] = operatorIdentity.PersonId,
+                    [PlatformAuditMetadataKeys.IdentityAssurance] = operatorIdentity.Assurance,
+                }.WithApprover(operatorIdentity),
                 TargetPlatformAdminId: admin.Id));
             auditWriter.Stage(new PlatformAuditEntry(
                 PlatformAuditActions.TokensRevoked,
@@ -148,8 +169,14 @@ public sealed class PlatformRecoveryService(PlatformCliContext context, IProvisi
                 {
                     [PlatformAuditMetadataKeys.Reason] = purposeCode,
                     [PlatformAuditMetadataKeys.TokenVersion] = admin.TokenVersion.ToString(CultureInfo.InvariantCulture),
+                    [PlatformAuditMetadataKeys.OperatorPersonId] = operatorIdentity.PersonId,
                 },
                 TargetPlatformAdminId: admin.Id));
+            if (context.HostOptions.BeforeSqliteCommit is { } beforeCommit)
+            {
+                await beforeCommit(db);
+            }
+
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
@@ -161,6 +188,11 @@ public sealed class PlatformRecoveryService(PlatformCliContext context, IProvisi
         {
             // Rollback hoặc không rõ commit: authority vẫn RecoveryPending nên runtime vẫn từ chối; recovery-check sẽ phân loại.
             return OperationResult.Reconcile("recovery_transaction_failed");
+        }
+
+        if (context.HostOptions.AfterSqliteCommit is { } afterCommit)
+        {
+            await afterCommit();
         }
 
         return await FinalizeCoreAsync(record, plan, CancellationToken.None);
@@ -190,42 +222,13 @@ public sealed class PlatformRecoveryService(PlatformCliContext context, IProvisi
             return OperationResult.Reconcile("recovery_state_not_applied");
         }
 
-        var now = AuthorityTimestamp.Now();
-        var activated = record with
-        {
-            Status = ProvisioningAuthorityStatus.Activated,
-            Version = record.Version + 1,
-            StateVersion = state.StateVersion,
-            RecoveryId = null,
-            RecoveryPurpose = null,
-            RecoveryTargetAdminId = null,
-            RecoveryAuthorizedAt = null,
-            LastRecoveryId = record.RecoveryId,
-            LastRecoveredAt = now,
-            RecoveryCount = record.RecoveryCount + 1,
-        };
-        if (plan.Purpose == ProvisioningRecoveryPurpose.BootstrapReconciliation)
-        {
-            activated = activated with
-            {
-                BootstrapAdminId = record.ReservedAdminId,
-                BootstrapCompletedAt = state.BootstrapCompletedAt,
-                ActivatedAt = now,
-            };
-        }
-
-        string? failure = null;
-        try
-        {
-            if (await mutator.TransitionAsync(record, activated, cancellationToken) == AuthorityTransitionOutcome.ConditionFailed)
-            {
-                failure = "authority_finalize_conflict";
-            }
-        }
-        catch (ProvisioningAuthorityUnavailableException ex)
-        {
-            failure = ex.Reason;
-        }
+        // Authority Service kiểm tra state_version (AdminRecovery: trước + 1; BootstrapReconciliation: 2) và chỉ chấp nhận
+        // từ chính operator đã nhận approval.
+        var reconciliation = plan.Purpose == ProvisioningRecoveryPurpose.BootstrapReconciliation;
+        var complete = await AuthorityCalls.WithRetryAsync(
+            id => authority.CompleteRecoveryAsync(record, state.StateVersion, reconciliation ? state.BootstrapCompletedAt : null, id, cancellationToken),
+            AuthorityCalls.NewRequestId("complete-recovery"));
+        var failure = complete.Outcome == AuthorityStepOutcome.Applied ? null : complete.Reason;
 
         // Lần finalize đồng thời khác đã thành công cũng cho kết quả verified; ngược lại không báo thành công.
         var verification = ProvisioningEvidence.EvaluateRuntime(

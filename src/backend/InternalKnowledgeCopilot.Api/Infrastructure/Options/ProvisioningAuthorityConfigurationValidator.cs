@@ -36,7 +36,7 @@ public static partial class ProvisioningAuthorityConfigurationValidator
         return provider switch
         {
             ProvisioningAuthorityProviders.LocalSeal => ValidateLocalSeal(options.LocalSeal, identity, environmentName, sqlitePath),
-            ProvisioningAuthorityProviders.DynamoDb => ValidateDynamoDb(options.DynamoDb, identity),
+            ProvisioningAuthorityProviders.DynamoDb => ValidateDynamoDb(options.DynamoDb, options.AuthorityService, identity),
             _ => throw new InvalidOperationException("ProvisioningAuthority:Provider không được hỗ trợ (None, LocalSeal, DynamoDb)."),
         };
     }
@@ -89,8 +89,16 @@ public static partial class ProvisioningAuthorityConfigurationValidator
         return new ProvisioningAuthoritySettings(ProvisioningAuthorityKind.LocalSeal, identity, LocalSealPath: sealPath, LocalSealIntegrityKey: key);
     }
 
-    private static ProvisioningAuthoritySettings ValidateDynamoDb(DynamoDbAuthorityOptions options, ProvisioningAuthorityIdentity identity)
+    private static ProvisioningAuthoritySettings ValidateDynamoDb(DynamoDbAuthorityOptions options, AuthorityServiceOptions service, ProvisioningAuthorityIdentity identity)
     {
+        Uri? serviceEndpoint = null;
+        if (!string.IsNullOrWhiteSpace(service.Endpoint)
+            && (!Uri.TryCreate(service.Endpoint.Trim(), UriKind.Absolute, out serviceEndpoint) || serviceEndpoint.Scheme != Uri.UriSchemeHttps
+                || !string.IsNullOrEmpty(serviceEndpoint.Query) || !string.IsNullOrEmpty(serviceEndpoint.UserInfo)))
+        {
+            throw new InvalidOperationException("ProvisioningAuthority:AuthorityService:Endpoint phải là URL HTTPS tuyệt đối, không có query hay thông tin đăng nhập.");
+        }
+
         if (string.IsNullOrWhiteSpace(options.TableName) || options.TableName.Length is < 3 or > 255)
         {
             throw new InvalidOperationException("ProvisioningAuthority:DynamoDb:TableName chưa được cấu hình hợp lệ.");
@@ -113,7 +121,8 @@ public static partial class ProvisioningAuthorityConfigurationValidator
             DynamoDbTableName: options.TableName.Trim(),
             DynamoDbRegion: options.Region.Trim(),
             DynamoDbTimeout: TimeSpan.FromSeconds(options.TimeoutSeconds),
-            DynamoDbOperatorProfile: string.IsNullOrWhiteSpace(options.OperatorProfile) ? null : options.OperatorProfile.Trim());
+            DynamoDbOperatorProfile: string.IsNullOrWhiteSpace(options.OperatorProfile) ? null : options.OperatorProfile.Trim(),
+            AuthorityServiceEndpoint: serviceEndpoint);
     }
 
     [GeneratedRegex("^[a-z]{2}(-[a-z]+)+-[0-9]{1,2}$")]
