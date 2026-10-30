@@ -63,7 +63,7 @@ Status: APPROVED
 
 ### Newly Approved Enterprise Architecture Decisions
 
-PO approved 2026-10-29, documentation pending merge:
+PO approved 2026-10-29; decisions DEC-0004..07 published to main through PR #3:
 
 - [DEC-0004](docs/decisions/DEC-0004.md) — Strict Security Boundary (Option A, fail-closed/read-only initially).
 - [DEC-0005](docs/decisions/DEC-0005.md) — Platform Admin and Tenant Admin separation (D1=B).
@@ -197,9 +197,9 @@ Không coi ChatGPT Memory hoặc lịch sử trò chuyện là bằng chứng v�
 
 ## 10. Next Planning Priorities
 
-1. Workstream 01 Architecture Review B: **COMPLETED / APPROVED** (AR-B-01..04); Documentation Publication PR pending PO review.
-2. Sau PO-authorized merge, chuẩn bị thiết kế chi tiết S01 — Identity & Authorization Hardening để PO review; chưa code.
-3. Đóng Security Gate dựa trên kiểm chứng thực tế trước khi triển khai tích hợp doanh nghiệp production.
+1. Workstream 01 Architecture Review B: **COMPLETED / APPROVED** (AR-B-01..04), published through PR #3.
+2. **S01 Technical Design Baseline v1.0 APPROVED** by PO 2026-10-30; [S01 decision record](docs/decisions/DEC-0008.md) and [design baseline](docs/architecture/S01_TECHNICAL_DESIGN_BASELINE_V1.0.md) are proposed for documentation publication in a separate PR; S01 implementation is **NOT AUTHORIZED**.
+3. Complete documentation PR review/PO-approved merge, then prepare a separately authorized S01 Implementation Gate. Security findings remain OPEN until runtime verification.
 4. Nghiên cứu riêng Hybrid RAG, Jira, CRM và Roadmap trong các workstreams tương ứng.
 5. Benchmark trước khi quyết định DB/queue/storage migration; không mặc định microservices.
 
