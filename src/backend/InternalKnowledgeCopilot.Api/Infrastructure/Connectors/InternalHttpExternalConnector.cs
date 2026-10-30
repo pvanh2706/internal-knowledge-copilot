@@ -45,22 +45,24 @@ public sealed class InternalHttpExternalConnector(HttpClient httpClient) :
         return await SendAsync<ExternalAccessCheckResponse>(httpRequest, cancellationToken);
     }
 
-    public async Task<ExternalActionValidationResponse> ValidateActionAsync(
+    // S01-E0: endpoint validate là POST chưa được xác minh không có side effect, nên không gọi ra hệ thống nguồn.
+    public Task<ExternalActionValidationResponse> ValidateActionAsync(
         ExternalConnectorContext context,
         ExternalActionValidationRequest request,
         CancellationToken cancellationToken = default)
     {
-        using var httpRequest = CreateRequest(context, HttpMethod.Post, "/copilot/actions/validate", request);
-        return await SendAsync<ExternalActionValidationResponse>(httpRequest, cancellationToken);
+        return Task.FromException<ExternalActionValidationResponse>(
+            new ExternalActionBlockedException(ExternalActionReadOnlyPolicy.ValidationBlockedErrorCode));
     }
 
-    public async Task<ExternalActionExecutionResponse> ExecuteActionAsync(
+    // S01-E0: outbound business write bị chặn ngay tại connector, kể cả khi caller gọi thẳng executor.
+    public Task<ExternalActionExecutionResponse> ExecuteActionAsync(
         ExternalConnectorContext context,
         ExternalActionExecutionRequest request,
         CancellationToken cancellationToken = default)
     {
-        using var httpRequest = CreateRequest(context, HttpMethod.Post, "/copilot/actions/execute", request);
-        return await SendAsync<ExternalActionExecutionResponse>(httpRequest, cancellationToken);
+        return Task.FromException<ExternalActionExecutionResponse>(
+            new ExternalActionBlockedException(ExternalActionReadOnlyPolicy.ExecutionBlockedErrorCode));
     }
 
     private static HttpRequestMessage CreateRequest(ExternalConnectorContext context, HttpMethod method, string relativePath, object? body = null)

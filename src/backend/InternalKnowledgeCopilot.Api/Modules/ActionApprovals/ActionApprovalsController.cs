@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.ActionExecution;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -107,6 +108,12 @@ public sealed class ActionApprovalsController(IActionApprovalService actionAppro
         catch (ArgumentException ex)
         {
             return BadRequest(new ApiError(ex.Message, "Action request is invalid."));
+        }
+        catch (ExternalActionBlockedException ex)
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new ApiError(ex.Message, "External business actions are disabled in read-only mode."));
         }
         catch (InvalidOperationException ex)
         {

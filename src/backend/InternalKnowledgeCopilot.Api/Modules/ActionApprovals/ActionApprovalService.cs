@@ -67,12 +67,7 @@ public interface IActionApprovalRuleService
 
 public sealed class DefaultActionApprovalRuleService : IActionApprovalRuleService
 {
-    private static readonly HashSet<string> AutoApprovedActionTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "create_task",
-        "create_follow_up_task"
-    };
-
+    // S01-E0: tự động duyệt theo rule bị tắt ở chế độ read-only (kể cả create_task/create_follow_up_task).
     public Task<ActionApprovalRuleDecision> EvaluateAsync(
         AiRecommendationEntity recommendation,
         string actionType,
@@ -81,14 +76,7 @@ public sealed class DefaultActionApprovalRuleService : IActionApprovalRuleServic
         string normalizedPayloadJson,
         CancellationToken cancellationToken = default)
     {
-        var approved = AutoApprovedActionTypes.Contains(actionType) &&
-            string.Equals(targetObjectType, recommendation.ObjectType, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(targetExternalObjectId, recommendation.ExternalObjectId, StringComparison.OrdinalIgnoreCase);
-        var reason = approved
-            ? "rule_auto_approved_safe_task_creation"
-            : "rule_requires_manual_approval";
-
-        return Task.FromResult(new ActionApprovalRuleDecision(approved, reason));
+        return Task.FromResult(new ActionApprovalRuleDecision(false, ExternalActionReadOnlyPolicy.RuleAutoApprovalDisabledReason));
     }
 }
 
@@ -137,6 +125,15 @@ public sealed class ActionApprovalService(
         }
 
         await EnsureExternalObjectAccessAsync(userId, tenantId, recommendation.ApplicationId, targetObjectType, targetExternalObjectId, cancellationToken);
+        // S01-E0: tạo action cần validate với source; endpoint validate chưa xác minh không side effect nên fail closed.
+        await DenyByReadOnlyPolicyAsync(
+            tenantId,
+            userId,
+            "AiRecommendation",
+            recommendation.Id,
+            "create",
+            ExternalActionReadOnlyPolicy.ValidationBlockedErrorCode,
+            cancellationToken);
         var validation = await ValidateActionWithSourceAsync(
             tenantId,
             recommendation.ApplicationId,
@@ -329,6 +326,16 @@ public sealed class ActionApprovalService(
             throw new InvalidOperationException("action_cannot_be_approved");
         }
 
+        // S01-E0: duyệt cần validate lại với source; endpoint validate chưa xác minh không side effect nên fail closed
+        // trước khi ghi ValidationResultJson hay chuyển trạng thái.
+        await DenyByReadOnlyPolicyAsync(
+            tenantId,
+            userId,
+            "AiActionRequest",
+            action.Id,
+            "approve",
+            ExternalActionReadOnlyPolicy.ValidationBlockedErrorCode,
+            cancellationToken);
         var validation = await ValidateActionWithSourceAsync(
             tenantId,
             action.ApplicationId,
@@ -452,6 +459,17 @@ public sealed class ActionApprovalService(
     {
         var tenantId = tenantContext.GetRequiredTenantId();
         await EnsureActiveUserAsync(userId, tenantId, cancellationToken);
+        // S01-E0: outbound business write bị từ chối với mọi principal trước khi đọc/validate action, chuyển trạng thái
+        // Executing hay gọi connector, nên action cũ (Approved/Failed/Succeeded) giữ nguyên lịch sử.
+        // Luồng thực thi bên dưới được giữ lại cho thiết kế S01-E và không chạy tới trong chế độ read-only.
+        await DenyByReadOnlyPolicyAsync(
+            tenantId,
+            userId,
+            "AiActionRequest",
+            actionRequestId,
+            "execute",
+            ExternalActionReadOnlyPolicy.ExecutionBlockedErrorCode,
+            cancellationToken);
         var action = await GetActionAsync(tenantId, actionRequestId, cancellationToken);
         await EnsureExternalObjectAccessAsync(userId, tenantId, action.ApplicationId, action.TargetObjectType, action.TargetExternalObjectId, cancellationToken);
 
@@ -535,6 +553,35 @@ public sealed class ActionApprovalService(
         }
 
         return ToResponse(action);
+    }
+
+    // S01-E0 Read-only Containment: luôn từ chối, không có cấu hình hay tham số nào bật lại. Audit/log chỉ ghi
+    // thao tác và mã lỗi (không ghi payload); controller trả lỗi policy này thành lỗi API có kiểm soát.
+    private async Task DenyByReadOnlyPolicyAsync(
+        Guid tenantId,
+        Guid userId,
+        string entityType,
+        Guid entityId,
+        string operation,
+        string errorCode,
+        CancellationToken cancellationToken)
+    {
+        logger?.LogWarning(
+            "Read-only policy blocked AI action {Operation} on {EntityType} {EntityId} for tenant {TenantId} by user {UserId}: {ErrorCode}.",
+            operation,
+            entityType,
+            entityId,
+            tenantId,
+            userId,
+            errorCode);
+        await auditLogService.RecordAsync(
+            userId,
+            "AiActionRequestBlocked",
+            entityType,
+            entityId,
+            new { Operation = operation, Reason = errorCode },
+            cancellationToken);
+        throw new ExternalActionBlockedException(errorCode);
     }
 
     private async Task MarkFailedAsync(AiActionRequestEntity action, string error, Guid userId, CancellationToken cancellationToken)
