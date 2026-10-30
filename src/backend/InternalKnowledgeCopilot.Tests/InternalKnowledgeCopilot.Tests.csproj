@@ -24,6 +24,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\InternalKnowledgeCopilot.Api\InternalKnowledgeCopilot.Api.csproj" />
+    <ProjectReference Include="..\InternalKnowledgeCopilot.PlatformCli\InternalKnowledgeCopilot.PlatformCli.csproj" />
+    <ProjectReference Include="..\InternalKnowledgeCopilot.PlatformCli.TestHarness\InternalKnowledgeCopilot.PlatformCli.TestHarness.csproj" />
   </ItemGroup>
 
 </Project>
