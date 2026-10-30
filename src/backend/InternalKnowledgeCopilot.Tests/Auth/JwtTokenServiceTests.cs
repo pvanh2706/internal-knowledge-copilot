@@ -1,4 +1,5 @@
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.Authentication;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
@@ -34,5 +35,8 @@ public sealed class JwtTokenServiceTests
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
         Assert.Equal(tenantId.ToString(), jwt.Claims.Single(claim => claim.Type == TenantClaimTypes.TenantId).Value);
         Assert.Equal("default", jwt.Claims.Single(claim => claim.Type == TenantClaimTypes.TenantCode).Value);
+        // S01-B: token tenant khai báo rõ principal_type và không mang claim của phiên platform.
+        Assert.Equal(PrincipalTypes.Tenant, jwt.Claims.Single(claim => claim.Type == PrincipalClaimTypes.PrincipalType).Value);
+        Assert.DoesNotContain(jwt.Claims, claim => claim.Type is PrincipalClaimTypes.TokenVersion or PrincipalClaimTypes.PlatformSession);
     }
 }
