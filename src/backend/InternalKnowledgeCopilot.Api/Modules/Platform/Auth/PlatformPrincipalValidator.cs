@@ -37,10 +37,12 @@ public static class PlatformPrincipalValidator
 
         var services = context.HttpContext.RequestServices;
         string? rejection;
+        bool bootstrapCompleted;
         try
         {
             var provisioning = await services.GetRequiredService<IPlatformProvisioningGate>().CheckAsync(context.HttpContext.RequestAborted);
             rejection = provisioning.IsReady ? null : provisioning.Reason;
+            bootstrapCompleted = provisioning.BootstrapCompleted;
             if (rejection is null)
             {
                 var admin = await services.GetRequiredService<AppDbContext>().PlatformAdmins
@@ -69,13 +71,25 @@ public static class PlatformPrincipalValidator
             return;
         }
 
-        await TryAuditRejectionAsync(context.HttpContext, adminId, rejection);
+        await TryAuditRejectionAsync(context.HttpContext, adminId, rejection, bootstrapCompleted);
         context.Fail(rejection);
     }
 
     // Audit từ chối là best-effort: request vẫn bị từ chối kể cả khi không ghi được audit.
-    private static async Task TryAuditRejectionAsync(HttpContext httpContext, Guid adminId, string reason)
+    // Trước bootstrap chỉ log, không ghi platform_audit_logs (xem PlatformProvisioningStatus.BootstrapCompleted).
+    private static async Task TryAuditRejectionAsync(HttpContext httpContext, Guid adminId, string reason, bool bootstrapCompleted)
     {
+        if (!bootstrapCompleted)
+        {
+            httpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger(typeof(PlatformPrincipalValidator))
+                .LogWarning(
+                    "Platform token rejected before bootstrap completion: {Reason}. RequestId: {RequestId}",
+                    reason,
+                    httpContext.TraceIdentifier);
+            return;
+        }
+
         try
         {
             var dbContext = httpContext.RequestServices.GetRequiredService<AppDbContext>();

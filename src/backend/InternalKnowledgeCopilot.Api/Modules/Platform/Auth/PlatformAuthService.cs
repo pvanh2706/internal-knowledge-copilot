@@ -50,7 +50,8 @@ public sealed class PlatformAuthService(
     IPlatformJwtTokenService tokenService,
     IPlatformProvisioningGate provisioningGate,
     IPlatformAuditWriter auditWriter,
-    IOptions<PlatformAuthOptions> options) : IPlatformAuthService
+    IOptions<PlatformAuthOptions> options,
+    ILogger<PlatformAuthService> logger) : IPlatformAuthService
 {
     public const int MinPasswordLength = 12;
     public const int MaxPasswordLength = 128;
@@ -61,7 +62,19 @@ public sealed class PlatformAuthService(
         var provisioning = await provisioningGate.CheckAsync(cancellationToken);
         if (!provisioning.IsReady)
         {
-            await SaveStandaloneAuditAsync(PlatformAuditActions.LoginDenied, PlatformAuditOutcome.Denied, null, requestId, provisioning.Reason, cancellationToken);
+            if (provisioning.BootstrapCompleted)
+            {
+                await SaveStandaloneAuditAsync(PlatformAuditActions.LoginDenied, PlatformAuditOutcome.Denied, null, requestId, provisioning.Reason, cancellationToken);
+            }
+            else
+            {
+                // Trước bootstrap: chỉ log (không email/mật khẩu), không ghi platform_audit_logs để giữ điều kiện bootstrap lần đầu.
+                logger.LogWarning(
+                    "Platform login refused before bootstrap completion: {Reason}. RequestId: {RequestId}",
+                    provisioning.Reason,
+                    requestId);
+            }
+
             return new PlatformLoginResult(PlatformLoginStatus.Unavailable);
         }
 

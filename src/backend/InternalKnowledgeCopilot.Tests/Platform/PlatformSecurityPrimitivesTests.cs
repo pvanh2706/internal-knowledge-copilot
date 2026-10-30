@@ -150,6 +150,30 @@ public sealed class PlatformSecurityPrimitivesTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void PlatformAuthConfiguration_AcceptsDefaultsAndDisabledGlobalRateLimiting()
+    {
+        PlatformAuthConfigurationValidator.Validate(new PlatformAuthOptions(), new RateLimitingOptions());
+        PlatformAuthConfigurationValidator.Validate(new PlatformAuthOptions(), new RateLimitingOptions { Enabled = false });
+    }
+
+    [Theory]
+    [InlineData(0, 15, 10)]
+    [InlineData(-1, 15, 10)]
+    [InlineData(11, 15, 10)]
+    [InlineData(5, 0, 10)]
+    [InlineData(5, 4, 10)]
+    [InlineData(5, 1441, 10)]
+    [InlineData(5, 15, 0)]
+    [InlineData(5, 15, 61)]
+    [InlineData(5, 15, int.MaxValue)]
+    public void PlatformAuthConfiguration_FailsClosedOnUnsafeThresholds(int attempts, int lockoutMinutes, int requestsPerMinute)
+    {
+        Assert.Throws<InvalidOperationException>(() => PlatformAuthConfigurationValidator.Validate(
+            new PlatformAuthOptions { MaxFailedLoginAttempts = attempts, LockoutMinutes = lockoutMinutes },
+            new RateLimitingOptions { PlatformAuthRequestsPerMinute = requestsPerMinute }));
+    }
+
+    [Fact]
     public void AuditWriter_StagesAllowlistedEventWithoutTenant()
     {
         using var dbContext = CreateDbContext();

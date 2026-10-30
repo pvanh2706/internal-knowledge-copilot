@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -10,6 +12,7 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Auth;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -19,6 +22,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 namespace InternalKnowledgeCopilot.Tests.Platform;
@@ -42,7 +46,13 @@ public sealed class S01BApiFactory : WebApplicationFactory<Program>
 
     public bool UseRealProvisioningVerifier { get; init; }
 
-    public int PlatformAuthRequestsPerMinute { get; init; } = 10_000;
+    // Mặc định mỗi request nhận một IP client riêng để rate limit đăng nhập platform (luôn bật, tối đa 60/phút/IP)
+    // không làm nhiễu các test khác; test về rate limit đặt false để mọi request dùng chung một partition.
+    public bool UniqueClientIpPerRequest { get; init; } = true;
+
+    public IReadOnlyDictionary<string, string> Settings { get; init; } = new Dictionary<string, string>();
+
+    public CapturingLoggerProvider Logs { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -53,13 +63,24 @@ public sealed class S01BApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("DataProtection:KeysPath", Path.Combine(directory, "keys"));
         builder.UseSetting("Jwt:SigningKey", TenantSigningKey);
         builder.UseSetting("PlatformJwt:SigningKey", PlatformSigningKey);
-        builder.UseSetting("RateLimiting:PlatformAuthRequestsPerMinute", PlatformAuthRequestsPerMinute.ToString());
+        foreach (var (key, value) in Settings)
+        {
+            builder.UseSetting(key, value);
+        }
+
+        builder.ConfigureLogging(logging => logging.AddProvider(Logs));
         builder.ConfigureTestServices(services =>
         {
             foreach (var worker in services.Where(item => item.ServiceType == typeof(IHostedService) && item.ImplementationType == typeof(ProcessingJobWorker)).ToList())
             {
                 services.Remove(worker);
             }
+
+            if (UniqueClientIpPerRequest)
+            {
+                services.AddSingleton<IStartupFilter, UniqueClientIpStartupFilter>();
+            }
+
             if (!UseRealProvisioningVerifier)
             {
                 services.RemoveAll<IPlatformProvisioningVerifier>();
@@ -240,6 +261,53 @@ public sealed class S01BApiFactory : WebApplicationFactory<Program>
     }
 
     public sealed record TenantLoginBody(string AccessToken, bool MustChangePassword);
+}
+
+public sealed class UniqueClientIpStartupFilter : IStartupFilter
+{
+    private static int counter;
+
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+    {
+        return app =>
+        {
+            app.Use((context, nextMiddleware) =>
+            {
+                var value = Interlocked.Increment(ref counter);
+                context.Connection.RemoteIpAddress = new IPAddress([10, (byte)(value >> 16), (byte)(value >> 8), (byte)value]);
+                return nextMiddleware(context);
+            });
+            next(app);
+        };
+    }
+}
+
+public sealed class CapturingLoggerProvider : ILoggerProvider
+{
+    private readonly ConcurrentQueue<string> messages = new();
+
+    public IReadOnlyCollection<string> Messages => messages.ToArray();
+
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(messages);
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class CapturingLogger(ConcurrentQueue<string> messages) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (IsEnabled(logLevel))
+            {
+                messages.Enqueue(formatter(state, exception));
+            }
+        }
+    }
 }
 
 public sealed class FakeProvisioningVerifier : IPlatformProvisioningVerifier

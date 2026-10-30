@@ -4,6 +4,7 @@ public sealed class RateLimitingOptions
 {
     public const string SectionName = "RateLimiting";
 
+    // Chỉ bật/tắt các policy ai và integrations; giới hạn đăng nhập platform luôn bật.
     public bool Enabled { get; init; } = true;
 
     // Giới hạn theo user cho nhóm endpoint AI vì mỗi request có thể tốn chi phí LLM/embedding.

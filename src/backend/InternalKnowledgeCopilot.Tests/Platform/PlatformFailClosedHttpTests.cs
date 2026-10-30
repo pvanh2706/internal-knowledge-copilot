@@ -26,8 +26,9 @@ public sealed class PlatformFailClosedHttpTests
         Assert.Null((await factory.WithDbAsync(db => db.PlatformAdmins.AsNoTracking().SingleAsync())).LastLoginAt);
     }
 
+    // B-R01: trước bootstrap không ghi platform_audit_logs (chỉ log), để không làm mất điều kiện bootstrap lần đầu của S01-C.
     [Fact]
-    public async Task MissingBootstrapState_DeniesLogin()
+    public async Task MissingBootstrapState_DeniesLoginWithoutPersistingAudit()
     {
         using var factory = new S01BApiFactory();
         await factory.SeedPlatformAdminAsync("ops@example.com", completeBootstrap: false);
@@ -35,11 +36,12 @@ public sealed class PlatformFailClosedHttpTests
         using var response = await factory.PlatformLoginAsync("ops@example.com", S01BApiFactory.PlatformPassword);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.Contains("bootstrap_state_missing", Assert.Single(await factory.GetPlatformAuditAsync()).MetadataJson);
+        Assert.Empty(await factory.GetPlatformAuditAsync());
+        Assert.Contains(factory.Logs.Messages, message => message.Contains("bootstrap_state_missing", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task NotStartedBootstrapState_DeniesLogin()
+    public async Task NotStartedBootstrapState_DeniesLoginWithoutPersistingAudit()
     {
         using var factory = new S01BApiFactory();
         await factory.SeedPlatformAdminAsync("ops@example.com", completeBootstrap: false);
@@ -53,7 +55,43 @@ public sealed class PlatformFailClosedHttpTests
         using var response = await factory.PlatformLoginAsync("ops@example.com", S01BApiFactory.PlatformPassword);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.Contains("bootstrap_not_completed", Assert.Single(await factory.GetPlatformAuditAsync()).MetadataJson);
+        Assert.Empty(await factory.GetPlatformAuditAsync());
+        Assert.Contains(factory.Logs.Messages, message => message.Contains("bootstrap_not_completed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task FreshDatabase_PreBootstrapLoginAndTokenAttempts_KeepBootstrapPrerequisitesConsistent()
+    {
+        using var factory = new S01BApiFactory { UseRealProvisioningVerifier = true };
+        const string attemptedPassword = "Guessing-Password-123";
+        const string attemptedEmail = "attacker-probe@example.com";
+
+        using var login = await factory.PlatformLoginAsync(attemptedEmail, attemptedPassword);
+        using var tenantAdminLogin = await factory.PlatformLoginAsync("admin@example.local", S01BApiFactory.SeededTenantPassword);
+        // Token ký đúng key platform (ví dụ key bị lộ) trước khi có bootstrap.
+        var signedToken = S01BApiFactory.CreateToken(S01BApiFactory.PlatformSigningKey, S01BApiFactory.PlatformIssuer, S01BApiFactory.PlatformAudience,
+            S01BApiFactory.PlatformClaims(Guid.NewGuid()));
+        using var me = await factory.SendAsync(HttpMethod.Get, "/api/platform/auth/me", signedToken);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, login.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, tenantAdminLogin.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
+        var counts = await factory.WithDbAsync(async db => (
+            Admins: await db.PlatformAdmins.CountAsync(),
+            States: await db.PlatformSecurityState.CountAsync(),
+            Audit: await db.PlatformAuditLogs.CountAsync()));
+        Assert.Equal((0, 0, 0), counts);
+
+        var logs = factory.Logs.Messages;
+        Assert.Equal(2, logs.Count(message => message.StartsWith("Platform login refused before bootstrap completion: bootstrap_state_missing", StringComparison.Ordinal)));
+        Assert.Single(logs, message => message.StartsWith("Platform token rejected before bootstrap completion: bootstrap_state_missing", StringComparison.Ordinal));
+        Assert.All(logs, message =>
+        {
+            Assert.DoesNotContain(attemptedPassword, message, StringComparison.Ordinal);
+            Assert.DoesNotContain(attemptedEmail, message, StringComparison.Ordinal);
+            Assert.DoesNotContain(S01BApiFactory.SeededTenantPassword, message, StringComparison.Ordinal);
+            Assert.DoesNotContain(signedToken, message, StringComparison.Ordinal);
+        });
     }
 
     [Fact]
@@ -98,10 +136,21 @@ public sealed class PlatformFailClosedHttpTests
         Assert.Equal(before.PasswordHash, after.PasswordHash);
     }
 
-    [Fact]
-    public async Task PlatformLogin_IsRateLimited()
+    // B-R02: giới hạn đăng nhập platform luôn bật, kể cả khi RateLimiting:Enabled=false.
+    [Theory]
+    [InlineData("true")]
+    [InlineData("false")]
+    public async Task PlatformLogin_IsRateLimited_RegardlessOfGlobalRateLimitingSwitch(string globalEnabled)
     {
-        using var factory = new S01BApiFactory { PlatformAuthRequestsPerMinute = 3 };
+        using var factory = new S01BApiFactory
+        {
+            UniqueClientIpPerRequest = false,
+            Settings = new Dictionary<string, string>
+            {
+                ["RateLimiting:Enabled"] = globalEnabled,
+                ["RateLimiting:PlatformAuthRequestsPerMinute"] = "3",
+            },
+        };
         await factory.SeedPlatformAdminAsync("ops@example.com");
 
         var statuses = new List<HttpStatusCode>();
@@ -112,6 +161,46 @@ public sealed class PlatformFailClosedHttpTests
         }
 
         Assert.Equal([HttpStatusCode.Unauthorized, HttpStatusCode.Unauthorized, HttpStatusCode.Unauthorized, HttpStatusCode.TooManyRequests], statuses);
+    }
+
+    // Policy không thuộc biên bảo mật giữ hành vi cũ: tắt RateLimiting:Enabled thì endpoint tích hợp không bị giới hạn.
+    [Theory]
+    [InlineData("true", HttpStatusCode.TooManyRequests)]
+    [InlineData("false", HttpStatusCode.Unauthorized)]
+    public async Task GlobalRateLimitingSwitch_StillControlsNonSecurityPolicies(string globalEnabled, HttpStatusCode secondResponse)
+    {
+        using var factory = new S01BApiFactory
+        {
+            UniqueClientIpPerRequest = false,
+            Settings = new Dictionary<string, string>
+            {
+                ["RateLimiting:Enabled"] = globalEnabled,
+                ["RateLimiting:IntegrationRequestsPerMinute"] = "1",
+            },
+        };
+
+        using var first = await factory.SendAsync(HttpMethod.Get, "/api/integrations/connections", null);
+        using var second = await factory.SendAsync(HttpMethod.Get, "/api/integrations/connections", null);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, first.StatusCode);
+        Assert.Equal(secondResponse, second.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("PlatformAuth:MaxFailedLoginAttempts", "0")]
+    [InlineData("PlatformAuth:MaxFailedLoginAttempts", "1000")]
+    [InlineData("PlatformAuth:LockoutMinutes", "0")]
+    [InlineData("PlatformAuth:LockoutMinutes", "1")]
+    [InlineData("PlatformAuth:LockoutMinutes", "100000")]
+    [InlineData("RateLimiting:PlatformAuthRequestsPerMinute", "0")]
+    [InlineData("RateLimiting:PlatformAuthRequestsPerMinute", "10000")]
+    public void Startup_FailsClosedOnUnsafePlatformAuthConfiguration(string key, string value)
+    {
+        using var factory = new S01BApiFactory { Settings = new Dictionary<string, string> { [key] = value } };
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+        Assert.Contains(key, exception.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

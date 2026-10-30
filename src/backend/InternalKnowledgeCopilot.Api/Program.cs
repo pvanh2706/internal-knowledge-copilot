@@ -149,6 +149,11 @@ if (OperatingSystem.IsWindows())
 
 var rateLimitingOptions = builder.Configuration.GetSection(RateLimitingOptions.SectionName).Get<RateLimitingOptions>()
     ?? new RateLimitingOptions();
+var platformAuthOptions = builder.Configuration.GetSection(PlatformAuthOptions.SectionName).Get<PlatformAuthOptions>()
+    ?? new PlatformAuthOptions();
+PlatformAuthConfigurationValidator.Validate(platformAuthOptions, rateLimitingOptions);
+// Rate limiter luôn chạy: RateLimiting:Enabled=false chỉ tắt các policy không thuộc biên bảo mật (ai, integrations);
+// giới hạn đăng nhập platform không thể tắt bằng cấu hình.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -159,27 +164,31 @@ builder.Services.AddRateLimiter(options =>
             cancellationToken);
     };
     // Endpoint AI giới hạn theo user vì mỗi request có thể tốn chi phí LLM/embedding.
-    options.AddPolicy("ai", httpContext => RateLimitPartition.GetFixedWindowLimiter(
-        httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? httpContext.Connection.RemoteIpAddress?.ToString()
-            ?? "anonymous",
-        _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = rateLimitingOptions.AiRequestsPerMinute,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0,
-        }));
+    options.AddPolicy("ai", httpContext => !rateLimitingOptions.Enabled
+        ? RateLimitPartition.GetNoLimiter("disabled")
+        : RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "anonymous",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimitingOptions.AiRequestsPerMinute,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
     // Endpoint tích hợp giới hạn theo integration key để một đối tác lỗi không làm nghẽn đối tác khác.
-    options.AddPolicy("integrations", httpContext => RateLimitPartition.GetFixedWindowLimiter(
-        httpContext.Request.Headers["X-Integration-Key"].FirstOrDefault()
-            ?? httpContext.Connection.RemoteIpAddress?.ToString()
-            ?? "anonymous",
-        _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = rateLimitingOptions.IntegrationRequestsPerMinute,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0,
-        }));
+    options.AddPolicy("integrations", httpContext => !rateLimitingOptions.Enabled
+        ? RateLimitPartition.GetNoLimiter("disabled")
+        : RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Request.Headers["X-Integration-Key"].FirstOrDefault()
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "anonymous",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimitingOptions.IntegrationRequestsPerMinute,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
     // Đăng nhập platform giới hạn theo IP, bổ sung cho khóa tài khoản theo số lần sai và giới hạn chi phí Argon2id.
     options.AddPolicy(PlatformAuthController.RateLimitPolicy, httpContext => RateLimitPartition.GetFixedWindowLimiter(
         httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
@@ -239,10 +248,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
-if (rateLimitingOptions.Enabled)
-{
-    app.UseRateLimiter();
-}
+app.UseRateLimiter();
 
 app.UseAuthorization();
 app.MapControllers();

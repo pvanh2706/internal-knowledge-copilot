@@ -22,9 +22,12 @@ public sealed class UnverifiedPlatformProvisioningVerifier : IPlatformProvisioni
     }
 }
 
-public sealed record PlatformProvisioningStatus(bool IsReady, string Reason)
+// BootstrapCompleted: bản ghi state tồn tại và Completed. Khi false (trước bootstrap hoặc không đọc được state) không được
+// ghi platform_audit_logs: S01-C coi "có admin/audit nhưng state chưa Completed" là bất thường và fail closed, nên một lần
+// đăng nhập thử trước bootstrap không được làm mất điều kiện bootstrap lần đầu.
+public sealed record PlatformProvisioningStatus(bool IsReady, string Reason, bool BootstrapCompleted)
 {
-    public static readonly PlatformProvisioningStatus Ready = new(true, "ready");
+    public static readonly PlatformProvisioningStatus Ready = new(true, "ready", true);
 }
 
 public interface IPlatformProvisioningGate
@@ -43,21 +46,21 @@ public sealed class PlatformProvisioningGate(AppDbContext dbContext, IPlatformPr
                 .SingleOrDefaultAsync(item => item.Id == PlatformSecurityStateEntity.SingletonId, cancellationToken);
             if (state is null)
             {
-                return new PlatformProvisioningStatus(false, "bootstrap_state_missing");
+                return new PlatformProvisioningStatus(false, "bootstrap_state_missing", BootstrapCompleted: false);
             }
 
             if (state.BootstrapStatus != PlatformBootstrapStatus.Completed || state.BootstrapAdminId is null || state.BootstrapCompletedAt is null)
             {
-                return new PlatformProvisioningStatus(false, "bootstrap_not_completed");
+                return new PlatformProvisioningStatus(false, "bootstrap_not_completed", BootstrapCompleted: false);
             }
 
             return await verifier.IsProvisioningVerifiedAsync(state, cancellationToken)
                 ? PlatformProvisioningStatus.Ready
-                : new PlatformProvisioningStatus(false, "provisioning_unverified");
+                : new PlatformProvisioningStatus(false, "provisioning_unverified", BootstrapCompleted: true);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return new PlatformProvisioningStatus(false, "provisioning_check_failed");
+            return new PlatformProvisioningStatus(false, "provisioning_check_failed", BootstrapCompleted: false);
         }
     }
 }
