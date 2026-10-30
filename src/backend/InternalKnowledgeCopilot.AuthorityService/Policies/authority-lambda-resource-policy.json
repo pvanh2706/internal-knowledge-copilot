@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InvokeOnlyThroughIamAuthenticatedApiGateway",
+      "Effect": "Allow",
+      "Principal": { "Service": "apigateway.amazonaws.com" },
+      "Action": ["lambda:InvokeFunction"],
+      "Resource": ["${AuthorityFunctionArn}"],
+      "Condition": {
+        "ArnLike": { "AWS:SourceArn": "arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/${Stage}/POST/authority/*" },
+        "StringEquals": { "AWS:SourceAccount": "${AccountId}" }
+      }
+    }
+  ]
+}

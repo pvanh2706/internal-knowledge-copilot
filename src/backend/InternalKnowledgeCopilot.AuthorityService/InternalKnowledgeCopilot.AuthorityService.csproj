@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- S01-C-REM R1: Authority Service phía server (S01-C-ADR-01). Thư viện logic cho Approval Handler và Transition Handler,
+       dự kiến chạy sau API Gateway (IAM auth) trong tài khoản authority. CHƯA có adapter Lambda và CHƯA triển khai (C-EX2).
+       CLI operator không tham chiếu project này: operator không có code ghi trực tiếp vào kho authority. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Template IAM/resource policy (không tạo tài nguyên nào); test đánh giá chúng bằng bộ mô phỏng policy cô lập. -->
+    <EmbeddedResource Include="Policies\*.json" LogicalName="Policies.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\InternalKnowledgeCopilot.Api\InternalKnowledgeCopilot.Api.csproj" />
+  </ItemGroup>
+
+</Project>
