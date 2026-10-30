@@ -1,12 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.ActionExecution;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
-using InternalKnowledgeCopilot.Api.Modules.ActionApprovals;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using InternalKnowledgeCopilot.Api.Modules.Integrations;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeIndex;
@@ -41,7 +41,6 @@ public sealed class ProcessingJobService(
     IAiFeedbackService feedbackService,
     IKnowledgeSourceService knowledgeSourceService,
     IKnowledgeIndexRebuildService knowledgeIndexRebuildService,
-    IActionApprovalService actionApprovalService,
     IOptions<BackgroundJobOptions> options,
     ILogger<ProcessingJobService> logger) : IProcessingJobService
 {
@@ -233,11 +232,11 @@ public sealed class ProcessingJobService(
             return;
         }
 
-        if (job.JobType == ProcessingJobTypes.ActionExecution &&
-            job.TargetType == ProcessingJobTargetTypes.AiActionRequest)
+        if (job.JobType == ProcessingJobTypes.ActionExecution)
         {
-            await ExecuteApprovedActionAsync(job, cancellationToken);
-            return;
+            // S01-E0: worker không gọi ra hệ thống nguồn, kể cả job legacy đang Pending trỏ tới action Approved/Failed.
+            // Từ chối vĩnh viễn để job dead-letter với lý do policy rõ ràng, không retry; action giữ nguyên lịch sử.
+            throw new ProcessingJobPermanentException(ExternalActionReadOnlyPolicy.ExecutionBlockedErrorCode);
         }
 
         if (job.JobType == ProcessingJobTypes.IndexRebuild &&
@@ -324,31 +323,6 @@ public sealed class ProcessingJobService(
 
         inboundEvent.Status = IntegrationInboundEventStatus.Processed;
         inboundEvent.ProcessedAt = DateTimeOffset.UtcNow;
-    }
-
-    private async Task ExecuteApprovedActionAsync(ProcessingJobEntity job, CancellationToken cancellationToken)
-    {
-        var action = await dbContext.AiActionRequests
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                item =>
-                    item.TenantId == job.TenantId &&
-                    item.ApplicationId == job.ApplicationId &&
-                    item.Id == job.TargetId,
-                cancellationToken);
-
-        if (action is null)
-        {
-            throw new ProcessingJobPermanentException("action_request_not_found");
-        }
-
-        var executorUserId = action.ApprovedByUserId ?? action.RequestedByUserId ?? action.ExecutedByUserId;
-        if (executorUserId is null)
-        {
-            throw new ProcessingJobPermanentException("action_executor_user_required");
-        }
-
-        await actionApprovalService.ExecuteActionAsync(action.Id, executorUserId.Value, cancellationToken);
     }
 
     private async Task<IntegrationInboundEventEntity> GetInboundEventAsync(

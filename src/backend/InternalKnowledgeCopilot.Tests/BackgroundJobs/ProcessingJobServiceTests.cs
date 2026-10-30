@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using InternalKnowledgeCopilot.Api.Common;
+using InternalKnowledgeCopilot.Api.Infrastructure.ActionExecution;
 using InternalKnowledgeCopilot.Api.Infrastructure.Audit;
 using InternalKnowledgeCopilot.Api.Infrastructure.BackgroundJobs;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
@@ -8,11 +9,11 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.DocumentProcessing;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Infrastructure.Tenancy;
-using InternalKnowledgeCopilot.Api.Modules.ActionApprovals;
 using InternalKnowledgeCopilot.Api.Modules.Feedback;
 using InternalKnowledgeCopilot.Api.Modules.Integrations;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeIndex;
 using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
+using InternalKnowledgeCopilot.Tests.ActionApprovals;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -275,6 +276,69 @@ public sealed class ProcessingJobServiceTests
         Assert.NotNull(externalObject.AclSyncedAt);
     }
 
+    [Theory]
+    [InlineData(AiActionRequestStatus.Approved)]
+    [InlineData(AiActionRequestStatus.Failed)]
+    public async Task ProcessNextJobAsync_DeadLettersLegacyActionExecutionJobWithoutRetryOrExecution(AiActionRequestStatus actionStatus)
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var seed = await ActionRequestTestData.SeedRecommendationAsync(fixture.DbContext);
+        var action = await ActionRequestTestData.SeedActionAsync(fixture.DbContext, seed, actionStatus, item =>
+        {
+            item.ApprovedByUserId = seed.User.Id;
+        });
+        var service = CreateService(fixture.DbContext, CreateTenantContext(seed.Tenant));
+        var job = CreateActionExecutionJob(seed, action.Id, DateTimeOffset.UtcNow.AddSeconds(-1));
+        fixture.DbContext.ProcessingJobs.Add(job);
+        await fixture.DbContext.SaveChangesAsync();
+
+        var processed = await service.ProcessNextJobAsync();
+        var claimedLater = await service.ClaimNextDueJobAsync(DateTimeOffset.UtcNow.AddDays(1));
+
+        Assert.True(processed);
+        Assert.Null(claimedLater);
+        await fixture.DbContext.Entry(job).ReloadAsync();
+        Assert.Equal(ProcessingJobStatus.DeadLettered, job.Status);
+        Assert.Equal(1, job.Attempts);
+        Assert.Equal(ExternalActionReadOnlyPolicy.ExecutionBlockedErrorCode, job.ErrorCode);
+        Assert.Equal(ExternalActionReadOnlyPolicy.ExecutionBlockedErrorCode, job.ErrorMessage);
+        Assert.NotNull(job.DeadLetteredAt);
+        Assert.NotNull(job.FinishedAt);
+        var storedAction = await fixture.DbContext.AiActionRequests.AsNoTracking().SingleAsync();
+        Assert.Equal(actionStatus, storedAction.Status);
+        Assert.Null(storedAction.ExecutingStartedAt);
+        Assert.Null(storedAction.ExecutedByUserId);
+        Assert.Null(storedAction.ExternalExecutionId);
+        Assert.Null(storedAction.ExecutionResultJson);
+        Assert.Equal(action.UpdatedAt, storedAction.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task ProcessNextJobAsync_ContinuesUnrelatedJobsAfterBlockingActionExecution()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var seed = await ActionRequestTestData.SeedRecommendationAsync(fixture.DbContext);
+        var action = await ActionRequestTestData.SeedActionAsync(fixture.DbContext, seed, AiActionRequestStatus.Approved);
+        var tenantContext = CreateTenantContext(seed.Tenant);
+        var documentProcessor = new RecordingDocumentProcessingService(tenantContext, seed.Tenant.Id, seed.Application.Id);
+        var service = CreateService(fixture.DbContext, tenantContext, documentProcessor);
+        var actionJob = CreateActionExecutionJob(seed, action.Id, DateTimeOffset.UtcNow.AddSeconds(-2));
+        var documentJob = CreateJob(seed.Tenant.Id, seed.Application.Id, ProcessingJobTypes.DocumentSync, DateTimeOffset.UtcNow.AddSeconds(-1));
+        documentJob.TargetType = ProcessingJobTargetTypes.DocumentVersion;
+        fixture.DbContext.ProcessingJobs.AddRange(actionJob, documentJob);
+        await fixture.DbContext.SaveChangesAsync();
+
+        await service.ProcessNextJobAsync();
+        await service.ProcessNextJobAsync();
+
+        await fixture.DbContext.Entry(actionJob).ReloadAsync();
+        await fixture.DbContext.Entry(documentJob).ReloadAsync();
+        Assert.Equal(ProcessingJobStatus.DeadLettered, actionJob.Status);
+        Assert.Equal(ExternalActionReadOnlyPolicy.ExecutionBlockedErrorCode, actionJob.ErrorCode);
+        Assert.Equal(ProcessingJobStatus.Succeeded, documentJob.Status);
+        Assert.True(documentProcessor.WasCalled);
+    }
+
     private static ProcessingJobService CreateService(
         AppDbContext dbContext,
         TenantContext tenantContext,
@@ -287,7 +351,6 @@ public sealed class ProcessingJobServiceTests
             new NoopFeedbackService(),
             new KnowledgeSourceService(dbContext, tenantContext, new NoopAuditLogService()),
             new NoopKnowledgeIndexRebuildService(),
-            new NoopActionApprovalService(),
             Options.Create(new BackgroundJobOptions()),
             NullLogger<ProcessingJobService>.Instance);
     }
@@ -307,6 +370,14 @@ public sealed class ProcessingJobServiceTests
             CreatedAt = scheduledAt.AddMinutes(-1),
             ScheduledAt = scheduledAt,
         };
+    }
+
+    private static ProcessingJobEntity CreateActionExecutionJob(ActionSeed seed, Guid actionRequestId, DateTimeOffset scheduledAt)
+    {
+        var job = CreateJob(seed.Tenant.Id, seed.Application.Id, ProcessingJobTypes.ActionExecution, scheduledAt);
+        job.TargetType = ProcessingJobTargetTypes.AiActionRequest;
+        job.TargetId = actionRequestId;
+        return job;
     }
 
     private static TenantContext CreateTenantContext(TenantEntity tenant)
@@ -431,27 +502,6 @@ public sealed class ProcessingJobServiceTests
             => throw new NotSupportedException();
 
         public Task<RebuildKnowledgeIndexResponse> RebuildAsync(Guid? actorUserId, RebuildKnowledgeIndexRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-    }
-
-    private sealed class NoopActionApprovalService : IActionApprovalService
-    {
-        public Task<AiActionRequestResponse> CreateActionAsync(Guid recommendationId, Guid userId, CreateAiActionRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public Task<IReadOnlyList<AiActionRequestResponse>> GetActionsAsync(Guid userId, Guid? applicationId, AiActionRequestStatus? status, Guid? recommendationId, string? objectType, string? externalObjectId, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public Task<AiActionRequestResponse> ApproveActionAsync(Guid actionRequestId, Guid userId, ApproveAiActionRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public Task<AiActionRequestResponse> RejectActionAsync(Guid actionRequestId, Guid userId, RejectAiActionRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public Task<AiActionRequestResponse> CancelActionAsync(Guid actionRequestId, Guid userId, CancelAiActionRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public Task<AiActionRequestResponse> ExecuteActionAsync(Guid actionRequestId, Guid userId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
     }
 

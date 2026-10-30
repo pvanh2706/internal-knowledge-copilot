@@ -67,12 +67,7 @@ public interface IActionApprovalRuleService
 
 public sealed class DefaultActionApprovalRuleService : IActionApprovalRuleService
 {
-    private static readonly HashSet<string> AutoApprovedActionTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "create_task",
-        "create_follow_up_task"
-    };
-
+    // S01-E0: tự động duyệt theo rule bị tắt ở chế độ read-only (kể cả create_task/create_follow_up_task).
     public Task<ActionApprovalRuleDecision> EvaluateAsync(
         AiRecommendationEntity recommendation,
         string actionType,
@@ -81,14 +76,7 @@ public sealed class DefaultActionApprovalRuleService : IActionApprovalRuleServic
         string normalizedPayloadJson,
         CancellationToken cancellationToken = default)
     {
-        var approved = AutoApprovedActionTypes.Contains(actionType) &&
-            string.Equals(targetObjectType, recommendation.ObjectType, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(targetExternalObjectId, recommendation.ExternalObjectId, StringComparison.OrdinalIgnoreCase);
-        var reason = approved
-            ? "rule_auto_approved_safe_task_creation"
-            : "rule_requires_manual_approval";
-
-        return Task.FromResult(new ActionApprovalRuleDecision(approved, reason));
+        return Task.FromResult(new ActionApprovalRuleDecision(false, ExternalActionReadOnlyPolicy.RuleAutoApprovalDisabledReason));
     }
 }
 
@@ -137,6 +125,16 @@ public sealed class ActionApprovalService(
         }
 
         await EnsureExternalObjectAccessAsync(userId, tenantId, recommendation.ApplicationId, targetObjectType, targetExternalObjectId, cancellationToken);
+        // S01-E0: tạo action cần validate với source; endpoint validate chưa xác minh không side effect nên fail closed.
+        // Phần bên dưới chỉ ghi trạng thái cục bộ (không ghi ra hệ thống nguồn), giữ lại cho S01-E/S02.
+        await DenyByReadOnlyPolicyAsync(
+            tenantId,
+            userId,
+            "AiRecommendation",
+            recommendation.Id,
+            "create",
+            ExternalActionReadOnlyPolicy.ValidationBlockedErrorCode,
+            cancellationToken);
         var validation = await ValidateActionWithSourceAsync(
             tenantId,
             recommendation.ApplicationId,
@@ -329,6 +327,16 @@ public sealed class ActionApprovalService(
             throw new InvalidOperationException("action_cannot_be_approved");
         }
 
+        // S01-E0: duyệt cần validate lại với source; endpoint validate chưa xác minh không side effect nên fail closed
+        // trước khi ghi ValidationResultJson hay chuyển trạng thái. Phần bên dưới chỉ ghi trạng thái cục bộ, giữ lại cho S01-E/S02.
+        await DenyByReadOnlyPolicyAsync(
+            tenantId,
+            userId,
+            "AiActionRequest",
+            action.Id,
+            "approve",
+            ExternalActionReadOnlyPolicy.ValidationBlockedErrorCode,
+            cancellationToken);
         var validation = await ValidateActionWithSourceAsync(
             tenantId,
             action.ApplicationId,
@@ -452,123 +460,58 @@ public sealed class ActionApprovalService(
     {
         var tenantId = tenantContext.GetRequiredTenantId();
         await EnsureActiveUserAsync(userId, tenantId, cancellationToken);
-        var action = await GetActionAsync(tenantId, actionRequestId, cancellationToken);
-        await EnsureExternalObjectAccessAsync(userId, tenantId, action.ApplicationId, action.TargetObjectType, action.TargetExternalObjectId, cancellationToken);
-
-        if (action.Status == AiActionRequestStatus.Succeeded)
-        {
-            return ToResponse(action);
-        }
-
-        if (action.Status is not (AiActionRequestStatus.Approved or AiActionRequestStatus.Failed))
-        {
-            throw new InvalidOperationException("action_not_approved");
-        }
-
-        var validation = await ValidateActionWithSourceAsync(
+        // S01-E0: outbound business write bị từ chối với mọi principal trước khi đọc/validate action, chuyển trạng thái
+        // Executing hay gọi connector, nên action cũ (Approved/Failed/Succeeded) giữ nguyên lịch sử. Service không còn
+        // đường gọi IExternalActionExecutor.ExecuteActionAsync; mở lại thực thi phải được thiết kế/duyệt riêng (S01-E).
+        throw await RecordReadOnlyDenialAsync(
             tenantId,
-            action.ApplicationId,
-            action.ActionType,
-            action.TargetObjectType,
-            action.TargetExternalObjectId,
-            action.NormalizedPayloadJson ?? action.PayloadJson,
-            action.IdempotencyKey,
-            cancellationToken);
-        action.ValidationResultJson = SerializeValidation(validation);
-        if (!validation.IsValid)
-        {
-            await MarkFailedAsync(action, validation.Reason ?? "action_validation_failed", userId, cancellationToken);
-            throw new InvalidOperationException("action_validation_failed");
-        }
-
-        var now = DateTimeOffset.UtcNow;
-        action.Status = AiActionRequestStatus.Executing;
-        action.ExecutedByUserId = userId;
-        action.ExecutingStartedAt = now;
-        action.UpdatedAt = now;
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await auditLogService.RecordAsync(
             userId,
-            "AiActionRequestExecuting",
             "AiActionRequest",
-            action.Id,
-            new { action.ActionType, action.TargetObjectType, action.TargetExternalObjectId },
-            cancellationToken);
-
-        ExternalActionExecutionResponse execution;
-        try
-        {
-            execution = await ExecuteWithSourceAsync(tenantId, action, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            await MarkFailedAsync(action, ex.Message, userId, cancellationToken);
-            throw new InvalidOperationException("action_execution_failed", ex);
-        }
-
-        now = DateTimeOffset.UtcNow;
-        action.ExternalExecutionId = CleanOptional(execution.ExternalExecutionId, ExternalObjectIdMaxLength);
-        action.ExecutionResultJson = NormalizeOptionalJson(execution.ResultJson, "invalid_action_execution_result");
-        action.ExecutionError = CleanOptional(execution.Error, ReasonMaxLength);
-        action.ExecutedAt = now;
-        action.UpdatedAt = now;
-        action.Status = execution.Succeeded ? AiActionRequestStatus.Succeeded : AiActionRequestStatus.Failed;
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        await auditLogService.RecordAsync(
-            userId,
-            execution.Succeeded ? "AiActionRequestSucceeded" : "AiActionRequestFailed",
-            "AiActionRequest",
-            action.Id,
-            new { execution.ExternalExecutionId, execution.Error },
-            cancellationToken);
-        logger?.LogInformation(
-            "AI action request {ActionRequestId} execution completed for tenant {TenantId} application {ApplicationId} with status {Status}.",
-            action.Id,
-            tenantId,
-            action.ApplicationId,
-            action.Status);
-
-        if (!execution.Succeeded)
-        {
-            throw new InvalidOperationException("action_execution_failed");
-        }
-
-        return ToResponse(action);
-    }
-
-    private async Task MarkFailedAsync(AiActionRequestEntity action, string error, Guid userId, CancellationToken cancellationToken)
-    {
-        var now = DateTimeOffset.UtcNow;
-        action.Status = AiActionRequestStatus.Failed;
-        action.ExecutionError = CleanOptional(error, ReasonMaxLength) ?? "action_failed";
-        action.ExecutedAt = now;
-        action.UpdatedAt = now;
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await auditLogService.RecordAsync(
-            userId,
-            "AiActionRequestFailed",
-            "AiActionRequest",
-            action.Id,
-            new { action.ExecutionError },
+            actionRequestId,
+            "execute",
+            ExternalActionReadOnlyPolicy.ExecutionBlockedErrorCode,
             cancellationToken);
     }
 
-    private async Task<ExternalActionExecutionResponse> ExecuteWithSourceAsync(
+    private async Task DenyByReadOnlyPolicyAsync(
         Guid tenantId,
-        AiActionRequestEntity action,
+        Guid userId,
+        string entityType,
+        Guid entityId,
+        string operation,
+        string errorCode,
         CancellationToken cancellationToken)
     {
-        var context = await GetConnectorContextAsync(tenantId, action.ApplicationId, cancellationToken);
-        return await externalActionExecutor.ExecuteActionAsync(
-            context,
-            new ExternalActionExecutionRequest(
-                action.ActionType,
-                action.TargetObjectType,
-                action.TargetExternalObjectId,
-                action.NormalizedPayloadJson ?? action.PayloadJson,
-                action.IdempotencyKey),
+        throw await RecordReadOnlyDenialAsync(tenantId, userId, entityType, entityId, operation, errorCode, cancellationToken);
+    }
+
+    // S01-E0 Read-only Containment: luôn từ chối, không có cấu hình hay tham số nào bật lại. Audit/log chỉ ghi
+    // thao tác và mã lỗi (không ghi payload); controller trả lỗi policy này thành lỗi API có kiểm soát.
+    private async Task<ExternalActionBlockedException> RecordReadOnlyDenialAsync(
+        Guid tenantId,
+        Guid userId,
+        string entityType,
+        Guid entityId,
+        string operation,
+        string errorCode,
+        CancellationToken cancellationToken)
+    {
+        logger?.LogWarning(
+            "Read-only policy blocked AI action {Operation} on {EntityType} {EntityId} for tenant {TenantId} by user {UserId}: {ErrorCode}.",
+            operation,
+            entityType,
+            entityId,
+            tenantId,
+            userId,
+            errorCode);
+        await auditLogService.RecordAsync(
+            userId,
+            "AiActionRequestBlocked",
+            entityType,
+            entityId,
+            new { Operation = operation, Reason = errorCode },
             cancellationToken);
+        return new ExternalActionBlockedException(errorCode);
     }
 
     private async Task<ExternalActionValidationResponse> ValidateActionWithSourceAsync(
@@ -594,7 +537,8 @@ public sealed class ActionApprovalService(
                     idempotencyKey),
                 cancellationToken);
         }
-        catch
+        // Lỗi policy read-only từ executor phải lan ra nguyên vẹn, không bị đổi thành "invalid" rồi ghi vào action.
+        catch (Exception ex) when (ex is not ExternalActionBlockedException)
         {
             return new ExternalActionValidationResponse(false, "action_validation_failed", null);
         }
@@ -866,11 +810,6 @@ public sealed class ActionApprovalService(
         {
             throw new ArgumentException(errorCode);
         }
-    }
-
-    private static string? NormalizeOptionalJson(string? value, string errorCode)
-    {
-        return string.IsNullOrWhiteSpace(value) ? null : NormalizeJson(value, errorCode);
     }
 
     private static string NormalizeKey(string? value, string errorCode, int maxLength)
