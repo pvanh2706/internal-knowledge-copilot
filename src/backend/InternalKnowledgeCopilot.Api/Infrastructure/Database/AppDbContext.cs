@@ -83,6 +83,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
 
     public DbSet<AiPromptTemplateEntity> AiPromptTemplates => Set<AiPromptTemplateEntity>();
 
+    public DbSet<PlatformAdminEntity> PlatformAdmins => Set<PlatformAdminEntity>();
+
+    public DbSet<PlatformAuditLogEntity> PlatformAuditLogs => Set<PlatformAuditLogEntity>();
+
+    public DbSet<PlatformSecurityStateEntity> PlatformSecurityState => Set<PlatformSecurityStateEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1336,7 +1342,113 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        ConfigurePlatformEntities(modelBuilder);
+
         ApplyTenantQueryFilters(modelBuilder);
+    }
+
+    // S01-A: bảng platform (S01 Technical Design Baseline v1.0 §4). Các entity này không có TenantId nên nằm ngoài
+    // tenant query filter. Trigger append-only/singleton được tạo bằng SQL trong migration AddPlatformDatabaseFoundation.
+    private static void ConfigurePlatformEntities(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<PlatformAdminEntity>(entity =>
+        {
+            entity.ToTable("platform_admins", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_platform_admins_email_normalized",
+                    "\"email_normalized\" = lower(trim(\"email_normalized\")) AND instr(\"email_normalized\", '@') > 1");
+                table.HasCheckConstraint("CK_platform_admins_display_name", "length(trim(\"display_name\")) > 0");
+                table.HasCheckConstraint(
+                    "CK_platform_admins_password_hash_versioned",
+                    "\"password_hash\" GLOB '$[a-z]*$v=[1-9]*$*$*$*'");
+                table.HasCheckConstraint("CK_platform_admins_status", "\"status\" IN ('Active', 'Disabled', 'Locked')");
+                table.HasCheckConstraint("CK_platform_admins_failed_login_count", "\"failed_login_count\" >= 0");
+                table.HasCheckConstraint("CK_platform_admins_token_version", "\"token_version\" >= 0");
+                table.HasTrigger("trg_platform_admins_no_delete");
+            });
+            entity.HasKey(admin => admin.Id);
+            entity.Property(admin => admin.Id).HasColumnName("id");
+            entity.Property(admin => admin.EmailNormalized).HasColumnName("email_normalized").HasMaxLength(320).IsRequired();
+            entity.Property(admin => admin.DisplayName).HasColumnName("display_name").HasMaxLength(200).IsRequired();
+            entity.Property(admin => admin.PasswordHash).HasColumnName("password_hash").HasMaxLength(1024).IsRequired();
+            entity.Property(admin => admin.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(admin => admin.FailedLoginCount).HasColumnName("failed_login_count");
+            entity.Property(admin => admin.LockedUntil).HasColumnName("locked_until");
+            entity.Property(admin => admin.MustChangePassword).HasColumnName("must_change_password");
+            entity.Property(admin => admin.TokenVersion).HasColumnName("token_version");
+            entity.Property(admin => admin.LastLoginAt).HasColumnName("last_login_at");
+            entity.Property(admin => admin.CreatedAt).HasColumnName("created_at");
+            entity.Property(admin => admin.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(admin => admin.EmailNormalized).IsUnique();
+            entity.HasIndex(admin => admin.Status);
+        });
+
+        modelBuilder.Entity<PlatformAuditLogEntity>(entity =>
+        {
+            entity.ToTable("platform_audit_logs", table =>
+            {
+                table.HasCheckConstraint("CK_platform_audit_logs_action", "length(trim(\"action\")) > 0");
+                table.HasCheckConstraint("CK_platform_audit_logs_outcome", "\"outcome\" IN ('Success', 'Denied', 'Failed')");
+                table.HasCheckConstraint(
+                    "CK_platform_audit_logs_metadata_json",
+                    "\"metadata_json\" IS NULL OR json_valid(\"metadata_json\")");
+                table.HasTrigger("trg_platform_audit_logs_no_update");
+                table.HasTrigger("trg_platform_audit_logs_no_delete");
+            });
+            entity.HasKey(log => log.Id);
+            entity.Property(log => log.Id).HasColumnName("id");
+            entity.Property(log => log.ActorPlatformId).HasColumnName("actor_platform_id");
+            entity.Property(log => log.Action).HasColumnName("action").HasMaxLength(100).IsRequired();
+            entity.Property(log => log.TargetTenantId).HasColumnName("target_tenant_id");
+            entity.Property(log => log.TargetType).HasColumnName("target_type").HasMaxLength(100);
+            entity.Property(log => log.TargetId).HasColumnName("target_id");
+            entity.Property(log => log.Outcome).HasColumnName("outcome").HasConversion<string>().HasMaxLength(50);
+            entity.Property(log => log.RequestId).HasColumnName("request_id").HasMaxLength(100);
+            entity.Property(log => log.MetadataJson).HasColumnName("metadata_json");
+            entity.Property(log => log.OccurredAt).HasColumnName("occurred_at");
+            entity.HasIndex(log => log.OccurredAt);
+            entity.HasIndex(log => new { log.ActorPlatformId, log.OccurredAt });
+            entity.HasIndex(log => new { log.TargetTenantId, log.OccurredAt });
+            entity.HasIndex(log => new { log.Action, log.OccurredAt });
+            entity.HasOne(log => log.ActorPlatformAdmin)
+                .WithMany()
+                .HasForeignKey(log => log.ActorPlatformId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<TenantEntity>()
+                .WithMany()
+                .HasForeignKey(log => log.TargetTenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PlatformSecurityStateEntity>(entity =>
+        {
+            entity.ToTable("platform_security_state", table =>
+            {
+                table.HasCheckConstraint("CK_platform_security_state_singleton", $"\"id\" = {PlatformSecurityStateEntity.SingletonId}");
+                table.HasCheckConstraint(
+                    "CK_platform_security_state_bootstrap",
+                    "(\"bootstrap_status\" = 'NotStarted' AND \"bootstrap_admin_id\" IS NULL AND \"bootstrap_completed_at\" IS NULL) OR " +
+                    "(\"bootstrap_status\" = 'Completed' AND \"bootstrap_admin_id\" IS NOT NULL AND \"bootstrap_completed_at\" IS NOT NULL)");
+                table.HasCheckConstraint("CK_platform_security_state_state_version", "\"state_version\" >= 0");
+                table.HasTrigger("trg_platform_security_state_no_delete");
+                table.HasTrigger("trg_platform_security_state_guard_update");
+            });
+            entity.HasKey(state => state.Id);
+            entity.Property(state => state.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(state => state.DeploymentId).HasColumnName("deployment_id");
+            entity.Property(state => state.BootstrapStatus).HasColumnName("bootstrap_status").HasConversion<string>().HasMaxLength(50);
+            entity.Property(state => state.BootstrapAdminId).HasColumnName("bootstrap_admin_id");
+            entity.Property(state => state.BootstrapCompletedAt).HasColumnName("bootstrap_completed_at");
+            entity.Property(state => state.StateVersion).HasColumnName("state_version").IsConcurrencyToken();
+            entity.Property(state => state.CreatedAt).HasColumnName("created_at");
+            entity.Property(state => state.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(state => state.BootstrapAdminId);
+            entity.HasOne(state => state.BootstrapAdmin)
+                .WithMany()
+                .HasForeignKey(state => state.BootstrapAdminId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     // Lưới an toàn cô lập tenant: mọi entity có TenantId đều bị lọc theo tenant của request.
