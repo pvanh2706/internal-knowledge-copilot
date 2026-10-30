@@ -1438,6 +1438,7 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.Database.Migrations
 
                     b.Property<string>("CaseKind")
                         .IsRequired()
+                        .ValueGeneratedOnAdd()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT")
                         .HasDefaultValue("Regression")
@@ -2607,6 +2608,218 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.Database.Migrations
                         .IsUnique();
 
                     b.ToTable("knowledge_sources", (string)null);
+                });
+
+            modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.PlatformAdminEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("EmailNormalized")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("email_normalized");
+
+                    b.Property<int>("FailedLoginCount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("failed_login_count");
+
+                    b.Property<DateTimeOffset?>("LastLoginAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("last_login_at");
+
+                    b.Property<DateTimeOffset?>("LockedUntil")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("locked_until");
+
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("must_change_password");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("password_hash");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("status");
+
+                    b.Property<int>("TokenVersion")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("token_version");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmailNormalized")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("platform_admins", null, t =>
+                        {
+                            t.HasTrigger("trg_platform_admins_no_delete");
+
+                            t.HasCheckConstraint("CK_platform_admins_display_name", "length(trim(\"display_name\")) > 0");
+
+                            t.HasCheckConstraint("CK_platform_admins_email_normalized", "\"email_normalized\" = lower(trim(\"email_normalized\")) AND instr(\"email_normalized\", '@') > 1");
+
+                            t.HasCheckConstraint("CK_platform_admins_failed_login_count", "\"failed_login_count\" >= 0");
+
+                            t.HasCheckConstraint("CK_platform_admins_password_hash_versioned", "\"password_hash\" GLOB '$[a-z]*$v=[1-9]*$*$*$*'");
+
+                            t.HasCheckConstraint("CK_platform_admins_status", "\"status\" IN ('Active', 'Disabled', 'Locked')");
+
+                            t.HasCheckConstraint("CK_platform_admins_token_version", "\"token_version\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.PlatformAuditLogEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("action");
+
+                    b.Property<Guid?>("ActorPlatformId")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("actor_platform_id");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("metadata_json");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("outcome");
+
+                    b.Property<string>("RequestId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid?>("TargetId")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("target_id");
+
+                    b.Property<Guid?>("TargetTenantId")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("target_tenant_id");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("target_type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("Action", "OccurredAt");
+
+                    b.HasIndex("ActorPlatformId", "OccurredAt");
+
+                    b.HasIndex("TargetTenantId", "OccurredAt");
+
+                    b.ToTable("platform_audit_logs", null, t =>
+                        {
+                            t.HasTrigger("trg_platform_audit_logs_no_delete");
+
+                            t.HasTrigger("trg_platform_audit_logs_no_update");
+
+                            t.HasCheckConstraint("CK_platform_audit_logs_action", "length(trim(\"action\")) > 0");
+
+                            t.HasCheckConstraint("CK_platform_audit_logs_metadata_json", "\"metadata_json\" IS NULL OR json_valid(\"metadata_json\")");
+
+                            t.HasCheckConstraint("CK_platform_audit_logs_outcome", "\"outcome\" IN ('Success', 'Denied', 'Failed')");
+                        });
+                });
+
+            modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.PlatformSecurityStateEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BootstrapAdminId")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("bootstrap_admin_id");
+
+                    b.Property<DateTimeOffset?>("BootstrapCompletedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("bootstrap_completed_at");
+
+                    b.Property<string>("BootstrapStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("bootstrap_status");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DeploymentId")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("deployment_id");
+
+                    b.Property<int>("StateVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("state_version");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BootstrapAdminId");
+
+                    b.ToTable("platform_security_state", null, t =>
+                        {
+                            t.HasTrigger("trg_platform_security_state_guard_update");
+
+                            t.HasTrigger("trg_platform_security_state_no_delete");
+
+                            t.HasCheckConstraint("CK_platform_security_state_bootstrap", "(\"bootstrap_status\" = 'NotStarted' AND \"bootstrap_admin_id\" IS NULL AND \"bootstrap_completed_at\" IS NULL) OR (\"bootstrap_status\" = 'Completed' AND \"bootstrap_admin_id\" IS NOT NULL AND \"bootstrap_completed_at\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_platform_security_state_singleton", "\"id\" = 1");
+
+                            t.HasCheckConstraint("CK_platform_security_state_state_version", "\"state_version\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.ProcessingJobEntity", b =>
@@ -3896,6 +4109,31 @@ namespace InternalKnowledgeCopilot.Api.Infrastructure.Database.Migrations
                     b.Navigation("Application");
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.PlatformAuditLogEntity", b =>
+                {
+                    b.HasOne("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.PlatformAdminEntity", "ActorPlatformAdmin")
+                        .WithMany()
+                        .HasForeignKey("ActorPlatformId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.TenantEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TargetTenantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ActorPlatformAdmin");
+                });
+
+            modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.PlatformSecurityStateEntity", b =>
+                {
+                    b.HasOne("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.PlatformAdminEntity", "BootstrapAdmin")
+                        .WithMany()
+                        .HasForeignKey("BootstrapAdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("BootstrapAdmin");
                 });
 
             modelBuilder.Entity("InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities.ProcessingJobEntity", b =>
