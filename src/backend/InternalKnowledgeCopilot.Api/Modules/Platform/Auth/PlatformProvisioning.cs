@@ -6,14 +6,14 @@ using Microsoft.EntityFrameworkCore;
 namespace InternalKnowledgeCopilot.Api.Modules.Platform.Auth;
 
 // Hợp đồng xác minh bằng chứng provisioning nằm ngoài DB (Baseline v1.0 §7). Trạng thái Completed trong DB
-// một mình không đủ, vì bản restore DB có thể làm giả nó. S01-C sẽ cung cấp implementation thật.
+// một mình không đủ, vì bản restore DB có thể làm giả nó. Implementation S01-C: ProvisioningAuthorityVerifier.
 public interface IPlatformProvisioningVerifier
 {
     Task<bool> IsProvisioningVerifiedAsync(PlatformSecurityStateEntity state, CancellationToken cancellationToken = default);
 }
 
-// Mặc định an toàn cho mọi môi trường: không xác minh được nên luôn từ chối. Không có cấu hình nào bật bypass;
-// chỉ test mới thay implementation qua DI.
+// Dùng khi ProvisioningAuthority:Provider=None (mặc định): không có bằng chứng nên luôn từ chối. Không có cấu hình nào
+// bật bypass; chỉ test mới thay implementation qua DI.
 public sealed class UnverifiedPlatformProvisioningVerifier : IPlatformProvisioningVerifier
 {
     public Task<bool> IsProvisioningVerifiedAsync(PlatformSecurityStateEntity state, CancellationToken cancellationToken = default)

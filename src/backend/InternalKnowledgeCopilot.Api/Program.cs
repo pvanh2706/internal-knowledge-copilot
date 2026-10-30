@@ -27,6 +27,7 @@ using InternalKnowledgeCopilot.Api.Modules.KnowledgeSources;
 using InternalKnowledgeCopilot.Api.Modules.Integrations;
 using InternalKnowledgeCopilot.Api.Modules.Operations;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Auth;
+using InternalKnowledgeCopilot.Api.Modules.Platform.Provisioning;
 using InternalKnowledgeCopilot.Api.Modules.Tenants;
 using InternalKnowledgeCopilot.Api.Modules.WorkflowCopilot;
 using InternalKnowledgeCopilot.Api.Modules.Wiki;
@@ -65,8 +66,6 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddSingleton<IPlatformPasswordHasher, PlatformPasswordHasher>();
 builder.Services.AddSingleton<IPlatformJwtTokenService, PlatformJwtTokenService>();
 builder.Services.AddScoped<IPlatformAuditWriter, PlatformAuditWriter>();
-// Provisioning chưa được S01-C xác minh: mặc định luôn từ chối, không có cờ cấu hình nào bỏ qua được.
-builder.Services.AddSingleton<IPlatformProvisioningVerifier, UnverifiedPlatformProvisioningVerifier>();
 builder.Services.AddScoped<IPlatformProvisioningGate, PlatformProvisioningGate>();
 builder.Services.AddScoped<IPlatformAuthService, PlatformAuthService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
@@ -134,6 +133,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseSqlite($"Data Source={sqlitePath}");
 });
+
+// S01-C: bằng chứng provisioning nằm ngoài SQLite, chỉ đọc ở runtime. Provider=None (mặc định) luôn từ chối platform auth;
+// không có cờ cấu hình nào bỏ qua được, LocalSeal bị chặn ngoài Development/Testing.
+var provisioningAuthority = ProvisioningAuthorityConfigurationValidator.Validate(
+    builder.Configuration.GetSection(ProvisioningAuthorityOptions.SectionName).Get<ProvisioningAuthorityOptions>() ?? new ProvisioningAuthorityOptions(),
+    builder.Environment.EnvironmentName,
+    sqlitePath);
+builder.Services.AddPlatformProvisioningVerifier(provisioningAuthority);
 
 // Key ring Data Protection phải nằm trên đĩa để API key mã hóa trong DB vẫn giải mã được sau khi redeploy.
 var dataProtectionKeysPath = builder.Configuration.GetValue<string>("DataProtection:KeysPath")
