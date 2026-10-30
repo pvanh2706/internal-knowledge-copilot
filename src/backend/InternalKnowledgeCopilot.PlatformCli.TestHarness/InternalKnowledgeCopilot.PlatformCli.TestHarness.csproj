@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Chỉ dùng cho test/dev (không triển khai): chạy CLI với console scripted để kiểm thử đa tiến trình và giả lập
+       provisioning authority độc lập cho LocalSeal. Từ chối chạy ngoài Development/Testing. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\InternalKnowledgeCopilot.PlatformCli\InternalKnowledgeCopilot.PlatformCli.csproj" />
+  </ItemGroup>
+
+</Project>
