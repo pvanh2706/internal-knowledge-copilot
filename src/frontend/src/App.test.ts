@@ -82,7 +82,7 @@ describe('App', () => {
     })
 
     expect(wrapper.findComponent(AppLayout).exists()).toBe(true)
-    expect(wrapper.text()).toContain('Knowledge Copilot')
+    expect(wrapper.text()).toContain('Enterprise Copilot')
     expect(wrapper.text()).toContain('Tổng quan')
   })
 

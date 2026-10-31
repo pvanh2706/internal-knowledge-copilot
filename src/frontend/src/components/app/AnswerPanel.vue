@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { CopyIcon, InfoIcon, ThumbsDownIcon, ThumbsUpIcon } from '@lucide/vue'
+import { CopyIcon, SparklesIcon, ThumbsDownIcon, ThumbsUpIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import InlineNotice from '@/components/app/InlineNotice.vue'
 import StatusBadge from '@/components/app/StatusBadge.vue'
 import type { AskQuestionResponse } from '@/api/ai'
 import type { AiFeedbackValue } from '@/api/feedback'
@@ -41,49 +42,48 @@ async function copyAnswer() {
 </script>
 
 <template>
-  <section class="grid gap-4 rounded-xl border bg-card p-5 text-card-foreground">
-    <div class="flex flex-wrap items-center justify-between gap-2">
+  <!-- Thẻ câu trả lời B1 — độ tin cậy chỉ là hạng mục high/medium/low từ API, không hiển thị phần trăm -->
+  <article class="grid gap-3.5 rounded-[13px] border bg-card p-5 text-card-foreground shadow-lg shadow-foreground/3" aria-label="Câu trả lời của AI">
+    <div class="flex flex-wrap items-center gap-2.5">
+      <span class="grid size-8 shrink-0 place-items-center rounded-[10px] bg-linear-to-br from-primary/70 to-primary text-primary-foreground" aria-hidden="true">
+        <SparklesIcon class="size-5" />
+      </span>
+      <strong class="text-[13px]">Enterprise Copilot</strong>
       <StatusBadge :status="answer.confidence" />
-      <Button variant="ghost" size="icon-sm" type="button" aria-label="Sao chép câu trả lời" @click="copyAnswer">
-        <CopyIcon class="size-4" />
-      </Button>
     </div>
 
-    <div
-      v-if="answer.needsClarification"
-      class="flex items-start gap-2 rounded-md border-l-2 border-info bg-info/10 p-3 text-sm"
-      role="status"
-    >
-      <InfoIcon class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-      <p>AI cần thêm ngữ cảnh để trả lời chắc chắn — hãy bổ sung chi tiết hoặc thu hẹp phạm vi.</p>
-    </div>
+    <InlineNotice v-if="answer.needsClarification" tone="info" title="Copilot cần thêm ngữ cảnh." role="status">
+      Hãy bổ sung chi tiết hoặc thu hẹp phạm vi để AI trả lời chắc chắn hơn.
+    </InlineNotice>
 
-    <p class="whitespace-pre-wrap text-base leading-7">{{ answer.answer }}</p>
+    <p class="whitespace-pre-wrap text-[13px] leading-[1.83] text-foreground/85">{{ answer.answer }}</p>
 
-    <div v-if="answer.missingInformation.length" class="grid gap-1 border-l-2 border-warning bg-warning/10 p-3 text-sm">
-      <p class="font-medium">Thông tin còn thiếu</p>
-      <ul class="grid list-disc gap-0.5 pl-5 text-muted-foreground">
+    <InlineNotice v-if="answer.missingInformation.length" tone="warning" title="Thông tin còn thiếu">
+      <ul class="grid list-disc gap-0.5 pl-4">
         <li v-for="item in answer.missingInformation" :key="item">{{ item }}</li>
       </ul>
-    </div>
+    </InlineNotice>
 
-    <div v-if="answer.conflicts.length" class="grid gap-1 border-l-2 border-destructive bg-destructive/10 p-3 text-sm">
-      <p class="font-medium">Mâu thuẫn giữa các nguồn</p>
-      <ul class="grid list-disc gap-0.5 pl-5 text-muted-foreground">
+    <InlineNotice v-if="answer.conflicts.length" tone="danger" title="Mâu thuẫn giữa các nguồn">
+      <ul class="grid list-disc gap-0.5 pl-4">
         <li v-for="item in answer.conflicts" :key="item">{{ item }}</li>
       </ul>
+    </InlineNotice>
+
+    <div v-if="answer.suggestedFollowUps.length" class="grid gap-2">
+      <p class="text-[11px] font-semibold text-muted-foreground">Câu hỏi gợi ý tiếp theo</p>
+      <div class="flex flex-wrap gap-2">
+        <slot name="follow-ups" />
+      </div>
     </div>
 
-    <div v-if="answer.suggestedFollowUps.length" class="flex flex-wrap gap-2">
-      <slot name="follow-ups" />
-    </div>
-
-    <div class="flex flex-wrap items-center gap-2 border-t pt-3">
-      <p class="mr-auto text-xs text-muted-foreground">Câu trả lời có hữu ích không?</p>
+    <div class="mt-1 flex flex-wrap items-center gap-1.5 border-t pt-3">
+      <p class="mr-auto text-[11px] text-muted-foreground">Câu trả lời có hữu ích không?</p>
       <Button
-        variant="outline"
+        variant="ghost"
         size="icon-sm"
         type="button"
+        class="text-muted-foreground hover:text-primary-soft-foreground"
         aria-label="Câu trả lời đúng"
         :disabled="isSubmittingFeedback"
         @click="emit('feedback', 'Correct', feedbackNote)"
@@ -91,25 +91,45 @@ async function copyAnswer() {
         <ThumbsUpIcon class="size-4" />
       </Button>
       <Button
-        variant="outline"
+        variant="ghost"
         size="icon-sm"
         type="button"
+        class="text-muted-foreground hover:text-primary-soft-foreground"
         aria-label="Câu trả lời sai"
+        :aria-expanded="showNoteBox"
         :disabled="isSubmittingFeedback"
         @click="showNoteBox = true"
       >
         <ThumbsDownIcon class="size-4" />
       </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        type="button"
+        class="text-xs text-muted-foreground hover:text-primary-soft-foreground"
+        aria-label="Sao chép câu trả lời"
+        @click="copyAnswer"
+      >
+        <CopyIcon class="size-4" />
+        Sao chép
+      </Button>
     </div>
 
     <div v-if="showNoteBox" class="grid gap-2">
-      <Textarea v-model="feedbackNote" rows="3" placeholder="Điều gì chưa đúng? Ghi chú giúp reviewer xử lý nhanh hơn..." />
+      <label for="ai-feedback-note" class="text-[11px] font-semibold text-foreground/80">Điều gì chưa đúng?</label>
+      <Textarea
+        id="ai-feedback-note"
+        v-model="feedbackNote"
+        rows="3"
+        placeholder="Ghi chú giúp reviewer xử lý nhanh hơn..."
+      />
       <div class="flex justify-end gap-2">
-        <Button variant="outline" size="sm" type="button" @click="showNoteBox = false">Hủy</Button>
+        <Button variant="outline" size="sm" type="button" class="text-xs" @click="showNoteBox = false">Hủy</Button>
         <Button
           variant="destructive"
           size="sm"
           type="button"
+          class="text-xs"
           :disabled="isSubmittingFeedback"
           @click="emit('feedback', 'Incorrect', feedbackNote)"
         >
@@ -117,5 +137,5 @@ async function copyAnswer() {
         </Button>
       </div>
     </div>
-  </section>
+  </article>
 </template>
