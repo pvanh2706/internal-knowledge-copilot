@@ -8,13 +8,13 @@ const props = defineProps<{
   label?: string
 }>()
 
-// Kiểu soft: nền alpha 0.12 (dark 0.18), chữ + border cùng token — không nền đặc
+// Kiểu soft B1: pill nền alpha 0.10 (dark 0.18), chữ cùng token, không viền ở light — viền mờ ở dark để tách nền
 const variantClasses: Record<StatusVariant, string> = {
-  success: 'border-success/30 bg-success/12 text-success dark:bg-success/18',
-  warning: 'border-warning/30 bg-warning/12 text-warning dark:bg-warning/18',
-  destructive: 'border-destructive/30 bg-destructive/12 text-destructive dark:bg-destructive/18',
-  info: 'border-info/30 bg-info/12 text-info dark:bg-info/18',
-  muted: 'border-border bg-muted text-muted-foreground',
+  success: 'bg-success/10 text-success dark:border-success/30 dark:bg-success/18',
+  warning: 'bg-warning/10 text-warning dark:border-warning/30 dark:bg-warning/18',
+  destructive: 'bg-destructive/10 text-destructive dark:border-destructive/30 dark:bg-destructive/18',
+  info: 'bg-info/10 text-info dark:border-info/30 dark:bg-info/18',
+  muted: 'bg-muted text-muted-foreground dark:border-border',
 }
 
 const info = computed(() => statusInfo(props.status))
@@ -22,7 +22,7 @@ const info = computed(() => statusInfo(props.status))
 
 <template>
   <span
-    class="inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium"
+    class="inline-flex items-center whitespace-nowrap rounded-full border border-transparent px-2 py-0.5 text-[11px] font-semibold leading-4"
     :class="variantClasses[info.variant]"
   >
     {{ label ?? info.label }}
