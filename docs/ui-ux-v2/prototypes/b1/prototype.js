@@ -25,7 +25,7 @@
     $('currentTitle').textContent = meta[name][0]
     $('currentSubtitle').textContent = meta[name][1]
     $('sidebar').classList.remove('open')
-    if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name)
+    if (location.hash !== '#' + name) { try { history.replaceState(null, '', '#' + name) } catch (_) { location.hash = name } }
   }
   $$('[data-route]').forEach((el) => el.addEventListener('click', () => navigate(el.dataset.route)))
   $$('[data-soon]').forEach((el) => el.addEventListener('click', () => toast('“' + el.dataset.soon + '” chưa nằm trong ba màn hình prototype lần này.')))
