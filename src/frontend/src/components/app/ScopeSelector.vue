@@ -16,12 +16,19 @@ import type { AiScopeType } from '@/api/ai'
 import type { DocumentListItem } from '@/api/documents'
 import type { FlatFolder } from '@/composables/useFolderTree'
 
-// Chip chọn phạm vi hỏi AI — dùng chung giữa AiQuestionPage và RetrievalExplainPage
-const props = defineProps<{
-  folders: FlatFolder[]
-  /** Danh sách tài liệu đã index để chọn scope Document */
-  documents: DocumentListItem[]
-}>()
+// Chọn phạm vi hỏi AI — dùng chung giữa AiQuestionPage và RetrievalExplainPage.
+// variant "chip" (mặc định): chip + popover; "inline": các ô chọn đặt thẳng trên trang theo B1 AI Workspace.
+const props = withDefaults(
+  defineProps<{
+    folders: FlatFolder[]
+    /** Danh sách tài liệu đã index để chọn scope Document */
+    documents: DocumentListItem[]
+    variant?: 'chip' | 'inline'
+    /** Tiền tố id cho label/trigger khi có nhiều bộ chọn trên cùng trang */
+    idPrefix?: string
+  }>(),
+  { variant: 'chip', idPrefix: 'scope' },
+)
 
 const scopeType = defineModel<AiScopeType>('scopeType', { default: 'All' })
 const folderId = defineModel<string>('folderId', { default: '' })
@@ -55,7 +62,49 @@ function resetScope() {
 </script>
 
 <template>
-  <Popover v-model:open="isOpen">
+  <div v-if="variant === 'inline'" class="grid gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <Label :for="`${idPrefix}-type`" class="text-xs font-normal text-muted-foreground">
+        <FolderIcon class="size-4 text-primary-soft-foreground" aria-hidden="true" />
+        Phạm vi truy xuất
+      </Label>
+      <Select v-model="scopeType">
+        <SelectTrigger :id="`${idPrefix}-type`" class="h-10! w-auto min-w-54 bg-card">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="All">Tất cả nguồn được phép</SelectItem>
+          <SelectItem value="Folder">Theo thư mục</SelectItem>
+          <SelectItem value="Document">Theo tài liệu</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    <div v-if="scopeType === 'Folder'" class="flex flex-wrap items-center gap-2.5">
+      <Label :for="`${idPrefix}-folder`" class="text-xs font-normal text-muted-foreground">Thư mục</Label>
+      <div class="min-w-0 max-w-72 flex-1">
+        <FolderSelect v-model="folderId" :trigger-id="`${idPrefix}-folder`" :folders="folders" placeholder="Chọn thư mục" />
+      </div>
+    </div>
+
+    <div v-if="scopeType === 'Document'" class="flex flex-wrap items-center gap-2.5">
+      <Label :for="`${idPrefix}-document`" class="text-xs font-normal text-muted-foreground">Tài liệu</Label>
+      <div class="min-w-0 max-w-72 flex-1">
+        <Select v-model="documentId" :disabled="documents.length === 0">
+          <SelectTrigger :id="`${idPrefix}-document`" class="w-full">
+            <SelectValue :placeholder="documents.length ? 'Chọn tài liệu đã lập chỉ mục' : 'Chưa có tài liệu đã lập chỉ mục'" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="document in documents" :key="document.id" :value="document.id">
+              {{ document.title }} — {{ document.folderPath }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  </div>
+
+  <Popover v-else v-model:open="isOpen">
     <div class="inline-flex items-center gap-0.5 rounded-full border bg-background pr-1 text-sm">
       <PopoverTrigger as-child>
         <button
