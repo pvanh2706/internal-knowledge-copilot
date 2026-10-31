@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="description" content="Enterprise AI Copilot — UI/UX v2 B1 Enterprise Blue, 3-screen offline HTML prototype">
+<title>Enterprise AI Copilot · B1 Enterprise Blue · UI/UX v2 Prototype</title>
+<style>
+/* Enterprise AI Copilot — UI/UX v2 B1 Enterprise Blue; DESIGN ONLY, offline prototype. */
+:root {
+  --blue:#3159e9;--blue-hover:#2447c8;--blue-light:#edf1ff;--blue-line:#d8e2ff;
+  --ink:#1b2941;--text:#2b3b55;--muted:#72829a;--subtle:#f6f8fc;--sidebar:#f7f9fd;
+  --line:#e3e9f3;--surface:#ffffff;--canvas:#edf2fa;--green:#187654;--green-bg:#e8f7ef;
+  --amber:#a66b16;--amber-bg:#fff5e3;--red:#bb4242;--red-bg:#fff0ef;--radius:12px;
+  --shadow:0 14px 44px #1f346112,0 3px 10px #1f34610a;
+  font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  color:var(--ink);font-size:13px;font-synthesis:none
+}
+*[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.46}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:3px solid #adc1ff;outline-offset:2px}
+svg.icon{width:18px;height:18px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.icon.sm{width:15px;height:15px}.icon.lg{width:21px;height:21px}
+a{color:inherit;text-decoration:none}
+h1,h2,h3,p{margin:0}h1{font-size:24px;letter-spacing:-.8px;font-weight:760}h2{font-size:17px;letter-spacing:-.4px;font-weight:730}h3{font-size:14px;font-weight:720}
+button{border:0;background:transparent;color:inherit}
+.prototype-bar{max-width:1500px;margin:16px auto 11px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.proto-title{display:flex;gap:10px;align-items:center;font-weight:770;font-size:14px}
+.proto-label{font-size:10px;font-weight:750;letter-spacing:.7px;background:#fff;color:#587394;padding:6px 10px;border:1px solid #d7e1f0;border-radius:20px}
+.proto-note{font-size:11px;color:#73849c}
+.app{max-width:1472px;height:min(86vh,910px);min-height:730px;margin:0 auto 18px;background:#fff;display:grid;grid-template-columns:232px minmax(0,1fr);overflow:hidden;border:1px solid #dce5f3;border-radius:16px;box-shadow:var(--shadow)}
+.sidebar{background:var(--sidebar);border-right:1px solid var(--line);min-width:0;display:flex;flex-direction:column}
+.brand{padding:24px 18px 21px;border-bottom:1px solid var(--line);display:flex;gap:11px;align-items:center}
+.brand-mark{height:38px;width:38px;background:linear-gradient(135deg,#397bf2,#3051da);color:white;border-radius:12px;display:grid;place-items:center;box-shadow:0 6px 18px #3159e92c}
+.brand-name{font-size:14px;font-weight:800;letter-spacing:-.35px;color:#1c3158}.brand-caption{font-size:10px;color:var(--muted);margin-top:2px}
+.tenant-picker{margin:17px 14px 10px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:680}
+.nav{padding:0 10px;display:grid;gap:3px}
+.nav-section{padding:17px 12px 6px;color:#8a98ad;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px}
+.nav-item{display:flex;gap:12px;align-items:center;width:100%;text-align:left;border-radius:9px;padding:11px 12px;color:#56647e;font-weight:610;transition:background .16s,color .16s}
+.nav-item:hover{background:#edf2ff}.nav-item.active{background:var(--blue-light);color:var(--blue);font-weight:780}
+.nav-item .icon{width:18px;height:18px}
+.nav-foot{margin-top:auto;padding:17px 14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.avatar{height:34px;width:34px;display:grid;place-items:center;background:#e1eaff;border:1px solid #d3e0ff;border-radius:50%;font-weight:800;color:#2c56c8}
+.name{font-weight:700;color:#283754}.small{font-size:11px;color:var(--muted)}.tiny{font-size:10px;color:var(--muted)}
+.workspace{min-width:0;min-height:0;display:flex;flex-direction:column}
+.topbar{height:65px;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;padding:0 25px;border-bottom:1px solid var(--line);gap:10px}
+.top-title{font-weight:760;font-size:15px;letter-spacing:-.2px}.top-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.top-actions{display:flex;align-items:center;gap:9px}
+.icon-btn{width:34px;height:34px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;background:white;color:#64728a}
+.icon-btn:hover,.ghost:hover{background:var(--blue-light);color:var(--blue)}
+.pill{border:1px solid var(--line);border-radius:30px;padding:6px 10px;background:#fff;color:#64728a;font-size:11px;display:inline-flex;align-items:center;gap:7px}
+.pill.blue{background:var(--blue-light);border-color:var(--blue-line);color:var(--blue);font-weight:700}
+.btn{background:var(--blue);color:white;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 14px;border-radius:9px;font-weight:720;white-space:nowrap;min-height:36px}
+.btn:hover{background:var(--blue-hover)}
+.btn.secondary{background:white;color:var(--text);border:1px solid #dbe3f0}
+.btn.secondary:hover{background:var(--subtle)}
+.btn.subtle{background:var(--blue-light);color:var(--blue)}
+.btn.danger{background:var(--red);color:white}
+.btn.sm{min-height:31px;padding:7px 10px;font-size:11px}
+.btn .icon{width:16px;height:16px}
+.ghost{color:#62718b;border-radius:8px;padding:7px;display:inline-flex;align-items:center;gap:7px}
+.screen{display:none;min-width:0;min-height:0;flex:1}
+.screen.active{display:flex}
+.screen-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:21px}
+.eyebrow{font-size:10px;letter-spacing:1.1px;color:var(--blue);font-weight:800;text-transform:uppercase;margin-bottom:5px}
+.head-desc{color:var(--muted);font-size:12px;margin-top:5px}
+.card{background:white;border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 2px 7px #263d6407}
+.card-pad{padding:18px}
+.label{font-size:11px;font-weight:750;color:#4d5d77;display:block;margin-bottom:6px}
+.input,.select,.textarea{background:white;width:100%;border:1px solid #dce4f0;border-radius:9px;color:#2b3b55;padding:10px 12px;outline:none}
+.select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' fill='none' stroke='%2374859d' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:31px}
+.input:focus,.select:focus,.textarea:focus{border-color:#9aacfb;box-shadow:0 0 0 3px #dce4ff70}
+.input::placeholder,.textarea::placeholder{color:#9ba8b9}
+.horizontal{display:flex;align-items:center;gap:9px}.between{justify-content:space-between}.stack{display:grid;gap:12px}
+.sep{height:1px;background:var(--line);margin:15px 0}
+.badge{font-size:10px;font-weight:730;padding:4px 8px;border-radius:30px;background:#eff2f8;color:#687b94;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.badge.blue{background:var(--blue-light);color:var(--blue)}
+.badge.green{background:var(--green-bg);color:var(--green)}
+.badge.amber{background:var(--amber-bg);color:var(--amber)}
+.badge.red{background:var(--red-bg);color:var(--red)}
+.demo-banner{background:#f7f9ff;border:1px solid #dce6ff;border-radius:9px;padding:9px 13px;font-size:11px;color:#6a7c99;display:flex;gap:8px;align-items:center}
+.demo-banner strong{color:#3759b1}
+.ai-layout{display:grid;grid-template-columns:minmax(0,1fr) 308px;flex:1;min-height:0;width:100%}
+.ai-main{min-width:0;display:flex;flex-direction:column;background:#fff}
+.ai-content{padding:22px clamp(20px,4vw,54px) 10px;overflow-y:auto;flex:1;min-height:0}
+.ai-conversation{max-width:750px;margin:auto;display:grid;gap:19px}
+.conversation-title{font-weight:760;font-size:23px;letter-spacing:-.8px;color:#1a2c50}
+.intro{font-size:12px;color:var(--muted);margin-top:5px}
+.scope-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.user-message{background:#f1f5fc;border:1px solid #e5edf9;border-radius:12px 12px 3px 12px;padding:13px 15px;font-size:13px;font-weight:640;max-width:90%;margin-left:auto}
+.answer{background:white;border:1px solid var(--line);border-radius:13px;padding:19px;box-shadow:0 5px 24px #2a466609}
+.answer-heading{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.ai-glyph{width:31px;height:31px;color:white;background:linear-gradient(140deg,#6799ff,#3e61e7);display:grid;place-items:center;border-radius:10px}
+.answer-copy{color:#35445d;font-size:13px;line-height:1.83}
+.answer-copy p+p{margin-top:10px}
+.steps{display:grid;gap:8px;margin:13px 0}
+.step{display:grid;grid-template-columns:26px 1fr;gap:10px;padding:9px 10px;background:#f7f9fd;border-radius:9px;border:1px solid #edf1f6}
+.step-number{height:25px;width:25px;background:#e3eaff;color:#3159d9;border-radius:7px;display:grid;place-items:center;font-size:12px;font-weight:850}
+.step b{display:block;color:#2d3f5d;font-size:12px}
+.step span{color:#6d7990;font-size:11px}
+.citation-ref{background:#e9efff;color:#3159d9;font-size:11px;border:1px solid #d5e0ff;border-radius:5px;padding:1px 6px;font-weight:800}
+.source-link{font-size:11px;color:var(--blue);font-weight:700}
+.answer-actions{border-top:1px solid var(--line);padding-top:12px;margin-top:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.composer{border:1px solid #d6e0ef;margin:12px clamp(20px,4vw,54px) 19px;background:white;border-radius:13px;box-shadow:0 5px 24px #203b6712;padding:12px}
+.composer textarea{width:100%;min-height:47px;max-height:120px;resize:vertical;border:0;outline:none;color:var(--text);font-size:13px}
+.composer textarea:focus-visible{outline:none}
+.composer-foot{display:flex;justify-content:space-between;align-items:center;gap:9px;flex-wrap:wrap}
+.ai-right{background:#fafcff;border-left:1px solid var(--line);min-width:0;display:flex;flex-direction:column;overflow-y:auto}
+.side-title{padding:20px 18px;border-bottom:1px solid var(--line);font-weight:800;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.side-section{padding:18px 14px 0}
+.side-label{font-size:10px;font-weight:800;color:#8895a9;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
+.source{display:flex;gap:10px;text-align:left;padding:12px;width:100%;border-radius:10px;border:1px solid var(--line);background:#fff;margin-bottom:9px}
+.source:hover,.source.selected{border-color:#9aacfb;background:#f6f8ff}
+.source-index{width:25px;height:25px;background:#e9efff;border-radius:7px;color:#365add;display:grid;place-items:center;font-weight:800;flex-shrink:0}
+.source-title{font-size:12px;font-weight:700;color:#263956}
+.source-meta{font-size:10px;color:#8492a9;margin-top:4px}
+.context-box{border:1px solid var(--line);border-radius:10px;background:#fff;padding:13px;font-size:11px;color:#74839a;line-height:1.65}
+.context-box strong{color:#51617c}
+.state-block{padding:33px 20px;text-align:center;border:1px dashed #d6e0ef;border-radius:12px;background:#fafcff}
+.state-block .icon{width:28px;height:28px;color:#5d82eb;margin-bottom:8px}
+.state-block h2{font-size:15px}.state-block p{font-size:12px;color:var(--muted);margin-top:7px}
+.skeleton{height:12px;border-radius:5px;background:linear-gradient(90deg,#ebeff7,#f8faff,#ebeff7);background-size:200% 100%;animation:shimmer 2s infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+.page-content{min-height:0;flex:1;overflow-y:auto;padding:26px 29px 32px;background:#fbfcff}
+.page-inner{max-width:1200px;margin:auto}
+.toolbar-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:15px}
+.toolbar-row .search{position:relative;flex:1;min-width:190px}
+.search .icon{position:absolute;top:11px;left:12px;color:#8a98af;width:16px;height:16px}
+.search input{padding-left:36px}
+.toolbar-row .select{max-width:180px;min-width:120px}
+.grid-two{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,1fr);gap:16px;align-items:start}
+.table-card{overflow:hidden}
+.table-head{padding:15px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.data-table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}
+.data-table th{color:#8996a9;background:#fbfcff;text-transform:uppercase;font-size:10px;letter-spacing:.55px;font-weight:770;padding:12px 15px}
+.data-table td{padding:13px 15px;border-top:1px solid #edf1f6;color:#4b5b74}
+.data-table tbody tr{cursor:pointer}
+.data-table tbody tr:hover{background:#f6f9ff}
+.data-table tbody tr.selected{background:#eef3ff}
+.data-table td .title-cell{display:flex;gap:9px;align-items:center;font-size:12px;font-weight:700;color:#293b59}
+.file-icon{height:27px;width:27px;border-radius:7px;background:#e7eeff;color:#4269df;display:grid;place-items:center;flex-shrink:0;font-size:9px;font-weight:800;letter-spacing:-.3px}
+.file-icon.pdf{background:#fff0ee;color:#d25450}.file-icon.wiki{background:#e8f8ee;color:#258262}
+.table-foot{border-top:1px solid var(--line);padding:13px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;color:#8793a7;font-size:11px}
+.detail-head{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:14px}
+.detail-title{font-size:15px;font-weight:800;color:#2a3a58;margin:6px 0 3px}
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.meta-box{background:#f7f9fd;padding:10px;border:1px solid #edf1f7;border-radius:8px}
+.meta-box span{display:block;color:#8b98ad;font-size:10px}
+.meta-box b{display:block;font-size:12px;margin-top:4px}
+.version-list{display:grid;gap:8px}
+.version{border:1px solid var(--line);border-radius:9px;padding:11px;display:flex;align-items:center;justify-content:space-between;gap:9px}
+.activity{display:grid;grid-template-columns:24px 1fr;gap:10px;align-items:start;padding:13px 0;border-bottom:1px solid #eef1f7}
+.activity:last-child{border:0}
+.activity .step-number{height:24px;width:24px}
+.empty-row{padding:34px 18px;text-align:center;color:#8090a6;font-size:12px}
+.review-layout{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(330px,1fr);gap:16px;align-items:start}
+.review-detail{padding:18px}
+.preview-box{height:145px;background:linear-gradient(135deg,#f4f7ff,#fbfdff);border:1px solid #e1e7f5;border-radius:10px;display:grid;place-items:center;text-align:center;color:#8291a9;gap:4px;margin:15px 0}
+.preview-box .icon{width:30px;height:30px;color:#5f7fea}
+.modal-backdrop{position:fixed;inset:0;background:#12213b80;display:grid;place-items:center;z-index:30;padding:20px}
+.modal-backdrop[hidden]{display:none}
+.modal{width:min(480px,100%);max-height:90vh;overflow-y:auto;background:#fff;border:1px solid #dfe6f3;border-radius:16px;box-shadow:0 22px 90px #06142d50;padding:24px}
+.modal h2{font-size:18px}.modal p{color:var(--muted);font-size:12px;margin-top:7px}
+.modal-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;margin-top:20px}
+.form-grid{display:grid;gap:13px;margin-top:20px}
+.modal .textarea{min-height:90px;resize:vertical}
+.toast{position:fixed;right:24px;bottom:24px;background:#1a3157;color:white;box-shadow:0 12px 40px #0e224044;border-radius:10px;padding:12px 16px;font-size:12px;z-index:100;max-width:380px}
+.toast[hidden]{display:none}
+.warn{background:#fff8e9;border:1px solid #f3e6c8;border-radius:9px;padding:11px 13px;color:#996d24;font-size:11px}
+.notice{background:#f5f8ff;border:1px solid #dce6ff;border-radius:9px;padding:11px 13px;color:#627a9e;font-size:11px}
+.mobile-only{display:none}
+@media(max-width:1100px){
+ .app{margin:0 12px 14px;min-height:710px}.sidebar{width:190px}.app{grid-template-columns:190px minmax(0,1fr)}
+ .ai-layout{grid-template-columns:minmax(0,1fr) 245px}.ai-content{padding:20px 23px}.composer{margin:10px 23px 16px}
+ .page-content{padding:20px}.grid-two,.review-layout{grid-template-columns:1fr}
+}
+@media(max-width:750px){
+ .prototype-bar{margin:9px auto}.app{height:auto;min-height:85vh;display:block;position:relative;overflow:visible;margin:0 8px 12px}
+ .sidebar{position:absolute;z-index:22;top:0;bottom:0;left:0;width:240px;transform:translateX(-102%);transition:transform .17s;box-shadow:8px 0 20px #21365620}
+ .sidebar.open{transform:translateX(0)}
+ .mobile-only{display:inline-flex}
+ .topbar{padding:0 13px;height:62px}.top-actions .pill{display:none}
+ .screen.active{min-height:720px}
+ .ai-layout{display:flex;flex-direction:column}
+ .ai-main{min-height:600px}.ai-content{padding:19px 14px;max-height:none}
+ .ai-right{border-left:0;border-top:1px solid var(--line);max-height:none}
+ .side-section{padding:12px 15px}.side-title{padding:13px 15px}
+ .source{margin-bottom:7px}.composer{margin:10px 14px 16px}
+ .page-content{padding:19px 13px}.screen-head{flex-wrap:wrap}
+ .toolbar-row .select{max-width:100%;flex:1}.grid-two,.review-layout{display:grid;grid-template-columns:1fr}
+ .data-table{min-width:520px}.table-card{overflow-x:auto}.table-head,.table-foot{position:sticky;left:0}
+ .conversation-title{font-size:21px}
+}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+</style>
+</head>
+<body>
+<!-- All names, document contents, dates, confidence and counts here are FAKE DEMO data. Not a runtime UI. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true">
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Z"/><path d="m19 17 .7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17Z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 7c-3-2.5-6-2.5-10-1v14c4-1.5 7-1.5 10 1 3-2.5 6-2.5 10-1V6c-4-1.5-7-1.5-10 1Z"/><path d="M12 7v14"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 22-7-4V6l7-4 7 4v12Z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.7 5.7l2.1 2.1m8.4 8.4 2.1 2.1M18.3 5.7l-2.1 2.1m-8.4 8.4-2.1 2.1"/><circle cx="12" cy="12" r="4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+  <symbol id="i-thumb" viewBox="0 0 24 24"><path d="M7 10v11H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3ZM7 10l5-8c2-1 3 1 3 3l-1 5h6c2 0 3 2 2 4l-2 6a2 2 0 0 1-2 1H7"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="12" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4h16v-4"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v12H3Z"/></symbol>
+</svg>
+
+<div class="prototype-bar">
+  <div class="proto-title"><svg class="icon lg" style="color:var(--blue)"><use href="#i-sparkle"/></svg>Enterprise AI Copilot <span class="proto-label">UI/UX v2 · B1 ENTERPRISE BLUE</span></div>
+  <div class="proto-note">HTML độc lập · 03 màn hình đại diện · Mọi dữ liệu đều là demo</div>
+</div>
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="Điều hướng prototype">
+    <div class="brand"><div class="brand-mark"><svg class="icon lg"><use href="#i-sparkle"/></svg></div><div><div class="brand-name">Enterprise Copilot</div><div class="brand-caption">Không gian tri thức doanh nghiệp</div></div></div>
+    <div class="tenant-picker"><span class="horizontal"><svg class="icon sm" style="color:var(--blue)"><use href="#i-shield"/></svg> DEMO TENANT</span><svg class="icon sm"><use href="#i-chevron"/></svg></div>
+    <nav class="nav">
+      <div class="nav-section">Workspace</div>
+      <button type="button" class="nav-item active" data-route="ai"><svg class="icon"><use href="#i-sparkle"/></svg> AI Workspace</button>
+      <button type="button" class="nav-item" data-route="documents"><svg class="icon"><use href="#i-file"/></svg> Tài liệu</button>
+      <button type="button" class="nav-item" data-route="review"><svg class="icon"><use href="#i-shield"/></svg> Duyệt tài liệu</button>
+      <div class="nav-section">Sẽ thiết kế sau</div>
+      <button type="button" class="nav-item" data-soon="Wiki"><svg class="icon"><use href="#i-book"/></svg> Wiki</button>
+      <button type="button" class="nav-item" data-soon="Quality & Review"><svg class="icon"><use href="#i-activity"/></svg> Quality & Review</button>
+      <button type="button" class="nav-item" data-soon="Quản trị"><svg class="icon"><use href="#i-settings"/></svg> Quản trị</button>
+    </nav>
+    <div class="nav-foot"><div class="avatar">DU</div><div><div class="name">Demo User</div><div class="small">Dữ liệu minh họa · Reviewer</div></div></div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="horizontal">
+        <button type="button" id="mobileNav" class="icon-btn mobile-only" aria-label="Mở menu"><svg class="icon"><use href="#i-menu"/></svg></button>
+        <div><div class="top-title" id="currentTitle">AI Workspace</div><div class="top-sub" id="currentSubtitle">Tra cứu và nhận câu trả lời có dẫn chứng</div></div>
+      </div>
+      <div class="top-actions">
+        <span class="pill blue">● &nbsp; Design Preview</span>
+        <button type="button" class="icon-btn" data-soon="Thông báo" title="Chưa triển khai"><svg class="icon"><use href="#i-bell"/></svg></button>
+        <div class="avatar" style="height:32px;width:32px">DU</div>
+      </div>
+    </header>
+
+    <!-- UX-01: AI Workspace -->
+    <section class="screen active" id="screen-ai" aria-label="UX-01 — AI Workspace">
+      <div class="ai-layout">
+        <div class="ai-main">
+          <div class="ai-content">
+            <div class="ai-conversation">
+              <div class="demo-banner"><svg class="icon sm"><use href="#i-shield"/></svg><span><strong>CHẾ ĐỘ THIẾT KẾ:</strong> Câu trả lời và citation là dữ liệu giả, không truy cập API hoặc hệ thống nguồn.</span></div>
+              <div>
+                <div class="eyebrow">AI-POWERED KNOWLEDGE WORKSPACE</div>
+                <div class="conversation-title">Bạn đang tìm hiểu vấn đề gì?</div>
+                <div class="intro">Hỏi về tài liệu nội bộ đã được duyệt và lập chỉ mục trong phạm vi bạn được phép xem.</div>
+              </div>
+              <div class="scope-row">
+                <div class="horizontal"><svg class="icon sm" style="color:var(--blue)"><use href="#i-folder"/></svg><span class="small">Phạm vi truy xuất</span></div>
+                <select class="select" id="aiScope" aria-label="Phạm vi truy xuất" style="width:auto;min-width:215px">
+                  <option value="All">Tất cả nguồn được phép</option><option value="Folder">Theo thư mục</option><option value="Document">Theo tài liệu</option>
+                </select>
+              </div>
+              <div class="horizontal" id="aiScopeSpecific" hidden>
+                <span class="small" id="scopeDetailLabel">Chọn phạm vi</span>
+                <select class="select" id="aiScopeValue" aria-label="Chọn đối tượng phạm vi" style="max-width:290px"></select>
+              </div>
+              <div class="horizontal between" style="flex-wrap:wrap">
+                <span class="small">Mẫu kết quả đang xem</span>
+                <select class="select" id="aiState" aria-label="Chọn trạng thái giao diện AI" style="width:auto">
+                  <option value="answer">Có câu trả lời</option><option value="empty">Chưa có câu hỏi</option><option value="loading">Đang xử lý</option><option value="no-source">Không có nguồn phù hợp</option><option value="clarify">Cần thêm thông tin</option><option value="denied">Không có quyền</option><option value="error">Lỗi kết nối</option>
+                </select>
+              </div>
+              <div id="aiResult" aria-live="polite">
+                <div class="user-message" id="aiQuestion">Quy trình duyệt tài liệu nội bộ gồm những bước nào?</div>
+                <div style="height:12px"></div>
+                <article class="answer">
+                  <div class="answer-heading">
+                    <span class="ai-glyph"><svg class="icon lg"><use href="#i-sparkle"/></svg></span>
+                    <strong style="font-size:13px">Enterprise Copilot</strong>
+                    <span class="badge green"><svg class="icon sm"><use href="#i-check"/></svg> Demo · Confidence cao</span>
+                  </div>
+                  <div class="answer-copy">
+                    <p>Dưới đây là ví dụ về các bước xử lý một tài liệu trong hệ thống tri thức nội bộ:</p>
+                    <div class="steps">
+                      <div class="step"><span class="step-number">1</span><div><b>Tải tài liệu lên</b><span>Người dùng chọn thư mục và tạo phiên bản tài liệu.</span></div></div>
+                      <div class="step"><span class="step-number">2</span><div><b>Reviewer kiểm tra</b><span>Xem phiên bản và phê duyệt hoặc từ chối kèm lý do.</span></div></div>
+                      <div class="step"><span class="step-number">3</span><div><b>Xử lý và lập chỉ mục</b><span>Tài liệu được xử lý để phục vụ truy xuất tri thức.</span></div></div>
+                      <div class="step"><span class="step-number">4</span><div><b>Tra cứu có dẫn nguồn</b><span>Copilot trả lời dựa trên phạm vi được phép truy xuất.</span></div></div>
+                    </div>
+                    <p>Đây là nội dung mô phỏng, tham khảo hai nguồn minh họa <button type="button" class="citation-ref" data-citation="1">[1]</button> <button type="button" class="citation-ref" data-citation="2">[2]</button>. Không suy diễn thành quy định chính thức của doanh nghiệp.</p>
+                  </div>
+                  <div class="answer-actions">
+                    <span class="tiny" style="margin-right:auto">Câu trả lời có hữu ích không?</span>
+                    <button class="ghost" type="button" data-feedback="good" aria-label="Hữu ích"><svg class="icon sm"><use href="#i-thumb"/></svg></button>
+                    <button class="ghost" type="button" data-feedback="bad" aria-label="Không hữu ích"><span style="transform:rotate(180deg);display:inline-flex"><svg class="icon sm"><use href="#i-thumb"/></svg></span></button>
+                    <button class="ghost" type="button" data-feedback="copy" aria-label="Sao chép"><svg class="icon sm"><use href="#i-copy"/></svg> Sao chép</button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <textarea id="aiInput" aria-label="Câu hỏi dành cho AI" placeholder="Đặt câu hỏi về tài liệu nội bộ... (Enter để gửi, Shift+Enter xuống dòng)"></textarea>
+            <div class="composer-foot">
+              <span class="tiny">Bản mô phỏng · không gửi dữ liệu lên máy chủ</span>
+              <div class="horizontal">
+                <button type="button" id="aiNew" class="btn secondary sm"><svg class="icon"><use href="#i-plus"/></svg> Câu hỏi mới</button>
+                <button type="button" id="aiSend" class="btn sm"><svg class="icon"><use href="#i-send"/></svg> Gửi</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <aside class="ai-right" aria-label="Panel nguồn và ngữ cảnh">
+          <div class="side-title"><span class="horizontal"><svg class="icon" style="color:var(--blue)"><use href="#i-link"/></svg> Nguồn & Ngữ cảnh</span><span class="badge">Demo</span></div>
+          <div class="side-section">
+            <div class="side-label">Nguồn tham khảo (2)</div>
+            <button type="button" class="source selected" data-source="1">
+              <span class="source-index">1</span><span><span class="source-title">Hướng dẫn quy trình tài liệu</span><span class="source-meta" style="display:block">Document · DEMO · Trích đoạn</span><span class="small" style="display:block;margin-top:5px">“Sau khi được duyệt, phiên bản tài liệu sẽ được xử lý...”</span></span>
+            </button>
+            <button type="button" class="source" data-source="2">
+              <span class="source-index">2</span><span><span class="source-title">Wiki quản lý tri thức</span><span class="source-meta" style="display:block">Wiki · DEMO · Trích đoạn</span><span class="small" style="display:block;margin-top:5px">“Nguồn đã lập chỉ mục có thể được tra cứu theo phạm vi...”</span></span>
+            </button>
+          </div>
+          <div class="side-section"><div class="side-label">Ngữ cảnh liên quan</div>
+            <div class="context-box"><strong>Jira · CRM · ERP</strong><div style="margin-top:7px">Chưa kết nối trong prototype. Chỉ hiển thị ngữ cảnh công việc thật khi backend kiểm tra và cấp quyền hợp lệ.</div><div style="margin-top:10px"><span class="badge amber">Chưa khả dụng</span></div></div>
+          </div>
+          <div class="side-section"><div class="side-label">Quyền truy cập</div><div class="context-box"><svg class="icon sm" style="color:var(--blue);vertical-align:middle"><use href="#i-lock"/></svg> Chỉ tra cứu nguồn được phép. UI không quyết định quyền thay backend.</div></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- UX-02: Documents -->
+    <section class="screen" id="screen-documents" aria-label="UX-02 — Quản lý tài liệu">
+      <div class="page-content"><div class="page-inner">
+        <div class="screen-head">
+          <div><div class="eyebrow">KNOWLEDGE MANAGEMENT</div><h1>Quản lý tài liệu</h1><p class="head-desc">Tải lên, quản lý phiên bản và theo dõi quá trình duyệt, lập chỉ mục.</p></div>
+          <button type="button" class="btn" id="docUpload"><svg class="icon"><use href="#i-upload"/></svg> Tải tài liệu</button>
+        </div>
+        <div class="demo-banner" style="margin-bottom:16px"><svg class="icon sm"><use href="#i-shield"/></svg> Tài liệu, trạng thái, tên và ngày trong màn hình này đều là DEMO; không có upload hoặc download thật.</div>
+        <div class="toolbar-row">
+          <div class="search"><svg class="icon"><use href="#i-search"/></svg><input class="input" id="docSearch" aria-label="Tìm kiếm tài liệu" placeholder="Tìm tài liệu theo tên hoặc mô tả..."></div>
+          <select class="select" id="docStatus" aria-label="Lọc trạng thái"><option value="All">Tất cả trạng thái</option><option value="Approved">Đã duyệt</option><option value="PendingReview">Chờ duyệt</option><option value="Rejected">Từ chối</option></select>
+          <select class="select" id="docFolder" aria-label="Lọc thư mục"><option value="All">Tất cả thư mục</option><option value="Quy trình">Quy trình</option><option value="Hướng dẫn">Hướng dẫn</option><option value="Biểu mẫu">Biểu mẫu</option></select>
+        </div>
+        <div class="grid-two">
+          <div class="card table-card">
+            <div class="table-head"><h3>Danh sách tài liệu</h3><span class="badge blue" id="docCount">6 tài liệu demo</span></div>
+            <table class="data-table"><thead><tr><th>Tên tài liệu</th><th>Thư mục</th><th>Trạng thái</th><th>Cập nhật</th></tr></thead><tbody id="docRows"></tbody></table>
+            <div class="table-foot"><span id="docFooter">Hiển thị 6 tài liệu mẫu</span><span>Mô phỏng bộ lọc & lựa chọn</span></div>
+          </div>
+          <aside class="card card-pad" id="docDetail" aria-label="Chi tiết tài liệu">
+            <div class="detail-head"><div class="horizontal between"><span class="badge blue">CHI TIẾT TÀI LIỆU</span><button type="button" class="ghost" id="docClear" aria-label="Bỏ chọn"><svg class="icon sm"><use href="#i-x"/></svg></button></div><div class="detail-title" id="docTitle">Chọn tài liệu</div><div class="small" id="docDesc">Nhấn vào một dòng để xem chi tiết.</div></div>
+            <div id="docDetailBody"></div>
+          </aside>
+        </div>
+      </div></div>
+    </section>
+
+    <!-- UX-04: Document Review -->
+    <section class="screen" id="screen-review" aria-label="UX-04 — Duyệt tài liệu">
+      <div class="page-content"><div class="page-inner">
+        <div class="screen-head">
+          <div><div class="eyebrow">QUALITY & REVIEW</div><h1>Duyệt tài liệu</h1><p class="head-desc">Kiểm tra phiên bản chờ duyệt, chấp thuận hoặc từ chối kèm lý do.</p></div>
+          <div class="horizontal"><span class="badge amber" id="reviewPendingCount">3 đang chờ</span><button type="button" class="btn secondary" id="reviewReset"><svg class="icon"><use href="#i-clock"/></svg> Khôi phục demo</button></div>
+        </div>
+        <div class="demo-banner" style="margin-bottom:16px"><svg class="icon sm"><use href="#i-shield"/></svg> Thao tác Duyệt / Từ chối chỉ thay đổi dữ liệu mẫu trên trình duyệt. Không gọi API hoặc cập nhật tài liệu thật.</div>
+        <div class="toolbar-row">
+          <div class="search"><svg class="icon"><use href="#i-search"/></svg><input class="input" id="reviewSearch" aria-label="Tìm tài liệu chờ duyệt" placeholder="Tìm theo tên tài liệu hoặc người gửi..."></div>
+          <select class="select" id="reviewStatus" aria-label="Lọc hàng đợi"><option value="PendingReview">Chờ duyệt</option><option value="All">Tất cả trạng thái demo</option><option value="Approved">Đã duyệt</option><option value="Rejected">Đã từ chối</option></select>
+        </div>
+        <div class="review-layout">
+          <div class="card table-card">
+            <div class="table-head"><h3>Hàng đợi duyệt phiên bản</h3><span class="badge" id="reviewCount">3 mục</span></div>
+            <table class="data-table"><thead><tr><th>Tài liệu</th><th>Người gửi</th><th>Trạng thái</th></tr></thead><tbody id="reviewRows"></tbody></table>
+            <div class="table-foot"><span>Chọn tài liệu để kiểm tra</span><span>Demo · không gửi thay đổi</span></div>
+          </div>
+          <aside class="card review-detail" id="reviewDetail" aria-label="Chi tiết duyệt tài liệu">
+            <div class="horizontal between"><span class="badge blue">REVIEWER WORKSPACE</span><span class="tiny" id="reviewVersion"></span></div>
+            <div class="detail-title" id="reviewTitle">Chọn phiên bản</div><div class="small" id="reviewDesc">Thông tin phiên bản cần đánh giá.</div>
+            <div class="preview-box"><div><svg class="icon"><use href="#i-file"/></svg><div style="margin-top:7px;font-weight:700;color:#5f7192">Bản xem trước (mô phỏng)</div><div class="tiny">Không hiển thị nội dung file thật</div></div></div>
+            <div id="reviewDetailBody"></div>
+          </aside>
+        </div>
+      </div></div>
+    </section>
+  </div>
+</div>
+
+<!-- Accessible simulated dialogs -->
+<div class="modal-backdrop" id="modalBackdrop" hidden role="presentation">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" id="modal">
+    <div class="horizontal between"><h2 id="modalTitle">Thông tin</h2><button type="button" class="icon-btn" id="modalClose" aria-label="Đóng"><svg class="icon"><use href="#i-x"/></svg></button></div>
+    <p id="modalHelp">Bản thiết kế không gửi dữ liệu.</p>
+    <div id="modalBody"></div>
+    <div class="modal-actions"><button type="button" class="btn secondary" id="modalCancel">Hủy</button><button type="button" class="btn" id="modalConfirm">Xác nhận</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script>
+/* B1 prototype: local-only interactions, no API/network, no persistent storage. */
+(() => {
+  'use strict'
+  const $ = (id) => document.getElementById(id)
+  const $ = (selector) => [...document.querySelectorAll(selector)]
+  const icon = (name) => '<svg class="icon sm" aria-hidden="true"><use href="#i-' + name + '"/></svg>'
+  const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+  let toastTimer = null
+  let lastFocus = null
+  let modalAction = null
+  function toast(msg) {
+    const node = $('toast'); node.textContent = msg; node.hidden = false
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => { node.hidden = true }, 4000)
+  }
+  const meta = {
+    ai:['AI Workspace','Tra cứu và nhận câu trả lời có dẫn chứng'],
+    documents:['Tài liệu','Quản lý tài liệu và phiên bản'],
+    review:['Duyệt tài liệu','Reviewer · kiểm tra phiên bản chờ duyệt']
+  }
+  function navigate(name) {
+    if (!meta[name]) return
+    $('.screen').forEach((element) => element.classList.toggle('active',element.id === 'screen-' + name))
+    $('[data-route]').forEach((element) => element.classList.toggle('active',element.dataset.route === name))
+    $('currentTitle').textContent = meta[name][0]
+    $('currentSubtitle').textContent = meta[name][1]
+    $('sidebar').classList.remove('open')
+    if (location.hash !== '#' + name) { try { history.replaceState(null, '', '#' + name) } catch (_) { location.hash = name } }
+  }
+  $('[data-route]').forEach((el) => el.addEventListener('click', () => navigate(el.dataset.route)))
+  $('[data-soon]').forEach((el) => el.addEventListener('click', () => toast('“' + el.dataset.soon + '” chưa nằm trong ba màn hình prototype lần này.')))
+  $('mobileNav').addEventListener('click', () => $('sidebar').classList.toggle('open'))
+  window.addEventListener('hashchange', () => navigate(location.hash.slice(1)))
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      if (!$('modalBackdrop').hidden) closeModal()
+      else $('sidebar').classList.remove('open')
+    }
+  })
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('.sidebar,.mobile-only')) return
+    if (window.innerWidth <= 750) $('sidebar').classList.remove('open')
+  })
+
+  // One reusable confirmation/dialog pattern, intentionally local-only.
+  function openModal(title, help, bodyHTML, confirmLabel, action, danger = false) {
+    lastFocus = document.activeElement
+    modalAction = action
+    $('modalTitle').textContent = title
+    $('modalHelp').textContent = help
+    $('modalBody').innerHTML = bodyHTML
+    $('modalConfirm').textContent = confirmLabel
+    $('modalConfirm').classList.toggle('danger',danger)
+    $('modalBackdrop').hidden = false
+    $('modalClose').focus()
+  }
+  function closeModal() {
+    $('modalBackdrop').hidden = true
+    $('modalBody').replaceChildren()
+    modalAction = null
+    if (lastFocus && lastFocus.isConnected) lastFocus.focus()
+  }
+  $('modalClose').addEventListener('click', closeModal)
+  $('modalCancel').addEventListener('click', closeModal)
+  $('modalBackdrop').addEventListener('click', (event) => { if (event.target === $('modalBackdrop')) closeModal() })
+  $('modalConfirm').addEventListener('click', () => {
+    if (typeof modalAction === 'function') {
+      const shouldClose = modalAction()
+      if (shouldClose !== false) closeModal()
+    }
+  })
+
+  // AI Workspace mock states (matches existing single-turn /ai/ask affordances).
+  const aiResult = $('aiResult')
+  const baseAnswer = aiResult.innerHTML
+  let lastQuestion = 'Quy trình duyệt tài liệu nội bộ gồm những bước nào?'
+  const scopeOptions = {
+    Folder: ['Quy trình','Hướng dẫn','Biểu mẫu'],
+    Document: ['Hướng dẫn quy trình tài liệu','Wiki quản lý tri thức']
+  }
+  function updateScope() {
+    const scope = $('aiScope').value
+    const show = scope !== 'All'
+    $('aiScopeSpecific').hidden = !show
+    if (show) {
+      $('scopeDetailLabel').textContent = scope === 'Folder' ? 'Thư mục' : 'Tài liệu'
+      $('aiScopeValue').innerHTML = scopeOptions[scope].map((v) => '<option value="' + escapeHTML(v) + '">' + escapeHTML(v) + '</option>').join('')
+    }
+  }
+  $('aiScope').addEventListener('change', updateScope)
+  updateScope()
+  const emptyIllustration = '<div class="state-block">' + icon('sparkle') + '<h2>Chưa có câu hỏi</h2><p>Hãy nhập câu hỏi để bắt đầu tra cứu trong phạm vi được phép.</p></div>'
+  const states = {
+    empty:emptyIllustration,
+    loading:'<div class="card card-pad stack"><div class="horizontal">' + icon('sparkle') + '<strong>Đang tìm trong kho tri thức (demo)...</strong></div><div class="skeleton" style="width:100%"></div><div class="skeleton" style="width:85%"></div><div class="skeleton" style="width:94%"></div><div class="skeleton" style="width:65%"></div></div>',
+    'no-source':'<div class="state-block">' + icon('search') + '<h2>Chưa có nguồn phù hợp</h2><p>Không tìm thấy nguồn đủ phù hợp trong phạm vi đã chọn. Hãy thử diễn đạt lại hoặc chọn phạm vi khác.</p></div>',
+    clarify:'<div class="notice"><strong>Copilot cần thêm ngữ cảnh.</strong><div style="margin-top:5px">Bạn muốn hỏi quy trình duyệt theo loại tài liệu hoặc phòng ban nào? (demo)</div></div>',
+    denied:'<div class="state-block">' + icon('lock') + '<h2>Không thể truy cập nguồn này</h2><p>Backend có thể từ chối khi người dùng không có quyền. Prototype không thực hiện kiểm tra quyền.</p></div>',
+    error:'<div class="state-block">' + icon('x') + '<h2>Không thể tải câu trả lời</h2><p>Đây là trạng thái lỗi API được mô phỏng. Hãy thử lại khi kết nối khả dụng.</p><button type="button" class="btn secondary sm" id="aiRetry" style="margin-top:12px">Thử lại</button></div>'
+  }
+  function renderAi() {
+    const state = $('aiState').value
+    if (state === 'answer') {
+      aiResult.innerHTML = baseAnswer
+      $('aiQuestion').textContent = lastQuestion
+    } else {
+      aiResult.innerHTML = states[state]
+      if (state === 'error') $('aiRetry').addEventListener('click', () => { $('aiState').value = 'answer'; renderAi(); toast('Đã chuyển về trạng thái câu trả lời mẫu.') })
+    }
+  }
+  $('aiState').addEventListener('change', renderAi)
+  $('aiSend').addEventListener('click', () => {
+    const question = $('aiInput').value.trim()
+    if (!question) { $('aiInput').focus();toast('Hãy nhập một câu hỏi demo.');return }
+    const scope = $('aiScope').value
+    if (scope !== 'All' && !$('aiScopeValue').value) { toast('Vui lòng chọn phạm vi.');return }
+    lastQuestion = question
+    $('aiState').value = 'answer'
+    renderAi()
+    $('aiInput').value = ''
+    toast('Đã cập nhật câu hỏi mẫu. Câu trả lời dưới đây là DEMO, không sinh bởi AI.')
+  })
+  $('aiInput').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault();$('aiSend').click() }
+  })
+  $('aiNew').addEventListener('click', () => { $('aiState').value = 'empty';renderAi();$('aiInput').value='';$('aiInput').focus() })
+  document.addEventListener('click', (event) => {
+    const cite = event.target.closest('[data-citation],[data-source]')
+    if (cite) {
+      const index = cite.dataset.citation || cite.dataset.source
+      $('[data-source]').forEach((node) => node.classList.toggle('selected',node.dataset.source === index))
+      toast('Đã đánh dấu nguồn ' + index + '. Không có deep-link tới tài liệu thật trong contract hiện tại.')
+    }
+    const feedback = event.target.closest('[data-feedback]')
+    if (feedback) {
+      const value = feedback.dataset.feedback
+      if (value === 'copy') {
+        const text = [...aiResult.querySelectorAll('.answer-copy p')].map(n => n.textContent).join('\n')
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(text).then(() => toast('Đã sao chép nội dung DEMO.')).catch(() => toast('Không thể sao chép trong trình duyệt hiện tại.'))
+        } else toast('Trình duyệt này không hỗ trợ Clipboard trong chế độ file://.')
+      } else {
+        toast('Đã chọn phản hồi “' + (value === 'good' ? 'Hữu ích' : 'Không hữu ích') + '” (demo, không ghi vào backend).')
+      }
+    }
+  })
+
+  // Documents: sample data and reusable CRUD/detail layout.
+  const originalDocuments = [
+    {id:'D-01',name:'Quy trình duyệt tài liệu v2.0',type:'PDF',folder:'Quy trình',status:'Approved',date:'15/10/2026',versions:3,desc:'Quy trình kiểm soát tài liệu nội bộ (dữ liệu minh họa).'},
+    {id:'D-02',name:'Hướng dẫn sử dụng kho tri thức',type:'DOCX',folder:'Hướng dẫn',status:'Approved',date:'12/10/2026',versions:2,desc:'Hướng dẫn tra cứu tài liệu và hỏi AI (dữ liệu minh họa).'},
+    {id:'D-03',name:'Biểu mẫu đề xuất thay đổi',type:'DOCX',folder:'Biểu mẫu',status:'PendingReview',date:'11/10/2026',versions:1,desc:'Biểu mẫu đề xuất cập nhật (dữ liệu minh họa).'},
+    {id:'D-04',name:'Quy trình vận hành bộ phận',type:'PDF',folder:'Quy trình',status:'PendingReview',date:'08/10/2026',versions:2,desc:'Tài liệu vận hành cần được reviewer kiểm tra (dữ liệu minh họa).'},
+    {id:'D-05',name:'Hướng dẫn phân quyền tài liệu',type:'PDF',folder:'Hướng dẫn',status:'Rejected',date:'05/10/2026',versions:1,desc:'Phiên bản bị từ chối và cần điều chỉnh (dữ liệu minh họa).'},
+    {id:'D-06',name:'Danh sách biểu mẫu phòng ban',type:'DOCX',folder:'Biểu mẫu',status:'Approved',date:'02/10/2026',versions:2,desc:'Danh sách biểu mẫu theo phòng ban (dữ liệu minh họa).'}
+  ]
+  const statusNames={Approved:'Đã duyệt',PendingReview:'Chờ duyệt',Rejected:'Từ chối'}
+  const badgeClass={Approved:'green',PendingReview:'amber',Rejected:'red'}
+  let selectedDocument = 'D-01'
+  function statusBadge(status) { return '<span class="badge ' + (badgeClass[status]||'') + '">' + (statusNames[status]||status) + '</span>' }
+  function fileBadge(type) { return '<span class="file-icon ' + (type==='PDF'?'pdf':'') + '">' + escapeHTML(type) + '</span>' }
+  function renderDocuments() {
+    const query = $('docSearch').value.toLocaleLowerCase('vi').trim()
+    const status = $('docStatus').value
+    const folder = $('docFolder').value
+    const filtered = originalDocuments.filter(d => (d.name.toLocaleLowerCase('vi').includes(query)||d.desc.toLocaleLowerCase('vi').includes(query)) && (status==='All'||d.status===status) && (folder==='All'||d.folder===folder))
+    $('docCount').textContent = filtered.length+' tài liệu demo'
+    $('docFooter').textContent = 'Hiển thị '+filtered.length+' / '+originalDocuments.length+' tài liệu mẫu'
+    $('docRows').innerHTML = filtered.length ? filtered.map(d =>
+      '<tr data-doc-id="'+d.id+'" tabindex="0" role="button" aria-label="Xem '+escapeHTML(d.name)+'" class="'+(selectedDocument===d.id?'selected':'')+'"><td><span class="title-cell">'+fileBadge(d.type)+'<span>'+escapeHTML(d.name)+'</span></span></td><td>'+escapeHTML(d.folder)+'</td><td>'+statusBadge(d.status)+'</td><td>'+d.date+'</td></tr>'
+    ).join('') : '<tr><td colspan="4" class="empty-row">Không tìm thấy tài liệu phù hợp · Thử bỏ bộ lọc</td></tr>'
+    $('[data-doc-id]').forEach(node => {
+      const select = () => {selectedDocument=node.dataset.docId;renderDocuments();renderDocDetail()}
+      node.addEventListener('click',select)
+      node.addEventListener('keydown', e => {if(e.key==='Enter'||e.key===' '){e.preventDefault();select()}})
+    })
+  }
+  function renderDocDetail() {
+    const doc=originalDocuments.find(d=>d.id===selectedDocument)
+    $('docTitle').textContent = doc ? doc.name : 'Chọn một tài liệu'
+    $('docDesc').textContent = doc ? doc.desc : 'Bấm vào một dòng trong bảng để xem phiên bản và chi tiết.'
+    if (!doc) {
+      $('docDetailBody').innerHTML='<div class="state-block">'+icon('file')+'<h2>Chưa chọn tài liệu</h2><p>Chọn một dòng để xem trạng thái và các phiên bản.</p></div>'
+      return
+    }
+    $('docDetailBody').innerHTML =
+      '<div class="meta-grid"><div class="meta-box"><span>Thư mục</span><b>'+escapeHTML(doc.folder)+'</b></div><div class="meta-box"><span>Trạng thái</span><b>'+statusNames[doc.status]+'</b></div><div class="meta-box"><span>Số phiên bản</span><b>'+doc.versions+'</b></div><div class="meta-box"><span>Ngày cập nhật (demo)</span><b>'+doc.date+'</b></div></div>'+
+      '<div class="horizontal between" style="margin:17px 0 11px"><h3>Lịch sử phiên bản</h3><button type="button" class="btn secondary sm" id="docNewVersion">'+icon('plus')+' Phiên bản mới</button></div>'+
+      '<div class="version-list">'+Array.from({length:doc.versions},(_,i)=>'<div class="version"><div class="horizontal">'+fileBadge(doc.type)+'<div><strong>v'+(doc.versions-i)+'.0</strong><div class="tiny">Phiên bản mô phỏng</div></div></div>'+statusBadge(i===0?doc.status:'Approved')+'</div>').join('')+'</div>'+
+      '<div class="sep"></div><div class="horizontal" style="flex-wrap:wrap"><button type="button" class="btn secondary sm" id="docDownload">'+icon('file')+' Tải file gốc</button><button type="button" class="btn subtle sm" id="docToReview">'+icon('shield')+' Xem hàng đợi duyệt</button></div>'
+    $('docNewVersion').addEventListener('click',()=>openUploadDialog(true))
+    $('docDownload').addEventListener('click',()=>toast('Không có file thật để tải trong HTML prototype.'))
+    $('docToReview').addEventListener('click',()=>navigate('review'))
+  }
+  ['docSearch','docStatus','docFolder'].forEach(id=> $(id).addEventListener(id==='docSearch'?'input':'change',renderDocuments))
+  $('docClear').addEventListener('click',()=>{selectedDocument=null;renderDocuments();renderDocDetail()})
+  $('docUpload').addEventListener('click',()=>openUploadDialog(false))
+  function openUploadDialog(version) {
+    const doc=originalDocuments.find(d=>d.id===selectedDocument)
+    const name = version && doc ? doc.name : ''
+    openModal(version?'Tải lên phiên bản mới':'Tải tài liệu lên',
+      'Mô phỏng biểu mẫu. Dữ liệu không được upload, lưu trữ hoặc gửi tới API.',
+      '<form id="docDemoForm" class="form-grid">'+
+      '<div><label class="label" for="uploadTitle">Tên tài liệu *</label><input id="uploadTitle" class="input" required value="'+escapeHTML(name)+'" placeholder="Nhập tên tài liệu"></div>'+
+      '<div><label class="label" for="uploadFolder">Thư mục *</label><select id="uploadFolder" class="select" required><option value="Quy trình">Quy trình</option><option value="Hướng dẫn">Hướng dẫn</option><option value="Biểu mẫu">Biểu mẫu</option></select></div>'+
+      '<div><label class="label" for="uploadFile">Chọn file (chỉ mô phỏng)</label><input id="uploadFile" type="file" class="input" accept=".pdf,.doc,.docx,.txt"></div>'+
+      '<div class="notice">Thực tế quyền upload, versioning và trạng thái xử lý do backend quyết định.</div></form>',
+      'Xác nhận demo', () => {
+        if (!$('uploadTitle').value.trim()){$('uploadTitle').focus();toast('Vui lòng nhập tên tài liệu.');return false}
+        toast('Đã hoàn tất thao tác mẫu. Không có file hay phiên bản mới được tạo.')
+      })
+  }
+
+  // Review: local-only reviewer decisions with separate confirmation and rejection reason.
+  const originalReviews=[
+    {id:'R-01',doc:'Biểu mẫu đề xuất thay đổi',user:'Người gửi A',version:'v1.0',status:'PendingReview',time:'11/10/2026',desc:'Biểu mẫu đề xuất thay đổi quy trình (mô phỏng).'},
+    {id:'R-02',doc:'Quy trình vận hành bộ phận',user:'Người gửi B',version:'v2.0',status:'PendingReview',time:'08/10/2026',desc:'Nội dung phiên bản vận hành cần được kiểm tra (mô phỏng).'},
+    {id:'R-03',doc:'Quy chế lưu trữ nội bộ',user:'Người gửi C',version:'v1.1',status:'PendingReview',time:'07/10/2026',desc:'Bản đề xuất cập nhật phạm vi lưu trữ (mô phỏng).'},
+    {id:'R-04',doc:'Hướng dẫn phân quyền',user:'Người gửi D',version:'v1.0',status:'Approved',time:'01/10/2026',desc:'Đã phê duyệt (trạng thái dữ liệu mẫu).'}
+  ]
+  let reviews=originalReviews.map(item=>({...item}))
+  let selectedReview='R-01'
+  function renderReviews() {
+    const query=$('reviewSearch').value.toLocaleLowerCase('vi').trim()
+    const filter=$('reviewStatus').value
+    const filtered=reviews.filter(r=>(r.doc.toLocaleLowerCase('vi').includes(query)||r.user.toLocaleLowerCase('vi').includes(query))&&(filter==='All'||r.status===filter))
+    const pending=reviews.filter(r=>r.status==='PendingReview').length
+    $('reviewPendingCount').textContent=pending+' đang chờ'
+    $('reviewCount').textContent=filtered.length+' mục'
+    $('reviewRows').innerHTML=filtered.length?filtered.map(r=>'<tr tabindex="0" role="button" aria-label="Xem '+escapeHTML(r.doc)+'" data-review-id="'+r.id+'" class="'+(r.id===selectedReview?'selected':'')+'"><td><strong style="color:#2f4261">'+escapeHTML(r.doc)+'</strong><div class="tiny">'+escapeHTML(r.version)+' · '+r.time+'</div></td><td>'+escapeHTML(r.user)+'</td><td>'+statusBadge(r.status)+'</td></tr>').join(''):'<tr><td class="empty-row" colspan="3">Hàng đợi đang trống theo bộ lọc đã chọn.</td></tr>'
+    $('[data-review-id]').forEach(el=>{
+      const select=()=>{selectedReview=el.dataset.reviewId;renderReviews();renderReviewDetail()}
+      el.addEventListener('click',select)
+      el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select()}})
+    })
+  }
+  function renderReviewDetail() {
+    const rev=reviews.find(r=>r.id===selectedReview)
+    $('reviewTitle').textContent=rev?rev.doc:'Chọn một phiên bản'
+    $('reviewVersion').textContent=rev?rev.version:''
+    $('reviewDesc').textContent=rev?rev.desc:'Chọn dòng trong danh sách để xem nội dung cần review.'
+    if(!rev){$('reviewDetailBody').innerHTML='<div class="state-block">Chưa chọn tài liệu.</div>';return}
+    $('reviewDetailBody').innerHTML=
+      '<div class="meta-grid"><div class="meta-box"><span>Người gửi</span><b>'+escapeHTML(rev.user)+'</b></div><div class="meta-box"><span>Trạng thái</span><b>'+statusNames[rev.status]+'</b></div><div class="meta-box"><span>Ngày gửi (demo)</span><b>'+rev.time+'</b></div><div class="meta-box"><span>Phiên bản</span><b>'+escapeHTML(rev.version)+'</b></div></div>'+
+      '<div class="warn" style="margin:13px 0">Reviewer cần xác minh nội dung thật trước khi quyết định. Màn hình này không chứa nội dung file thực tế.</div>'+
+      '<div class="horizontal" style="justify-content:flex-end;flex-wrap:wrap">'+
+      (rev.status==='PendingReview'?'<button id="reviewReject" class="btn secondary">'+icon('x')+' Từ chối</button><button id="reviewApprove" class="btn">'+icon('check')+' Phê duyệt</button>':'<span class="badge '+badgeClass[rev.status]+'">Đã xử lý (demo)</span>')+'</div>'
+    if(rev.status==='PendingReview'){
+      $('reviewApprove').addEventListener('click',()=>openModal('Xác nhận duyệt phiên bản','Quyết định chỉ thay đổi trạng thái DEMO, không ghi vào backend.','<div class="notice" style="margin-top:17px">Phê duyệt “'+escapeHTML(rev.doc)+'” · '+escapeHTML(rev.version)+'?</div>','Phê duyệt demo',()=>applyReview(rev.id,'Approved')))
+      $('reviewReject').addEventListener('click',()=>openModal('Từ chối phiên bản','Lý do từ chối là bắt buộc trong luồng xem trước.','<div class="form-grid"><div><label for="rejectReason" class="label">Lý do từ chối *</label><textarea id="rejectReason" class="textarea" placeholder="Nêu lý do cần chỉnh sửa..."></textarea></div><div class="warn">Không có yêu cầu thực tế nào được gửi đi.</div></div>','Từ chối demo',()=>{
+        const reason=$('rejectReason').value.trim()
+        if(!reason){$('rejectReason').focus();toast('Vui lòng nhập lý do từ chối.');return false}
+        applyReview(rev.id,'Rejected')
+      },true))
+    }
+  }
+  function applyReview(id,status) {
+    const row=reviews.find(r=>r.id===id)
+    if(row) row.status=status
+    renderReviews();renderReviewDetail()
+    toast(status==='Approved'?'Đã phê duyệt DEMO. Không gọi API.':'Đã từ chối DEMO. Không gọi API.')
+  }
+  $('reviewSearch').addEventListener('input',renderReviews)
+  $('reviewStatus').addEventListener('change',renderReviews)
+  $('reviewReset').addEventListener('click',()=>{reviews=originalReviews.map(r=>({...r}));selectedReview='R-01';$('reviewSearch').value='';$('reviewStatus').value='PendingReview';renderReviews();renderReviewDetail();toast('Đã khôi phục dữ liệu mẫu.')})
+
+  // Initialize all three screens even when opening deep link.
+  renderDocuments();renderDocDetail()
+  renderReviews();renderReviewDetail()
+  renderAi()
+  navigate(meta[location.hash.slice(1)]?location.hash.slice(1):'ai')
+})()
+
+</script>
+</body></html>

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="description" content="Enterprise AI Copilot — UI/UX v2 B1 Enterprise Blue, 3-screen offline HTML prototype">
+<title>Enterprise AI Copilot · B1 Enterprise Blue · UI/UX v2 Prototype</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<!-- All names, document contents, dates, confidence and counts here are FAKE DEMO data. Not a runtime UI. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true">
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Z"/><path d="m19 17 .7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17Z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 7c-3-2.5-6-2.5-10-1v14c4-1.5 7-1.5 10 1 3-2.5 6-2.5 10-1V6c-4-1.5-7-1.5-10 1Z"/><path d="M12 7v14"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 22-7-4V6l7-4 7 4v12Z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.7 5.7l2.1 2.1m8.4 8.4 2.1 2.1M18.3 5.7l-2.1 2.1m-8.4 8.4-2.1 2.1"/><circle cx="12" cy="12" r="4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+  <symbol id="i-thumb" viewBox="0 0 24 24"><path d="M7 10v11H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3ZM7 10l5-8c2-1 3 1 3 3l-1 5h6c2 0 3 2 2 4l-2 6a2 2 0 0 1-2 1H7"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="12" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4h16v-4"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v12H3Z"/></symbol>
+</svg>
+
+<div class="prototype-bar">
+  <div class="proto-title"><svg class="icon lg" style="color:var(--blue)"><use href="#i-sparkle"/></svg>Enterprise AI Copilot <span class="proto-label">UI/UX v2 · B1 ENTERPRISE BLUE</span></div>
+  <div class="proto-note">HTML độc lập · 03 màn hình đại diện · Mọi dữ liệu đều là demo</div>
+</div>
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="Điều hướng prototype">
+    <div class="brand"><div class="brand-mark"><svg class="icon lg"><use href="#i-sparkle"/></svg></div><div><div class="brand-name">Enterprise Copilot</div><div class="brand-caption">Không gian tri thức doanh nghiệp</div></div></div>
+    <div class="tenant-picker"><span class="horizontal"><svg class="icon sm" style="color:var(--blue)"><use href="#i-shield"/></svg> DEMO TENANT</span><svg class="icon sm"><use href="#i-chevron"/></svg></div>
+    <nav class="nav">
+      <div class="nav-section">Workspace</div>
+      <button type="button" class="nav-item active" data-route="ai"><svg class="icon"><use href="#i-sparkle"/></svg> AI Workspace</button>
+      <button type="button" class="nav-item" data-route="documents"><svg class="icon"><use href="#i-file"/></svg> Tài liệu</button>
+      <button type="button" class="nav-item" data-route="review"><svg class="icon"><use href="#i-shield"/></svg> Duyệt tài liệu</button>
+      <div class="nav-section">Sẽ thiết kế sau</div>
+      <button type="button" class="nav-item" data-soon="Wiki"><svg class="icon"><use href="#i-book"/></svg> Wiki</button>
+      <button type="button" class="nav-item" data-soon="Quality & Review"><svg class="icon"><use href="#i-activity"/></svg> Quality & Review</button>
+      <button type="button" class="nav-item" data-soon="Quản trị"><svg class="icon"><use href="#i-settings"/></svg> Quản trị</button>
+    </nav>
+    <div class="nav-foot"><div class="avatar">DU</div><div><div class="name">Demo User</div><div class="small">Dữ liệu minh họa · Reviewer</div></div></div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="horizontal">
+        <button type="button" id="mobileNav" class="icon-btn mobile-only" aria-label="Mở menu"><svg class="icon"><use href="#i-menu"/></svg></button>
+        <div><div class="top-title" id="currentTitle">AI Workspace</div><div class="top-sub" id="currentSubtitle">Tra cứu và nhận câu trả lời có dẫn chứng</div></div>
+      </div>
+      <div class="top-actions">
+        <span class="pill blue">● &nbsp; Design Preview</span>
+        <button type="button" class="icon-btn" data-soon="Thông báo" title="Chưa triển khai"><svg class="icon"><use href="#i-bell"/></svg></button>
+        <div class="avatar" style="height:32px;width:32px">DU</div>
+      </div>
+    </header>
+
+    <!-- UX-01: AI Workspace -->
+    <section class="screen active" id="screen-ai" aria-label="UX-01 — AI Workspace">
+      <div class="ai-layout">
+        <div class="ai-main">
+          <div class="ai-content">
+            <div class="ai-conversation">
+              <div class="demo-banner"><svg class="icon sm"><use href="#i-shield"/></svg><span><strong>CHẾ ĐỘ THIẾT KẾ:</strong> Câu trả lời và citation là dữ liệu giả, không truy cập API hoặc hệ thống nguồn.</span></div>
+              <div>
+                <div class="eyebrow">AI-POWERED KNOWLEDGE WORKSPACE</div>
+                <div class="conversation-title">Bạn đang tìm hiểu vấn đề gì?</div>
+                <div class="intro">Hỏi về tài liệu nội bộ đã được duyệt và lập chỉ mục trong phạm vi bạn được phép xem.</div>
+              </div>
+              <div class="scope-row">
+                <div class="horizontal"><svg class="icon sm" style="color:var(--blue)"><use href="#i-folder"/></svg><span class="small">Phạm vi truy xuất</span></div>
+                <select class="select" id="aiScope" aria-label="Phạm vi truy xuất" style="width:auto;min-width:215px">
+                  <option value="All">Tất cả nguồn được phép</option><option value="Folder">Theo thư mục</option><option value="Document">Theo tài liệu</option>
+                </select>
+              </div>
+              <div class="horizontal" id="aiScopeSpecific" hidden>
+                <span class="small" id="scopeDetailLabel">Chọn phạm vi</span>
+                <select class="select" id="aiScopeValue" aria-label="Chọn đối tượng phạm vi" style="max-width:290px"></select>
+              </div>
+              <div class="horizontal between" style="flex-wrap:wrap">
+                <span class="small">Mẫu kết quả đang xem</span>
+                <select class="select" id="aiState" aria-label="Chọn trạng thái giao diện AI" style="width:auto">
+                  <option value="answer">Có câu trả lời</option><option value="empty">Chưa có câu hỏi</option><option value="loading">Đang xử lý</option><option value="no-source">Không có nguồn phù hợp</option><option value="clarify">Cần thêm thông tin</option><option value="denied">Không có quyền</option><option value="error">Lỗi kết nối</option>
+                </select>
+              </div>
+              <div id="aiResult" aria-live="polite">
+                <div class="user-message" id="aiQuestion">Quy trình duyệt tài liệu nội bộ gồm những bước nào?</div>
+                <div style="height:12px"></div>
+                <article class="answer">
+                  <div class="answer-heading">
+                    <span class="ai-glyph"><svg class="icon lg"><use href="#i-sparkle"/></svg></span>
+                    <strong style="font-size:13px">Enterprise Copilot</strong>
+                    <span class="badge green"><svg class="icon sm"><use href="#i-check"/></svg> Demo · Confidence cao</span>
+                  </div>
+                  <div class="answer-copy">
+                    <p>Dưới đây là ví dụ về các bước xử lý một tài liệu trong hệ thống tri thức nội bộ:</p>
+                    <div class="steps">
+                      <div class="step"><span class="step-number">1</span><div><b>Tải tài liệu lên</b><span>Người dùng chọn thư mục và tạo phiên bản tài liệu.</span></div></div>
+                      <div class="step"><span class="step-number">2</span><div><b>Reviewer kiểm tra</b><span>Xem phiên bản và phê duyệt hoặc từ chối kèm lý do.</span></div></div>
+                      <div class="step"><span class="step-number">3</span><div><b>Xử lý và lập chỉ mục</b><span>Tài liệu được xử lý để phục vụ truy xuất tri thức.</span></div></div>
+                      <div class="step"><span class="step-number">4</span><div><b>Tra cứu có dẫn nguồn</b><span>Copilot trả lời dựa trên phạm vi được phép truy xuất.</span></div></div>
+                    </div>
+                    <p>Đây là nội dung mô phỏng, tham khảo hai nguồn minh họa <button type="button" class="citation-ref" data-citation="1">[1]</button> <button type="button" class="citation-ref" data-citation="2">[2]</button>. Không suy diễn thành quy định chính thức của doanh nghiệp.</p>
+                  </div>
+                  <div class="answer-actions">
+                    <span class="tiny" style="margin-right:auto">Câu trả lời có hữu ích không?</span>
+                    <button class="ghost" type="button" data-feedback="good" aria-label="Hữu ích"><svg class="icon sm"><use href="#i-thumb"/></svg></button>
+                    <button class="ghost" type="button" data-feedback="bad" aria-label="Không hữu ích"><span style="transform:rotate(180deg);display:inline-flex"><svg class="icon sm"><use href="#i-thumb"/></svg></span></button>
+                    <button class="ghost" type="button" data-feedback="copy" aria-label="Sao chép"><svg class="icon sm"><use href="#i-copy"/></svg> Sao chép</button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <textarea id="aiInput" aria-label="Câu hỏi dành cho AI" placeholder="Đặt câu hỏi về tài liệu nội bộ... (Enter để gửi, Shift+Enter xuống dòng)"></textarea>
+            <div class="composer-foot">
+              <span class="tiny">Bản mô phỏng · không gửi dữ liệu lên máy chủ</span>
+              <div class="horizontal">
+                <button type="button" id="aiNew" class="btn secondary sm"><svg class="icon"><use href="#i-plus"/></svg> Câu hỏi mới</button>
+                <button type="button" id="aiSend" class="btn sm"><svg class="icon"><use href="#i-send"/></svg> Gửi</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <aside class="ai-right" aria-label="Panel nguồn và ngữ cảnh">
+          <div class="side-title"><span class="horizontal"><svg class="icon" style="color:var(--blue)"><use href="#i-link"/></svg> Nguồn & Ngữ cảnh</span><span class="badge">Demo</span></div>
+          <div class="side-section">
+            <div class="side-label">Nguồn tham khảo (2)</div>
+            <button type="button" class="source selected" data-source="1">
+              <span class="source-index">1</span><span><span class="source-title">Hướng dẫn quy trình tài liệu</span><span class="source-meta" style="display:block">Document · DEMO · Trích đoạn</span><span class="small" style="display:block;margin-top:5px">“Sau khi được duyệt, phiên bản tài liệu sẽ được xử lý...”</span></span>
+            </button>
+            <button type="button" class="source" data-source="2">
+              <span class="source-index">2</span><span><span class="source-title">Wiki quản lý tri thức</span><span class="source-meta" style="display:block">Wiki · DEMO · Trích đoạn</span><span class="small" style="display:block;margin-top:5px">“Nguồn đã lập chỉ mục có thể được tra cứu theo phạm vi...”</span></span>
+            </button>
+          </div>
+          <div class="side-section"><div class="side-label">Ngữ cảnh liên quan</div>
+            <div class="context-box"><strong>Jira · CRM · ERP</strong><div style="margin-top:7px">Chưa kết nối trong prototype. Chỉ hiển thị ngữ cảnh công việc thật khi backend kiểm tra và cấp quyền hợp lệ.</div><div style="margin-top:10px"><span class="badge amber">Chưa khả dụng</span></div></div>
+          </div>
+          <div class="side-section"><div class="side-label">Quyền truy cập</div><div class="context-box"><svg class="icon sm" style="color:var(--blue);vertical-align:middle"><use href="#i-lock"/></svg> Chỉ tra cứu nguồn được phép. UI không quyết định quyền thay backend.</div></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- UX-02: Documents -->
+    <section class="screen" id="screen-documents" aria-label="UX-02 — Quản lý tài liệu">
+      <div class="page-content"><div class="page-inner">
+        <div class="screen-head">
+          <div><div class="eyebrow">KNOWLEDGE MANAGEMENT</div><h1>Quản lý tài liệu</h1><p class="head-desc">Tải lên, quản lý phiên bản và theo dõi quá trình duyệt, lập chỉ mục.</p></div>
+          <button type="button" class="btn" id="docUpload"><svg class="icon"><use href="#i-upload"/></svg> Tải tài liệu</button>
+        </div>
+        <div class="demo-banner" style="margin-bottom:16px"><svg class="icon sm"><use href="#i-shield"/></svg> Tài liệu, trạng thái, tên và ngày trong màn hình này đều là DEMO; không có upload hoặc download thật.</div>
+        <div class="toolbar-row">
+          <div class="search"><svg class="icon"><use href="#i-search"/></svg><input class="input" id="docSearch" aria-label="Tìm kiếm tài liệu" placeholder="Tìm tài liệu theo tên hoặc mô tả..."></div>
+          <select class="select" id="docStatus" aria-label="Lọc trạng thái"><option value="All">Tất cả trạng thái</option><option value="Approved">Đã duyệt</option><option value="PendingReview">Chờ duyệt</option><option value="Rejected">Từ chối</option></select>
+          <select class="select" id="docFolder" aria-label="Lọc thư mục"><option value="All">Tất cả thư mục</option><option value="Quy trình">Quy trình</option><option value="Hướng dẫn">Hướng dẫn</option><option value="Biểu mẫu">Biểu mẫu</option></select>
+        </div>
+        <div class="grid-two">
+          <div class="card table-card">
+            <div class="table-head"><h3>Danh sách tài liệu</h3><span class="badge blue" id="docCount">6 tài liệu demo</span></div>
+            <table class="data-table"><thead><tr><th>Tên tài liệu</th><th>Thư mục</th><th>Trạng thái</th><th>Cập nhật</th></tr></thead><tbody id="docRows"></tbody></table>
+            <div class="table-foot"><span id="docFooter">Hiển thị 6 tài liệu mẫu</span><span>Mô phỏng bộ lọc & lựa chọn</span></div>
+          </div>
+          <aside class="card card-pad" id="docDetail" aria-label="Chi tiết tài liệu">
+            <div class="detail-head"><div class="horizontal between"><span class="badge blue">CHI TIẾT TÀI LIỆU</span><button type="button" class="ghost" id="docClear" aria-label="Bỏ chọn"><svg class="icon sm"><use href="#i-x"/></svg></button></div><div class="detail-title" id="docTitle">Chọn tài liệu</div><div class="small" id="docDesc">Nhấn vào một dòng để xem chi tiết.</div></div>
+            <div id="docDetailBody"></div>
+          </aside>
+        </div>
+      </div></div>
+    </section>
+
+    <!-- UX-04: Document Review -->
+    <section class="screen" id="screen-review" aria-label="UX-04 — Duyệt tài liệu">
+      <div class="page-content"><div class="page-inner">
+        <div class="screen-head">
+          <div><div class="eyebrow">QUALITY & REVIEW</div><h1>Duyệt tài liệu</h1><p class="head-desc">Kiểm tra phiên bản chờ duyệt, chấp thuận hoặc từ chối kèm lý do.</p></div>
+          <div class="horizontal"><span class="badge amber" id="reviewPendingCount">3 đang chờ</span><button type="button" class="btn secondary" id="reviewReset"><svg class="icon"><use href="#i-clock"/></svg> Khôi phục demo</button></div>
+        </div>
+        <div class="demo-banner" style="margin-bottom:16px"><svg class="icon sm"><use href="#i-shield"/></svg> Thao tác Duyệt / Từ chối chỉ thay đổi dữ liệu mẫu trên trình duyệt. Không gọi API hoặc cập nhật tài liệu thật.</div>
+        <div class="toolbar-row">
+          <div class="search"><svg class="icon"><use href="#i-search"/></svg><input class="input" id="reviewSearch" aria-label="Tìm tài liệu chờ duyệt" placeholder="Tìm theo tên tài liệu hoặc người gửi..."></div>
+          <select class="select" id="reviewStatus" aria-label="Lọc hàng đợi"><option value="PendingReview">Chờ duyệt</option><option value="All">Tất cả trạng thái demo</option><option value="Approved">Đã duyệt</option><option value="Rejected">Đã từ chối</option></select>
+        </div>
+        <div class="review-layout">
+          <div class="card table-card">
+            <div class="table-head"><h3>Hàng đợi duyệt phiên bản</h3><span class="badge" id="reviewCount">3 mục</span></div>
+            <table class="data-table"><thead><tr><th>Tài liệu</th><th>Người gửi</th><th>Trạng thái</th></tr></thead><tbody id="reviewRows"></tbody></table>
+            <div class="table-foot"><span>Chọn tài liệu để kiểm tra</span><span>Demo · không gửi thay đổi</span></div>
+          </div>
+          <aside class="card review-detail" id="reviewDetail" aria-label="Chi tiết duyệt tài liệu">
+            <div class="horizontal between"><span class="badge blue">REVIEWER WORKSPACE</span><span class="tiny" id="reviewVersion"></span></div>
+            <div class="detail-title" id="reviewTitle">Chọn phiên bản</div><div class="small" id="reviewDesc">Thông tin phiên bản cần đánh giá.</div>
+            <div class="preview-box"><div><svg class="icon"><use href="#i-file"/></svg><div style="margin-top:7px;font-weight:700;color:#5f7192">Bản xem trước (mô phỏng)</div><div class="tiny">Không hiển thị nội dung file thật</div></div></div>
+            <div id="reviewDetailBody"></div>
+          </aside>
+        </div>
+      </div></div>
+    </section>
+  </div>
+</div>
+
+<!-- Accessible simulated dialogs -->
+<div class="modal-backdrop" id="modalBackdrop" hidden role="presentation">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" id="modal">
+    <div class="horizontal between"><h2 id="modalTitle">Thông tin</h2><button type="button" class="icon-btn" id="modalClose" aria-label="Đóng"><svg class="icon"><use href="#i-x"/></svg></button></div>
+    <p id="modalHelp">Bản thiết kế không gửi dữ liệu.</p>
+    <div id="modalBody"></div>
+    <div class="modal-actions"><button type="button" class="btn secondary" id="modalCancel">Hủy</button><button type="button" class="btn" id="modalConfirm">Xác nhận</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="./prototype.js" defer></script>
+</body></html>
