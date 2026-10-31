@@ -27,6 +27,8 @@ export interface NavItem {
   label: string
   to: string
   icon: FunctionalComponent
+  /** Dòng phụ dưới tiêu đề trang trên topbar (B1) */
+  description?: string
   /** Khai báo role theo TỪNG item, khớp đúng meta của router (không nhóm cứng theo role) */
   requiresAdmin?: boolean
   requiresReviewer?: boolean
@@ -43,15 +45,15 @@ export const navGroups: NavGroup[] = [
     label: 'Làm việc',
     items: [
       { label: 'Tổng quan', to: '/', icon: LayoutDashboardIcon },
-      { label: 'Tài liệu', to: '/documents', icon: FileTextIcon },
-      { label: 'Hỏi AI', to: '/ai', icon: SparklesIcon },
+      { label: 'AI Workspace', to: '/ai', icon: SparklesIcon, description: 'Tra cứu và nhận câu trả lời có dẫn chứng' },
+      { label: 'Tài liệu', to: '/documents', icon: FileTextIcon, description: 'Quản lý tài liệu và phiên bản' },
       { label: 'Wiki', to: '/wiki', icon: BookOpenIcon, requiresReviewer: true },
     ],
   },
   {
     label: 'Chất lượng',
     items: [
-      { label: 'Duyệt tài liệu', to: '/review', icon: ClipboardCheckIcon, requiresReviewer: true },
+      { label: 'Duyệt tài liệu', to: '/review', icon: ClipboardCheckIcon, requiresReviewer: true, description: 'Reviewer · kiểm tra phiên bản chờ duyệt' },
       { label: 'Phản hồi', to: '/feedback', icon: MessageSquareIcon, requiresReviewer: true },
       { label: 'Đánh giá', to: '/evaluation', icon: ChartColumnIcon, requiresReviewer: true },
       { label: 'Giải thích truy xuất', to: '/retrieval-explain', icon: SearchIcon, requiresReviewer: true },

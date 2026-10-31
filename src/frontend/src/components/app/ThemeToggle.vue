@@ -21,7 +21,7 @@ const modes: Array<{ value: ThemeMode; label: string }> = [
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button variant="ghost" size="icon" aria-label="Đổi giao diện sáng tối">
+      <Button variant="outline" size="icon" class="text-muted-foreground" aria-label="Đổi giao diện sáng tối">
         <SunIcon class="size-4 dark:hidden" />
         <MoonIcon class="hidden size-4 dark:block" />
       </Button>
