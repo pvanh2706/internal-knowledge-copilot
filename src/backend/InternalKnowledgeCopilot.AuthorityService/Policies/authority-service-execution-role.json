@@ -1,0 +1,42 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AuthorityServiceScopedItemAccess",
+      "Effect": "Allow",
+      "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:ConditionCheckItem"],
+      "Resource": ["arn:aws:dynamodb:${Region}:${AccountId}:table/${TableName}"],
+      "Condition": {
+        "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["deployment#*", "approval#*", "issuance#*", "ledger#*"] }
+      }
+    },
+    {
+      "Sid": "AuthorityServiceReadsPrincipalRegistry",
+      "Effect": "Allow",
+      "Action": ["dynamodb:GetItem"],
+      "Resource": ["arn:aws:dynamodb:${Region}:${AccountId}:table/${TableName}"],
+      "Condition": {
+        "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["registry#principals"] }
+      }
+    },
+    {
+      "Sid": "AuthorityServiceNeverDeletesRewritesRegistryOrManagesTable",
+      "Effect": "Deny",
+      "Action": [
+        "dynamodb:DeleteItem", "dynamodb:UpdateItem", "dynamodb:BatchWriteItem", "dynamodb:Scan", "dynamodb:Query",
+        "dynamodb:PartiQLInsert", "dynamodb:PartiQLUpdate", "dynamodb:PartiQLDelete",
+        "dynamodb:CreateTable", "dynamodb:DeleteTable", "dynamodb:UpdateTable", "dynamodb:RestoreTableToPointInTime"
+      ],
+      "Resource": ["*"]
+    },
+    {
+      "Sid": "AuthorityServiceCannotModifyPrincipalRegistry",
+      "Effect": "Deny",
+      "Action": ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"],
+      "Resource": ["arn:aws:dynamodb:${Region}:${AccountId}:table/${TableName}"],
+      "Condition": {
+        "ForAnyValue:StringLike": { "dynamodb:LeadingKeys": ["registry#*"] }
+      }
+    }
+  ]
+}

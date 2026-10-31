@@ -1,0 +1,34 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OperatorInvokesOperationRoutesOnly",
+      "Effect": "Allow",
+      "Action": ["execute-api:Invoke"],
+      "Resource": [
+        "arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/${Stage}/POST/authority/operations/reserve",
+        "arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/${Stage}/POST/authority/operations/activate",
+        "arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/${Stage}/POST/authority/operations/claim-recovery",
+        "arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/${Stage}/POST/authority/operations/complete-recovery"
+      ]
+    },
+    {
+      "Sid": "OperatorNeverApprovesOrWritesAuthorityDirectly",
+      "Effect": "Deny",
+      "Action": [
+        "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:BatchWriteItem",
+        "dynamodb:ConditionCheckItem", "dynamodb:PartiQLInsert", "dynamodb:PartiQLUpdate", "dynamodb:PartiQLDelete",
+        "dynamodb:CreateTable", "dynamodb:DeleteTable", "dynamodb:UpdateTable", "dynamodb:RestoreTableToPointInTime",
+        "lambda:InvokeFunction", "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration", "lambda:AddPermission",
+        "iam:PassRole", "iam:PutRolePolicy", "iam:AttachRolePolicy", "iam:UpdateAssumeRolePolicy"
+      ],
+      "Resource": ["*"]
+    },
+    {
+      "Sid": "OperatorCannotReachApprovalRoute",
+      "Effect": "Deny",
+      "Action": ["execute-api:Invoke"],
+      "Resource": ["arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/${Stage}/*/authority/approvals"]
+    }
+  ]
+}

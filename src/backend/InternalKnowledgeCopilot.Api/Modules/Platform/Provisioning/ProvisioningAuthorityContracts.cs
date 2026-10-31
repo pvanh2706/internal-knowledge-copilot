@@ -15,7 +15,8 @@ public sealed record ProvisioningAuthoritySettings(
     string? DynamoDbTableName = null,
     string? DynamoDbRegion = null,
     TimeSpan? DynamoDbTimeout = null,
-    string? DynamoDbOperatorProfile = null)
+    string? DynamoDbOperatorProfile = null,
+    Uri? AuthorityServiceEndpoint = null)
 {
     public string ProviderCode => Kind == ProvisioningAuthorityKind.DynamoDb ? "dynamodb" : "local_seal";
 }

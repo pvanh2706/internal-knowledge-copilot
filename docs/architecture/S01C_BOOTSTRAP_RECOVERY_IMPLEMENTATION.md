@@ -8,6 +8,8 @@
 
 > IMPLEMENTED ≠ VERIFIED IN PRODUCTION. **C-G09 (privileged-state rollback) remains OPEN and production-blocking.**
 
+> **S01-C-REM (security remediation R1–R6) supersedes parts of this document.** The operator no longer holds any DynamoDB write path: authority changes go through the server-side Authority Service (API Gateway IAM auth → Approval/Transition handlers). Sections marked *SUPERSEDED* below (DynamoDb operator mutations in §2, the DynamoDb runbook rows in §6 and the IAM assumptions in §7) are kept for history only. See [S01C_SECURITY_REMEDIATION_R1_R6.md](S01C_SECURITY_REMEDIATION_R1_R6.md).
+
 ---
 
 ## 1. Components
@@ -49,7 +51,7 @@ Platform authentication is allowed only when **all** hold: record found and well
 |---|---|---|
 | `None` (default) | all | S01-B behavior: platform auth always denied. |
 | `LocalSeal` | **Development/Testing only** (startup/CLI refuse otherwise) | JSON envelope with HMAC-SHA256 over the payload (key ≥ 32 bytes from config); atomic replace; exclusive `.lock` file for read-modify-write. Must not live inside the SQLite directory. **Rollback limitation:** a full-host restore, or anyone who can read the integrity key, can restore/forge the seal. Never a production fallback. |
-| `DynamoDb` | production target | Item key `pk = "deployment#<deployment_id>"`. Runtime: `GetItem` + `ConsistentRead=true` on the base table, timeout (1–30 s, default 3 s), 1 SDK retry, errors mapped to safe reason codes. Operator: `UpdateItem` with `ConditionExpression = attribute_exists(pk) AND status AND version AND deployment_id AND authority_id [AND reservation_id] [AND recovery_id]`; never `PutItem`. Mutations require an explicit `OperatorProfile` and never fall back to the default credential chain. |
+| `DynamoDb` | production target | *SUPERSEDED (S01-C-REM): operator `UpdateItem` removed; writes only by the Authority Service.* Item key `pk = "deployment#<deployment_id>"`. Runtime: `GetItem` + `ConsistentRead=true` on the base table, timeout (1–30 s, default 3 s), 1 SDK retry, errors mapped to safe reason codes. Operator: `UpdateItem` with `ConditionExpression = attribute_exists(pk) AND status AND version AND deployment_id AND authority_id [AND reservation_id] [AND recovery_id]`; never `PutItem`. Mutations require an explicit `OperatorProfile` and never fall back to the default credential chain. |
 
 Configuration (`ProvisioningAuthority` section): `Provider`, `DeploymentId`, `AuthorityId`, `LocalSeal:{Path,IntegrityKey}`, `DynamoDb:{TableName,Region,TimeoutSeconds,OperatorProfile}`. There are no boolean/bypass options (test-enforced). AWS credentials are never read from appsettings.
 
@@ -99,6 +101,8 @@ InternalKnowledgeCopilot.PlatformCli <status|recovery-check|bootstrap|recover-ad
 
 ## 6. Recovery / reconciliation runbook
 
+*For the DynamoDb provider this runbook is SUPERSEDED by §8 of [S01C_SECURITY_REMEDIATION_R1_R6.md](S01C_SECURITY_REMEDIATION_R1_R6.md) (approver/operator separation through the Authority Service). It remains valid for LocalSeal (Development/Testing only).*
+
 Always start with `recovery-check` (read-only). Act on `Condition`:
 
 | Condition | Meaning | Action |
@@ -118,6 +122,8 @@ Always start with `recovery-check` (read-only). Act on `Condition`:
 After every bootstrap or recovery the account receives a restricted password-change session at first login (S01-B).
 
 ## 7. DynamoDB / IAM design assumptions (for C-EX2 — NOT executed)
+
+*SUPERSEDED (S01-C-REM, finding C-IR-01): the "Operator role: GetItem + UpdateItem" assumption below is unsafe — `UpdateItem` without a condition upserts and IAM cannot constrain values or state transitions. Replacement templates: `src/backend/InternalKnowledgeCopilot.AuthorityService/Policies/*.json`; operator and approver roles hold no DynamoDB write permission.*
 
 * Table: on-demand or provisioned, partition key `pk` (S), no sort key, point-in-time recovery and deletion protection enabled, SSE with a KMS key; single authoritative region (strongly consistent reads are only defined against the table's own region; Global Tables require a separate decision).
 * **Runtime role** (instance/app-pool identity): `dynamodb:GetItem` only, on the table ARN, with `dynamodb:LeadingKeys = ["deployment#<id>"]`.

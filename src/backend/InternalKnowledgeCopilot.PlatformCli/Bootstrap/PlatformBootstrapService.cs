@@ -34,10 +34,11 @@ public sealed record BootstrapInput(string EmailNormalized, string DisplayName, 
 public sealed record BootstrapPreflight(OperationResult Result, PlatformDatabaseInspection? Inspection, ProvisioningAuthorityRecord? Authorized);
 
 // Bootstrap lần đầu (C4). SQLite và authority không thể chung một transaction nên thứ tự là:
-// 1) xác minh Authorized, 2) reserve có điều kiện, 3-4) transaction SQLite (admin + state Completed + audit),
-// 5) activate có điều kiện, 6) xác minh lại bằng đúng quy tắc runtime. Gián đoạn ở bất kỳ bước nào sau (2) để lại trạng thái
-// mà runtime từ chối (Reserved ≠ Activated) cho tới khi reconciliation được ủy quyền; không bao giờ báo thành công một phần.
-public sealed class PlatformBootstrapService(PlatformCliContext context, IProvisioningAuthorityMutator mutator)
+// 1) xác minh Authorized, 2) reserve (Authority Service nhận approval single-use), xác nhận bằng consistent read,
+// 3-4) transaction SQLite (admin + state Completed + audit có danh tính operator), 5) activate, 6) xác minh lại bằng đúng quy tắc
+// runtime. Gián đoạn ở bất kỳ bước nào sau (2) để lại trạng thái mà runtime từ chối (Reserved ≠ Activated) cho tới khi
+// reconciliation được ủy quyền độc lập; không bao giờ báo thành công một phần.
+public sealed class PlatformBootstrapService(PlatformCliContext context, IAuthorityTransitionClient authority)
 {
     // Chỉ đọc; chạy trước khi hỏi operator và chạy lại ngay trước khi reserve.
     public async Task<BootstrapPreflight> PreflightAsync(CancellationToken cancellationToken = default)
@@ -80,66 +81,55 @@ public sealed class PlatformBootstrapService(PlatformCliContext context, IProvis
         }
 
         var settings = context.Authority!;
-        var now = AuthorityTimestamp.Now();
         var adminId = Guid.NewGuid();
-        var reserved = authorized with
-        {
-            Status = ProvisioningAuthorityStatus.Reserved,
-            Version = authorized.Version + 1,
-            ReservationId = Guid.NewGuid(),
-            ReservedAdminId = adminId,
-            ReservedAt = now,
-        };
 
-        // Bước 2: reserve. Thua race (process khác đã reserve) thì không có gì thay đổi.
-        try
+        // Bước 2: reserve. Kết quả không rõ được thử lại với cùng request_id; trạng thái thật luôn lấy từ consistent read.
+        var reserve = await AuthorityCalls.WithRetryAsync(
+            id => authority.ReserveAsync(authorized, adminId, id, cancellationToken),
+            AuthorityCalls.NewRequestId("reserve"));
+        var after = await context.GetReader().ReadAsync(CancellationToken.None);
+        var ours = after.Record is { Status: ProvisioningAuthorityStatus.Reserved } reservedRecord
+            && reservedRecord.ReservedAdminId == adminId
+            && reservedRecord.Version == authorized.Version + 1
+            && reservedRecord.Matches(settings.Identity);
+        switch (reserve.Outcome)
         {
-            if (await mutator.TransitionAsync(authorized, reserved, cancellationToken) == AuthorityTransitionOutcome.ConditionFailed)
-            {
-                return OperationResult.Denied("authority_reservation_conflict");
-            }
-        }
-        catch (ProvisioningAuthorityUnavailableException ex)
-        {
-            // Không biết lần ghi có được áp dụng không: đọc lại để quyết định, không đoán.
-            var after = await context.GetReader().ReadAsync(CancellationToken.None);
-            if (after.Record != reserved)
-            {
+            case AuthorityStepOutcome.Rejected:
+                return ours ? OperationResult.Reconcile("authority_reservation_state_unknown") : OperationResult.Denied(reserve.Reason);
+            case AuthorityStepOutcome.Unknown when !ours:
                 return after.Record == authorized
-                    ? OperationResult.Unavailable(ex.Reason)
+                    ? OperationResult.Unavailable(reserve.Reason)
                     : OperationResult.Reconcile("authority_reservation_state_unknown");
-            }
+            case AuthorityStepOutcome.Applied when !ours:
+                return OperationResult.Reconcile("authority_reservation_not_confirmed");
         }
+
+        // CF-01: không có danh tính operator đã xác minh thì không ghi SQLite (audit bắt buộc phải có người thực hiện).
+        if (reserve.Operator is not { } operatorIdentity)
+        {
+            return OperationResult.Reconcile("operator_identity_unconfirmed");
+        }
+
+        var reserved = after.Record!;
 
         // Từ đây không dừng giữa chừng theo yêu cầu hủy: mọi bước sau phải chạy tới một trạng thái xác định.
-        var sqlite = await CommitSqliteAsync(input, settings, reserved, now, requestId);
+        var completedAt = AuthorityTimestamp.Now();
+        var sqlite = await CommitSqliteAsync(input, settings, reserved, completedAt, operatorIdentity, requestId);
         if (sqlite is not null)
         {
             return sqlite;
         }
 
-        // Bước 5: activate.
-        var activated = reserved with
+        if (context.HostOptions.AfterSqliteCommit is { } afterCommit)
         {
-            Status = ProvisioningAuthorityStatus.Activated,
-            Version = reserved.Version + 1,
-            BootstrapAdminId = adminId,
-            BootstrapCompletedAt = now,
-            ActivatedAt = AuthorityTimestamp.Now(),
-            StateVersion = 1,
-        };
-        string? activationFailure = null;
-        try
-        {
-            if (await mutator.TransitionAsync(reserved, activated, CancellationToken.None) == AuthorityTransitionOutcome.ConditionFailed)
-            {
-                activationFailure = "authority_activation_conflict";
-            }
+            await afterCommit();
         }
-        catch (ProvisioningAuthorityUnavailableException ex)
-        {
-            activationFailure = ex.Reason;
-        }
+
+        // Bước 5: activate. Authority Service tự đặt bootstrap_admin_id = reserved_admin_id và state_version = 1.
+        var activate = await AuthorityCalls.WithRetryAsync(
+            id => authority.ActivateAsync(reserved, completedAt, id, CancellationToken.None),
+            AuthorityCalls.NewRequestId("activate"));
+        var activationFailure = activate.Outcome == AuthorityStepOutcome.Applied ? null : activate.Reason;
 
         // Bước 6: chỉ báo thành công khi bằng chứng hoàn tất khớp đúng như runtime sẽ kiểm tra.
         var verification = await VerifyAsync(settings);
@@ -158,11 +148,12 @@ public sealed class PlatformBootstrapService(PlatformCliContext context, IProvis
     // Bước 3-4: một transaction SQLite (BEGIN IMMEDIATE) tạo đúng một admin, state Completed và audit thành công bắt buộc.
     // Điều kiện bootstrap được kiểm tra lại bên trong transaction nên các CLI chạy đồng thời không thể tạo hai admin
     // kể cả khi authority bị dùng sai; singleton PK của state là chốt chặn cuối.
-    private async Task<OperationResult?> CommitSqliteAsync(
+    internal async Task<OperationResult?> CommitSqliteAsync(
         BootstrapInput input,
         ProvisioningAuthoritySettings settings,
         ProvisioningAuthorityRecord reserved,
         DateTimeOffset now,
+        OperatorIdentity operatorIdentity,
         string requestId)
     {
         try
@@ -209,8 +200,15 @@ public sealed class PlatformBootstrapService(PlatformCliContext context, IProvis
                     [PlatformAuditMetadataKeys.DeploymentId] = settings.Identity.DeploymentId.ToString("D"),
                     [PlatformAuditMetadataKeys.StateVersion] = 1.ToString(CultureInfo.InvariantCulture),
                     [PlatformAuditMetadataKeys.AuthorityProvider] = settings.ProviderCode,
-                },
+                    [PlatformAuditMetadataKeys.OperatorPersonId] = operatorIdentity.PersonId,
+                    [PlatformAuditMetadataKeys.IdentityAssurance] = operatorIdentity.Assurance,
+                }.WithApprover(operatorIdentity),
                 TargetPlatformAdminId: adminId));
+            if (context.HostOptions.BeforeSqliteCommit is { } beforeCommit)
+            {
+                await beforeCommit(db);
+            }
+
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
             return null;
@@ -220,5 +218,18 @@ public sealed class PlatformBootstrapService(PlatformCliContext context, IProvis
             // Transaction đã rollback (hoặc không rõ commit): authority vẫn Reserved nên runtime tiếp tục từ chối.
             return OperationResult.Reconcile("sqlite_transaction_failed");
         }
+    }
+}
+
+internal static class OperatorAuditMetadata
+{
+    public static Dictionary<string, string> WithApprover(this Dictionary<string, string> metadata, OperatorIdentity identity)
+    {
+        if (identity.ApproverPersonId is { } approver)
+        {
+            metadata[PlatformAuditMetadataKeys.ApproverPersonId] = approver;
+        }
+
+        return metadata;
     }
 }

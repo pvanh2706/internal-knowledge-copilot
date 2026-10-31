@@ -7,7 +7,7 @@ using InternalKnowledgeCopilot.Api.Modules.Platform.Provisioning;
 
 namespace InternalKnowledgeCopilot.Tests.Platform.S01C;
 
-public sealed record FakeDynamoDbCall(string Principal, string Operation, string? TableName, bool? ConsistentRead, string? Condition);
+public sealed record FakeDynamoDbCall(string Principal, string Operation, string? TableName, bool? ConsistentRead, string? Condition, string? Key = null);
 
 public enum FakeDynamoDbFault
 {
@@ -20,13 +20,15 @@ public enum FakeDynamoDbFault
     TableNotFound,
 }
 
-// Bảng DynamoDB giả trong bộ nhớ (một item). Chỉ dùng để kiểm thử logic; KHÔNG phải bằng chứng tích hợp AWS (C-EX2).
-// Đánh giá đúng ngữ pháp ConditionExpression/UpdateExpression mà mutator sinh ra; mọi API khác của IAmazonDynamoDB bị từ chối
-// và ghi nhận (để chứng minh runtime chỉ gọi GetItem).
+// Bảng DynamoDB giả trong bộ nhớ, nhiều item theo "pk". Chỉ dùng để kiểm thử logic; KHÔNG phải bằng chứng tích hợp AWS
+// (C-EX2) và KHÔNG chứng minh IAM (quyền ghi chỉ là cờ allowWrites của client giả).
+// C-IR-05: mô phỏng đúng các ngữ nghĩa quan trọng cho bảo mật: UpdateItem/PutItem KHÔNG điều kiện sẽ tạo mới (upsert) item;
+// TransactWriteItems áp dụng nguyên tử, hủy toàn bộ khi một điều kiện sai (CancellationReasons như DynamoDB).
+// Hỗ trợ ngữ pháp điều kiện: attribute_exists(#x), attribute_not_exists(#x), #x = :v nối bằng AND.
 public sealed class FakeDynamoDbTable(string tableName)
 {
     private readonly object gate = new();
-    private Dictionary<string, AttributeValue>? item;
+    private readonly Dictionary<string, Dictionary<string, AttributeValue>> items = new(StringComparer.Ordinal);
 
     public string TableName { get; } = tableName;
 
@@ -37,15 +39,11 @@ public sealed class FakeDynamoDbTable(string tableName)
 
     public IAmazonDynamoDB CreateClient(string principal, bool allowWrites) => new FakeDynamoDbClient(this, principal, allowWrites);
 
-    // Ghi trực tiếp, mô phỏng provisioning authority độc lập (ngoài CLI).
+    // Ghi trực tiếp ngoài mọi kiểm soát (mô phỏng giả mạo bởi ai có quyền ghi bảng, hoặc dữ liệu seed của test).
     public void PutRecord(ProvisioningAuthorityRecord record)
     {
         var attributes = DynamoDbAuthorityItem.ToAttributes(record);
-        foreach (var (key, value) in DynamoDbAuthorityItem.Key(record.DeploymentId))
-        {
-            attributes[key] = value;
-        }
-
+        attributes[DynamoDbAuthorityItem.PartitionKey] = new AttributeValue { S = DynamoDbAuthorityItem.PartitionKeyValue(record.DeploymentId) };
         PutRaw(attributes);
     }
 
@@ -53,76 +51,70 @@ public sealed class FakeDynamoDbTable(string tableName)
     {
         lock (gate)
         {
-            item = Clone(attributes);
+            items[attributes[DynamoDbAuthorityItem.PartitionKey].S] = Clone(attributes);
         }
     }
 
-    public Dictionary<string, AttributeValue>? Raw()
+    // Xóa ngoài mọi kiểm soát (mô phỏng mất/restore một phần bảng).
+    public void Remove(string key)
     {
         lock (gate)
         {
-            return item is null ? null : Clone(item);
+            items.Remove(key);
         }
     }
 
-    public ProvisioningAuthorityRecord? Record(Guid deploymentId) => DynamoDbAuthorityItem.Parse(Raw(), deploymentId).Record;
+    public Dictionary<string, AttributeValue>? RawItem(string key)
+    {
+        lock (gate)
+        {
+            return items.TryGetValue(key, out var item) ? Clone(item) : null;
+        }
+    }
+
+    public IReadOnlyList<string> Keys()
+    {
+        lock (gate)
+        {
+            return items.Keys.OrderBy(key => key, StringComparer.Ordinal).ToList();
+        }
+    }
+
+    public ProvisioningAuthorityRecord? Record(Guid deploymentId) =>
+        DynamoDbAuthorityItem.Parse(RawItem(DynamoDbAuthorityItem.PartitionKeyValue(deploymentId)), deploymentId).Record;
 
     internal async Task<GetItemResponse> GetAsync(string principal, GetItemRequest request, CancellationToken cancellationToken)
     {
-        Calls.Enqueue(new FakeDynamoDbCall(principal, "GetItem", request.TableName, request.ConsistentRead, null));
+        var key = request.Key[DynamoDbAuthorityItem.PartitionKey].S;
+        Calls.Enqueue(new FakeDynamoDbCall(principal, "GetItem", request.TableName, request.ConsistentRead, null, key));
         await ApplyFaultAsync(principal, "GetItem", cancellationToken);
         EnsureTable(request.TableName);
-        lock (gate)
-        {
-            var matches = item is not null && Equal(item[DynamoDbAuthorityItem.PartitionKey], request.Key[DynamoDbAuthorityItem.PartitionKey]);
-            return new GetItemResponse { Item = matches ? Clone(item!) : null };
-        }
+        return new GetItemResponse { Item = RawItem(key) };
     }
 
     internal async Task<UpdateItemResponse> UpdateAsync(string principal, bool allowWrites, UpdateItemRequest request, CancellationToken cancellationToken)
     {
-        Calls.Enqueue(new FakeDynamoDbCall(principal, "UpdateItem", request.TableName, null, request.ConditionExpression));
+        var key = request.Key[DynamoDbAuthorityItem.PartitionKey].S;
+        Calls.Enqueue(new FakeDynamoDbCall(principal, "UpdateItem", request.TableName, null, request.ConditionExpression, key));
         if (!allowWrites)
         {
             throw AccessDenied();
         }
 
-        var fault = Fault(principal, "UpdateItem");
-        if (fault != FakeDynamoDbFault.ApplyThenTimeout)
-        {
-            await ApplyFaultAsync(principal, "UpdateItem", cancellationToken, fault);
-        }
-
+        await ApplyFaultAsync(principal, "UpdateItem", cancellationToken);
         EnsureTable(request.TableName);
         lock (gate)
         {
-            if (item is null || !Equal(item[DynamoDbAuthorityItem.PartitionKey], request.Key[DynamoDbAuthorityItem.PartitionKey]))
+            items.TryGetValue(key, out var current);
+            if (!Evaluate(current, request.ConditionExpression, request.ExpressionAttributeNames, request.ExpressionAttributeValues))
             {
                 throw new ConditionalCheckFailedException("The conditional request failed");
             }
 
-            foreach (var condition in request.ConditionExpression.Split(" AND "))
-            {
-                if (condition.StartsWith("attribute_exists(", StringComparison.Ordinal))
-                {
-                    var name = request.ExpressionAttributeNames[condition["attribute_exists(".Length..^1]];
-                    if (!item.ContainsKey(name))
-                    {
-                        throw new ConditionalCheckFailedException("The conditional request failed");
-                    }
-
-                    continue;
-                }
-
-                var parts = condition.Split(" = ");
-                var attribute = request.ExpressionAttributeNames[parts[0]];
-                if (!item.TryGetValue(attribute, out var actual) || !Equal(actual, request.ExpressionAttributeValues[parts[1]]))
-                {
-                    throw new ConditionalCheckFailedException("The conditional request failed");
-                }
-            }
-
-            var updated = Clone(item);
+            // Như DynamoDB: item chưa tồn tại thì UpdateItem tạo mới với khóa đã cho (upsert).
+            var updated = current is null
+                ? new Dictionary<string, AttributeValue> { [DynamoDbAuthorityItem.PartitionKey] = new() { S = key } }
+                : Clone(current);
             var sections = request.UpdateExpression.Split(" REMOVE ");
             foreach (var assignment in sections[0]["SET ".Length..].Split(", "))
             {
@@ -144,7 +136,51 @@ public sealed class FakeDynamoDbTable(string tableName)
                 }
             }
 
-            item = updated;
+            items[key] = updated;
+        }
+
+        return new UpdateItemResponse();
+    }
+
+    internal async Task<TransactWriteItemsResponse> TransactAsync(string principal, bool allowWrites, TransactWriteItemsRequest request, CancellationToken cancellationToken)
+    {
+        Calls.Enqueue(new FakeDynamoDbCall(principal, "TransactWriteItems", request.TransactItems.FirstOrDefault()?.Put?.TableName,
+            null, string.Join(" | ", request.TransactItems.Select(item => item.Put?.ConditionExpression ?? item.ConditionCheck?.ConditionExpression))));
+        if (!allowWrites)
+        {
+            throw AccessDenied();
+        }
+
+        var fault = Fault(principal, "TransactWriteItems");
+        if (fault != FakeDynamoDbFault.ApplyThenTimeout)
+        {
+            await ApplyFaultAsync(principal, "TransactWriteItems", cancellationToken, fault);
+        }
+
+        lock (gate)
+        {
+            var reasons = new List<CancellationReason>();
+            foreach (var item in request.TransactItems)
+            {
+                var tableName = item.Put?.TableName ?? item.ConditionCheck!.TableName;
+                EnsureTable(tableName);
+                var key = item.Put is { } put ? put.Item[DynamoDbAuthorityItem.PartitionKey].S : item.ConditionCheck!.Key[DynamoDbAuthorityItem.PartitionKey].S;
+                items.TryGetValue(key, out var current);
+                var passed = item.Put is { } write
+                    ? Evaluate(current, write.ConditionExpression, write.ExpressionAttributeNames, write.ExpressionAttributeValues)
+                    : Evaluate(current, item.ConditionCheck!.ConditionExpression, item.ConditionCheck.ExpressionAttributeNames, item.ConditionCheck.ExpressionAttributeValues);
+                reasons.Add(new CancellationReason { Code = passed ? "None" : "ConditionalCheckFailed" });
+            }
+
+            if (reasons.Any(reason => reason.Code != "None"))
+            {
+                throw new TransactionCanceledException("Transaction cancelled") { CancellationReasons = reasons };
+            }
+
+            foreach (var item in request.TransactItems.Where(item => item.Put is not null))
+            {
+                items[item.Put.Item[DynamoDbAuthorityItem.PartitionKey].S] = Clone(item.Put.Item);
+            }
         }
 
         if (fault == FakeDynamoDbFault.ApplyThenTimeout)
@@ -152,12 +188,55 @@ public sealed class FakeDynamoDbTable(string tableName)
             throw new TaskCanceledException("simulated timeout after apply");
         }
 
-        return new UpdateItemResponse();
+        return new TransactWriteItemsResponse();
     }
 
     internal void RecordForbidden(string principal, string operation)
     {
         Calls.Enqueue(new FakeDynamoDbCall(principal, operation, null, null, null));
+    }
+
+    private static bool Evaluate(
+        Dictionary<string, AttributeValue>? current,
+        string? condition,
+        Dictionary<string, string>? names,
+        Dictionary<string, AttributeValue>? values)
+    {
+        if (string.IsNullOrEmpty(condition))
+        {
+            return true;
+        }
+
+        foreach (var clause in condition.Split(" AND "))
+        {
+            if (clause.StartsWith("attribute_exists(", StringComparison.Ordinal))
+            {
+                if (current is null || !current.ContainsKey(names![clause["attribute_exists(".Length..^1]]))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (clause.StartsWith("attribute_not_exists(", StringComparison.Ordinal))
+            {
+                if (current is not null && current.ContainsKey(names![clause["attribute_not_exists(".Length..^1]]))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            var parts = clause.Split(" = ");
+            if (current is null || !current.TryGetValue(names![parts[0]], out var actual) || !Equal(actual, values![parts[1]]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private async Task ApplyFaultAsync(string principal, string operation, CancellationToken cancellationToken, FakeDynamoDbFault? known = null)
@@ -211,6 +290,9 @@ public sealed class FakeDynamoDbClient(FakeDynamoDbTable table, string principal
     public override Task<UpdateItemResponse> UpdateItemAsync(UpdateItemRequest request, CancellationToken cancellationToken = default)
         => table.UpdateAsync(principal, allowWrites, request, cancellationToken);
 
+    public override Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken cancellationToken = default)
+        => table.TransactAsync(principal, allowWrites, request, cancellationToken);
+
     public override Task<PutItemResponse> PutItemAsync(PutItemRequest request, CancellationToken cancellationToken = default)
         => Forbidden<PutItemResponse>("PutItem");
 
@@ -222,9 +304,6 @@ public sealed class FakeDynamoDbClient(FakeDynamoDbTable table, string principal
 
     public override Task<QueryResponse> QueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
         => Forbidden<QueryResponse>("Query");
-
-    public override Task<TransactWriteItemsResponse> TransactWriteItemsAsync(TransactWriteItemsRequest request, CancellationToken cancellationToken = default)
-        => Forbidden<TransactWriteItemsResponse>("TransactWriteItems");
 
     public override Task<BatchWriteItemResponse> BatchWriteItemAsync(BatchWriteItemRequest request, CancellationToken cancellationToken = default)
         => Forbidden<BatchWriteItemResponse>("BatchWriteItem");

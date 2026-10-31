@@ -176,8 +176,7 @@ public sealed class S01CRestoreRecoveryTests
         Assert.Equal(CliExitCodes.Success, (await env.BootstrapAsync()).ExitCode);
         var admin = await env.WithDbAsync(db => db.PlatformAdmins.AsNoTracking().SingleAsync());
         env.AuthorizeAdminRecovery(admin.Id);
-        env.MutatorDecorator = inner => new FaultInjectingMutator(inner, (expected, _) =>
-            expected.Status == ProvisioningAuthorityStatus.RecoveryPending ? FaultPoint.FailBeforeApply : FaultPoint.None);
+        env.TransitionDecorator = inner => new FaultInjectingTransitionClient(inner, step => step == "complete" ? FaultPoint.FailBeforeApply : FaultPoint.None);
 
         var interrupted = await env.RecoverAdminAsync();
 
@@ -187,7 +186,7 @@ public sealed class S01CRestoreRecoveryTests
         Assert.False(ProvisioningEvidence.EvaluateRuntime(state, await env.CreateReader().ReadAsync(), env.Settings.Identity).Verified);
         Assert.Contains("RecoveryAppliedPendingFinalization", (await env.StatusAsync("recovery-check")).Output);
 
-        env.MutatorDecorator = null;
+        env.TransitionDecorator = null;
         var resumed = await env.RunCliAsync(["recover-admin"], ["FINALIZE"]);
 
         Assert.Equal(CliExitCodes.Success, resumed.ExitCode);
@@ -207,7 +206,7 @@ public sealed class S01CRestoreRecoveryTests
         Assert.Equal(CliExitCodes.Success, (await env.BootstrapAsync()).ExitCode);
         var admin = await env.WithDbAsync(db => db.PlatformAdmins.AsNoTracking().SingleAsync());
         env.AuthorizeAdminRecovery(admin.Id);
-        await env.ExecuteSqlAsync("CREATE TRIGGER test_block_audit BEFORE INSERT ON platform_audit_logs WHEN NEW.action = 'platform.recovery.admin_recovered' BEGIN SELECT RAISE(ABORT, 'audit_unavailable'); END;");
+        env.BeforeSqliteCommit = db => db.Database.ExecuteSqlRawAsync("CREATE TRIGGER test_block_audit BEFORE INSERT ON platform_audit_logs WHEN NEW.action = 'platform.recovery.admin_recovered' BEGIN SELECT RAISE(ABORT, 'audit_unavailable'); END;");
 
         var failed = await env.RecoverAdminAsync();
 
@@ -218,7 +217,7 @@ public sealed class S01CRestoreRecoveryTests
         Assert.Equal(1, (await env.WithDbAsync(db => db.PlatformSecurityState.AsNoTracking().SingleAsync())).StateVersion);
         Assert.Equal(ProvisioningAuthorityStatus.RecoveryPending, env.CurrentAuthority()!.Status);
 
-        await env.ExecuteSqlAsync("DROP TRIGGER test_block_audit;");
+        env.BeforeSqliteCommit = null;
         Assert.Equal(CliExitCodes.Success, (await env.RecoverAdminAsync()).ExitCode);
     }
 

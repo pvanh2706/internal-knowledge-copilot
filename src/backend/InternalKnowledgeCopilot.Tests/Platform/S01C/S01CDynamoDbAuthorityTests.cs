@@ -3,13 +3,14 @@ using InternalKnowledgeCopilot.Api.Infrastructure.Database.Entities;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Provisioning;
 using InternalKnowledgeCopilot.PlatformCli;
-using InternalKnowledgeCopilot.PlatformCli.Authority;
+using InternalKnowledgeCopilot.AuthorityService;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace InternalKnowledgeCopilot.Tests.Platform.S01C;
 
-// C3/C-G02/C-G05 với DynamoDB giả (test double). Đây là bằng chứng logic, KHÔNG phải bằng chứng tích hợp AWS production.
+// C3/C-G02/C-G05 với DynamoDB giả (test double) và Authority Service trong tiến trình. Đây là bằng chứng logic, KHÔNG phải
+// bằng chứng tích hợp AWS production và KHÔNG chứng minh IAM (C-IR-05).
 public sealed class S01CDynamoDbAuthorityTests
 {
     [Fact]
@@ -41,23 +42,28 @@ public sealed class S01CDynamoDbAuthorityTests
     }
 
     [Fact]
-    public async Task OperatorWrites_UseConditionalUpdateItemOnly()
+    public async Task AuthorityChanges_GoOnlyThroughAuthorityServiceConditionalTransactions()
     {
         await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb: true);
         env.AuthorizeBootstrap();
 
         Assert.Equal(CliExitCodes.Success, (await env.BootstrapAsync()).ExitCode);
 
+        // approval + reserve + activate: mỗi thay đổi là một TransactWriteItems có điều kiện của Authority Service.
         var writes = env.Dynamo.Calls.Where(call => call.Operation != "GetItem").ToList();
-        Assert.Equal(2, writes.Count);
+        Assert.Equal(3, writes.Count);
         Assert.All(writes, write =>
         {
-            Assert.Equal("UpdateItem", write.Operation);
-            Assert.Equal("operator", write.Principal);
-            Assert.StartsWith("attribute_exists(", write.Condition);
-            Assert.Contains(" AND ", write.Condition);
+            Assert.Equal("TransactWriteItems", write.Operation);
+            Assert.Equal(AuthorityServiceTestHost.ServicePrincipal, write.Principal);
+            Assert.All(write.Condition!.Split(" | "), condition => Assert.False(string.IsNullOrWhiteSpace(condition)));
         });
         Assert.All(env.Dynamo.Calls.Where(call => call.Operation == "GetItem"), read => Assert.True(read.ConsistentRead));
+        Assert.All(env.Dynamo.Calls.Where(call => call.Principal == "cli-read"), read =>
+        {
+            Assert.Equal("GetItem", read.Operation);
+            Assert.Equal(DynamoDbAuthorityItem.PartitionKeyValue(env.DeploymentId), read.Key);
+        });
     }
 
     public static TheoryData<FakeDynamoDbFault, string> ReadFaults => new()
@@ -93,19 +99,20 @@ public sealed class S01CDynamoDbAuthorityTests
         Assert.DoesNotContain("arn:aws", status.Output);
     }
 
-    [Fact]
-    public async Task Bootstrap_OperatorAccessDenied_IsUnavailableAndChangesNothing()
+    [Theory]
+    [InlineData("unregistered", "principal_not_registered")]
+    [InlineData("other_operator", "operator_not_assigned")]
+    public async Task Bootstrap_CallerNotTheAssignedRegisteredOperator_IsDeniedAndChangesNothing(string caller, string reason)
     {
         await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb: true);
         var authorized = env.AuthorizeBootstrap();
-        env.Dynamo.Fault = (principal, operation) => principal == "operator" && operation == "UpdateItem" ? FakeDynamoDbFault.AccessDenied : FakeDynamoDbFault.None;
+        env.CliOperator = caller == "unregistered" ? env.AuthorityService.Unregistered : env.AuthorityService.SecondOperator;
 
         var run = await env.BootstrapAsync();
 
-        Assert.Equal(CliExitCodes.AuthorityUnavailable, run.ExitCode);
-        Assert.Contains("authority_access_denied", run.Output);
+        Assert.Equal(CliExitCodes.Denied, run.ExitCode);
+        Assert.Contains(reason, run.Output);
         Assert.DoesNotContain("arn:aws", run.Output);
-        Assert.DoesNotContain("secret-role-name", run.Output);
         Assert.Equal(authorized, env.CurrentAuthority());
         Assert.Equal(0, await env.WithDbAsync(db => db.PlatformAdmins.CountAsync()));
     }
@@ -115,103 +122,43 @@ public sealed class S01CDynamoDbAuthorityTests
     {
         await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb: true);
         env.AuthorizeBootstrap();
-        var updates = 0;
-        env.Dynamo.Fault = (principal, operation) =>
-            operation == "UpdateItem" && Interlocked.Increment(ref updates) == 2 ? FakeDynamoDbFault.Timeout : FakeDynamoDbFault.None;
+        var transactions = 0;
+
+        // Giao dịch thứ nhất là reserve; mọi lần activate (kể cả retry cùng request_id) đều timeout trước khi áp dụng.
+        env.Dynamo.Fault = (_, operation) =>
+            operation == "TransactWriteItems" && Interlocked.Increment(ref transactions) >= 2 ? FakeDynamoDbFault.Timeout : FakeDynamoDbFault.None;
 
         var run = await env.BootstrapAsync();
 
         Assert.Equal(CliExitCodes.ReconciliationRequired, run.ExitCode);
-        Assert.Contains("authority_timeout", run.Output);
+        Assert.Contains("authority_store_timeout", run.Output);
         Assert.Equal(ProvisioningAuthorityStatus.Reserved, env.CurrentAuthority()!.Status);
         var state = await env.WithDbAsync(db => db.PlatformSecurityState.AsNoTracking().SingleAsync());
         Assert.False(ProvisioningEvidence.EvaluateRuntime(state, await env.CreateReader().ReadAsync(), env.Settings.Identity).Verified);
     }
 
+    // Unknown outcome: giao dịch activate đã ghi (gồm ledger) nhưng phản hồi timeout. CLI thử lại với CÙNG request_id; service
+    // trả kết quả từ ledger (Replayed) thay vì áp dụng lần hai.
     [Fact]
-    public async Task Bootstrap_ActivationAppliedThenTimeout_IsConfirmedByConsistentReread()
+    public async Task Bootstrap_ActivationAppliedThenTimeout_IsResolvedByLedgerReplayNotReapplied()
     {
         await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb: true);
         env.AuthorizeBootstrap();
-        var updates = 0;
+        var transactions = 0;
         env.Dynamo.Fault = (_, operation) =>
-            operation == "UpdateItem" && Interlocked.Increment(ref updates) == 2 ? FakeDynamoDbFault.ApplyThenTimeout : FakeDynamoDbFault.None;
+            operation == "TransactWriteItems" && Interlocked.Increment(ref transactions) == 2 ? FakeDynamoDbFault.ApplyThenTimeout : FakeDynamoDbFault.None;
 
         var run = await env.BootstrapAsync();
 
-        Assert.Equal(CliExitCodes.Success, run.ExitCode);
-        Assert.Equal(ProvisioningAuthorityStatus.Activated, env.CurrentAuthority()!.Status);
-    }
-
-    [Fact]
-    public async Task Mutator_StaleExpectedRecord_ConditionFails()
-    {
-        await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb: true);
-        var authorized = env.AuthorizeBootstrap();
-        var mutator = new DynamoDbProvisioningAuthorityMutator(env.Dynamo.CreateClient("operator", allowWrites: true), env.DynamoSettings);
-        var reserved = Reserve(authorized);
-        Assert.Equal(AuthorityTransitionOutcome.Applied, await mutator.TransitionAsync(authorized, reserved));
-
-        // Process khác dùng bản ghi Authorized cũ: điều kiện version/status không còn đúng.
-        var competing = Reserve(authorized);
-        Assert.Equal(AuthorityTransitionOutcome.ConditionFailed, await mutator.TransitionAsync(authorized, competing));
-        Assert.Equal(reserved, env.CurrentAuthority());
-    }
-
-    [Fact]
-    public async Task Mutator_MissingItem_IsNeverCreated()
-    {
-        await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb: true);
-        var authorized = AuthorizedRecord(env);
-        var mutator = new DynamoDbProvisioningAuthorityMutator(env.Dynamo.CreateClient("operator", allowWrites: true), env.DynamoSettings);
-
-        Assert.Equal(AuthorityTransitionOutcome.ConditionFailed, await mutator.TransitionAsync(authorized, Reserve(authorized)));
-        Assert.Null(env.Dynamo.Raw());
-    }
-
-    public static TheoryData<string> ForbiddenTransitions => new() { "create_authorized", "grant_recovery", "revoke", "skip_version", "change_identity" };
-
-    [Theory]
-    [MemberData(nameof(ForbiddenTransitions))]
-    public void OperatorTransitions_CannotCreateAuthorizationRecoveryOrRevocation(string transition)
-    {
-        var authorized = new ProvisioningAuthorityRecord
-        {
-            DeploymentId = Guid.NewGuid(),
-            AuthorityId = "a",
-            Status = ProvisioningAuthorityStatus.Authorized,
-            Version = 1,
-            AuthorizationId = "auth-1",
-            AuthorizedAt = AuthorityTimestamp.Now(),
-        };
-        var reserved = Reserve(authorized);
-        var activated = reserved with
-        {
-            Status = ProvisioningAuthorityStatus.Activated,
-            Version = 3,
-            BootstrapAdminId = reserved.ReservedAdminId,
-            BootstrapCompletedAt = AuthorityTimestamp.Now(),
-            ActivatedAt = AuthorityTimestamp.Now(),
-            StateVersion = 1,
-        };
-        var (expected, next) = transition switch
-        {
-            "create_authorized" => (reserved, authorized with { Version = 3 }),
-            "grant_recovery" => (activated, activated with
-            {
-                Status = ProvisioningAuthorityStatus.RecoveryPending,
-                Version = 4,
-                RecoveryId = Guid.NewGuid(),
-                RecoveryPurpose = ProvisioningRecoveryPurpose.AdminRecovery,
-                RecoveryTargetAdminId = Guid.NewGuid(),
-                RecoveryAuthorizedAt = AuthorityTimestamp.Now(),
-            }),
-            "revoke" => (activated, activated with { Status = ProvisioningAuthorityStatus.Revoked, Version = 4 }),
-            "skip_version" => (authorized, reserved with { Version = 5 }),
-            _ => (authorized, reserved with { DeploymentId = Guid.NewGuid() }),
-        };
-
-        Assert.Throws<InvalidOperationException>(() => ProvisioningAuthorityTransitions.EnsureOperatorTransition(expected, next));
+        Assert.True(run.ExitCode == CliExitCodes.Success, run.Output);
+        var authority = env.CurrentAuthority()!;
+        Assert.Equal(ProvisioningAuthorityStatus.Activated, authority.Status);
+        Assert.Equal(3, authority.Version);
+        var events = env.AuthorityService.Audit.Events.Where(item => item.Route == AuthorityServiceRoutes.Activate).ToList();
+        Assert.Contains(events, item => item.EventType == AuthorityAuditEventTypes.OutcomeUnknown);
+        Assert.Contains(events, item => item.EventType == AuthorityAuditEventTypes.RequestReplayed && item.PersonId == "alice");
+        Assert.DoesNotContain(events, item => item.EventType == AuthorityAuditEventTypes.TransitionApplied);
+        Assert.Equal(AuthorityApprovalStatus.Completed, env.AuthorityService.Approval(Guid.Parse(authority.AuthorizationId)).Status);
     }
 
     public static TheoryData<string, string> MalformedItems => new()
@@ -230,7 +177,7 @@ public sealed class S01CDynamoDbAuthorityTests
     {
         await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb: true);
         env.AuthorizeBootstrap();
-        var item = env.Dynamo.Raw()!;
+        var item = env.Dynamo.RawItem(DynamoDbAuthorityItem.PartitionKeyValue(env.DeploymentId))!;
         switch (defect)
         {
             case "status_number":
@@ -263,32 +210,55 @@ public sealed class S01CDynamoDbAuthorityTests
         Assert.Equal(CliExitCodes.Denied, (await env.BootstrapAsync()).ExitCode);
     }
 
-    [Fact]
-    public async Task Cli_DynamoDbMutationWithoutOperatorProfile_IsConfigurationErrorAndNeverFallsBackToDefaultCredentials()
+    [Theory]
+    [InlineData(false, "OperatorProfile")]
+    [InlineData(true, "AuthorityService:Endpoint")]
+    public async Task Cli_DynamoDbMutationWithoutOperatorProfileOrServiceEndpoint_IsConfigurationErrorWithoutAnyAuthorityAccess(bool removeEndpoint, string expected)
     {
         await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb: true);
         env.AuthorizeBootstrap();
-        // Không có DynamoDbClientFactory: CLI phải từ chối trước khi tạo bất kỳ AWS client nào.
-        var hostOptions = new PlatformCliHostOptions { EnvironmentName = "Testing", Configuration = env.Configuration };
+        env.Dynamo.Calls.Clear();
+        var configuration = new Dictionary<string, string?>(env.Configuration);
+        if (removeEndpoint)
+        {
+            configuration.Remove("ProvisioningAuthority:AuthorityService:Endpoint");
+        }
+
+        // Không có credential/transport của test: CLI phải từ chối trước khi tạo client hay gọi AWS; không có default chain.
+        var hostOptions = new PlatformCliHostOptions { EnvironmentName = "Testing", Configuration = configuration, PrivilegeCheck = () => true };
 
         var run = await env.RunCliAsync(["bootstrap"], hostOptions: hostOptions);
 
         Assert.Equal(CliExitCodes.ConfigurationInvalid, run.ExitCode);
-        Assert.Contains("OperatorProfile", run.Output);
+        Assert.Contains(expected, run.Output);
         Assert.Empty(env.Dynamo.Calls);
     }
 
-    [Fact]
-    public async Task Cli_ProductionMutation_RequiresPrivilegedOperatorBeforeAnyAuthorityAccess()
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Testing")]
+    [InlineData("Development")]
+    public async Task Cli_Mutation_RequiresElevatedOperatorInEveryEnvironmentBeforeAnyAuthorityAccess(string environmentName)
     {
         await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb: true);
         env.AuthorizeBootstrap();
-        var hostOptions = new PlatformCliHostOptions { EnvironmentName = "Production", Configuration = env.Configuration };
+        env.Dynamo.Calls.Clear();
+
+        // C-IR-03: không có PrivilegeCheck thay thế ⇒ dùng Environment.IsPrivilegedProcess thật, không phụ thuộc tên môi trường.
+        var hostOptions = new PlatformCliHostOptions { EnvironmentName = environmentName, Configuration = env.Configuration };
 
         var run = await env.RunCliAsync(["bootstrap"], hostOptions: hostOptions);
 
-        // Không nâng quyền: bị chặn; có nâng quyền: tiếp tục bị chặn vì thiếu OperatorProfile. Không bao giờ chạm AWS.
-        Assert.Equal(Environment.IsPrivilegedProcess ? CliExitCodes.ConfigurationInvalid : CliExitCodes.Denied, run.ExitCode);
+        if (Environment.IsPrivilegedProcess)
+        {
+            Assert.Equal(CliExitCodes.ConfigurationInvalid, run.ExitCode);
+        }
+        else
+        {
+            Assert.Equal(CliExitCodes.Denied, run.ExitCode);
+            Assert.Contains("privileged_operator_required", run.Output);
+        }
+
         Assert.Empty(env.Dynamo.Calls);
     }
 
@@ -334,7 +304,7 @@ public sealed class S01CDynamoDbAuthorityTests
     [Fact]
     public void ConfigurationOptions_ExposeNoBypassOrSkipSwitch()
     {
-        var properties = new[] { typeof(ProvisioningAuthorityOptions), typeof(LocalSealAuthorityOptions), typeof(DynamoDbAuthorityOptions) }
+        var properties = new[] { typeof(ProvisioningAuthorityOptions), typeof(LocalSealAuthorityOptions), typeof(DynamoDbAuthorityOptions), typeof(AuthorityServiceOptions) }
             .SelectMany(type => type.GetProperties())
             .ToList();
 
@@ -349,25 +319,6 @@ public sealed class S01CDynamoDbAuthorityTests
         DeploymentId = Guid.NewGuid().ToString(),
         AuthorityId = "authority-1",
         LocalSeal = new LocalSealAuthorityOptions { Path = path, IntegrityKey = Convert.ToBase64String(new byte[32]) },
-    };
-
-    private static ProvisioningAuthorityRecord AuthorizedRecord(S01CTestEnvironment env) => new()
-    {
-        DeploymentId = env.DeploymentId,
-        AuthorityId = S01CTestEnvironment.AuthorityId,
-        Status = ProvisioningAuthorityStatus.Authorized,
-        Version = 1,
-        AuthorizationId = "auth-1",
-        AuthorizedAt = AuthorityTimestamp.Now(),
-    };
-
-    private static ProvisioningAuthorityRecord Reserve(ProvisioningAuthorityRecord authorized) => authorized with
-    {
-        Status = ProvisioningAuthorityStatus.Reserved,
-        Version = authorized.Version + 1,
-        ReservationId = Guid.NewGuid(),
-        ReservedAdminId = Guid.NewGuid(),
-        ReservedAt = AuthorityTimestamp.Now(),
     };
 
     private static PlatformSecurityStateEntity CompletedState(Guid deploymentId) => new()

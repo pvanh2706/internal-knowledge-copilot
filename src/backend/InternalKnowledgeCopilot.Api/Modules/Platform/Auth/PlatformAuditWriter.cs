@@ -18,7 +18,8 @@ public static class PlatformAuditActions
     public const string SessionRejected = "platform.auth.session_rejected";
     public const string AccessDenied = "platform.auth.access_denied";
 
-    // S01-C: chỉ CLI bootstrap/recovery ghi các action dưới đây (actor null, target là tài khoản platform bị tác động).
+    // S01-C: chỉ CLI bootstrap/recovery ghi các action dưới đây (actor null vì operator không phải tài khoản platform; danh tính
+    // operator nằm trong metadata operator_person_id; target là tài khoản platform bị tác động).
     public const string BootstrapCompleted = "platform.bootstrap.completed";
     public const string BootstrapDenied = "platform.bootstrap.denied";
     public const string AdminRecovered = "platform.recovery.admin_recovered";
@@ -54,10 +55,17 @@ public static class PlatformAuditMetadataKeys
     public const string StateVersion = "state_version";
     public const string AuthorityProvider = "authority_provider";
 
+    // S01-C-REM (C-IR-04): danh tính người thực hiện bootstrap/recovery. person_id do Authority Service xác minh (DynamoDb) hoặc
+    // nhãn chưa xác minh của LocalSeal; identity_assurance cho biết mức đảm bảo. Không chứa email, tên tài khoản OS hay ARN.
+    public const string OperatorPersonId = "operator_person_id";
+    public const string ApproverPersonId = "approver_person_id";
+    public const string IdentityAssurance = "identity_assurance";
+
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
         Reason, SessionType, FailedLoginCount, LockoutMinutes, TokenVersion,
         DeploymentId, ReservationId, RecoveryId, RecoveryPurpose, StateVersion, AuthorityProvider,
+        OperatorPersonId, ApproverPersonId, IdentityAssurance,
     };
 }
 

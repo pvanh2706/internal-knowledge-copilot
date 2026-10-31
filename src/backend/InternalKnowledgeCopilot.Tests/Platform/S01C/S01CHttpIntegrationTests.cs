@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Provisioning;
+using InternalKnowledgeCopilot.AuthorityService;
 using InternalKnowledgeCopilot.PlatformCli;
 using InternalKnowledgeCopilot.PlatformCli.Authority;
 using InternalKnowledgeCopilot.PlatformCli.TestHarness;
@@ -136,11 +137,12 @@ public sealed class S01CHttpIntegrationTests
     {
         var deploymentId = Guid.NewGuid();
         var table = new FakeDynamoDbTable("ikc-http-authority");
+        var authority = new AuthorityServiceTestHost(table, AuthorityId, [deploymentId]);
         var settings = new ProvisioningAuthoritySettings(
             ProvisioningAuthorityKind.DynamoDb,
             new ProvisioningAuthorityIdentity(deploymentId, AuthorityId),
             DynamoDbTableName: table.TableName,
-            DynamoDbRegion: "eu-west-1",
+            DynamoDbRegion: AuthorityServiceTestHost.Region,
             DynamoDbTimeout: TimeSpan.FromSeconds(2));
         var configuration = new Dictionary<string, string>
         {
@@ -148,8 +150,9 @@ public sealed class S01CHttpIntegrationTests
             ["ProvisioningAuthority:DeploymentId"] = deploymentId.ToString(),
             ["ProvisioningAuthority:AuthorityId"] = AuthorityId,
             ["ProvisioningAuthority:DynamoDb:TableName"] = table.TableName,
-            ["ProvisioningAuthority:DynamoDb:Region"] = "eu-west-1",
+            ["ProvisioningAuthority:DynamoDb:Region"] = AuthorityServiceTestHost.Region,
             ["ProvisioningAuthority:DynamoDb:TimeoutSeconds"] = "2",
+            ["ProvisioningAuthority:AuthorityService:Endpoint"] = AuthorityServiceTestHost.Endpoint.ToString(),
         };
         using var factory = new S01BApiFactory
         {
@@ -163,15 +166,7 @@ public sealed class S01CHttpIntegrationTests
             },
         };
         _ = factory.Services;
-        table.PutRecord(new ProvisioningAuthorityRecord
-        {
-            DeploymentId = deploymentId,
-            AuthorityId = AuthorityId,
-            Status = ProvisioningAuthorityStatus.Authorized,
-            Version = 1,
-            AuthorizationId = "auth-http-1",
-            AuthorizedAt = AuthorityTimestamp.Now(),
-        });
+        await authority.MustApproveAsync(deploymentId, AuthorityApprovalAction.Bootstrap, null);
         var cliConfiguration = configuration.ToDictionary(pair => pair.Key, pair => (string?)pair.Value);
         cliConfiguration["Database:SqlitePath"] = factory.DatabasePath;
         var console = new ScriptedOperatorConsole([InitialPassword, InitialPassword, "BOOTSTRAP"]);
@@ -179,7 +174,10 @@ public sealed class S01CHttpIntegrationTests
         {
             EnvironmentName = "Testing",
             Configuration = cliConfiguration,
-            DynamoDbClientFactory = (_, forMutation) => table.CreateClient(forMutation ? "operator" : "operator-read", forMutation),
+            DynamoDbReadClientFactory = _ => table.CreateClient("cli-read", allowWrites: false),
+            AuthorityServiceHandler = authority.CreateGatewayHandler(),
+            OperatorCredentials = () => authority.Operator.Credentials,
+            PrivilegeCheck = () => true,
         });
         Assert.True(exit == CliExitCodes.Success, console.Output);
 
@@ -189,6 +187,12 @@ public sealed class S01CHttpIntegrationTests
             Assert.Equal(HttpStatusCode.OK, me.StatusCode);
         }
 
+        // Chỉ Authority Service ghi bảng; CLI và runtime chỉ đọc.
+        Assert.All(table.Calls.Where(call => call.Operation != "GetItem"), call =>
+        {
+            Assert.Equal(AuthorityServiceTestHost.ServicePrincipal, call.Principal);
+            Assert.Equal("TransactWriteItems", call.Operation);
+        });
         var runtimeCalls = table.Calls.Where(call => call.Principal == "runtime").ToList();
         Assert.NotEmpty(runtimeCalls);
         Assert.All(runtimeCalls, call =>
@@ -219,11 +223,14 @@ public sealed class S01CHttpIntegrationTests
             .Any(word => route.Contains(word, StringComparison.OrdinalIgnoreCase)));
 
         var apiAssembly = typeof(PlatformAuthController).Assembly;
-        Assert.NotEqual(apiAssembly, typeof(IProvisioningAuthorityMutator).Assembly);
-        Assert.DoesNotContain(apiAssembly.GetTypes(), type => type.Name.Contains("Mutator", StringComparison.Ordinal));
+        Assert.NotEqual(apiAssembly, typeof(IAuthorityTransitionClient).Assembly);
+        Assert.NotEqual(apiAssembly, typeof(IAuthorityStore).Assembly);
+        Assert.DoesNotContain(apiAssembly.GetReferencedAssemblies(), reference =>
+            reference.Name is "InternalKnowledgeCopilot.AuthorityService" or "InternalKnowledgeCopilot.PlatformCli");
+        Assert.DoesNotContain(apiAssembly.GetTypes(), type => type.Name.Contains("Mutator", StringComparison.Ordinal) || type.Name.Contains("AuthorityStore", StringComparison.Ordinal));
         Assert.DoesNotContain(apiAssembly.GetTypes(), type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Any(method => method.Name is "UpdateItemAsync" or "PutItemAsync"));
-        Assert.Null(factory.Services.GetService(typeof(IProvisioningAuthorityMutator)));
+            .Any(method => method.Name is "UpdateItemAsync" or "PutItemAsync" or "TransactWriteItemsAsync"));
+        Assert.Null(factory.Services.GetService(typeof(IAuthorityTransitionClient)));
     }
 
     [Fact]
@@ -297,7 +304,7 @@ public sealed class S01CHttpIntegrationTests
             var configuration = Configuration.ToDictionary(pair => pair.Key, pair => (string?)pair.Value);
             configuration["Database:SqlitePath"] = factory.DatabasePath;
             var console = new ScriptedOperatorConsole(answers);
-            var exit = await PlatformCliApplication.RunAsync(args, console, new PlatformCliHostOptions { EnvironmentName = "Testing", Configuration = configuration });
+            var exit = await PlatformCliApplication.RunAsync(args, console, new PlatformCliHostOptions { EnvironmentName = "Testing", Configuration = configuration, PrivilegeCheck = () => true });
             return new CliRun(exit, console.Output);
         }
 

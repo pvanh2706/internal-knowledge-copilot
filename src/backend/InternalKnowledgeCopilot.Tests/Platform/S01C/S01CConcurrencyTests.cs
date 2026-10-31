@@ -2,6 +2,7 @@ using InternalKnowledgeCopilot.Api.Modules.Platform.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Provisioning;
 using InternalKnowledgeCopilot.PlatformCli;
 using InternalKnowledgeCopilot.PlatformCli.Authority;
+using InternalKnowledgeCopilot.PlatformCli.Bootstrap;
 using Microsoft.EntityFrameworkCore;
 
 namespace InternalKnowledgeCopilot.Tests.Platform.S01C;
@@ -44,29 +45,65 @@ public sealed class S01CConcurrencyTests
         Assert.All(runs, run => Assert.DoesNotContain(S01CTestEnvironment.AdminPassword, run.Output));
     }
 
-    // Phòng thủ chiều sâu: kể cả khi authority bị dùng sai (cho mọi process reserve thành công), transaction SQLite
-    // BEGIN IMMEDIATE + kiểm tra lại trong transaction + singleton PK vẫn chỉ cho một bootstrap commit.
+    // Authority hoạt động sai (báo Applied nhưng không đổi trạng thái): consistent read sau reserve không xác nhận reservation
+    // của chính process này nên CLI không bao giờ ghi SQLite và không báo thành công.
     [Fact]
-    public async Task ConcurrentBootstrap_WithMisbehavingAuthority_SqliteStillCommitsAtMostOneAdmin()
+    public async Task Bootstrap_AuthorityReportsAppliedWithoutStateChange_NeverWritesSqlite()
     {
         await using var env = await S01CTestEnvironment.CreateAsync();
         env.AuthorizeBootstrap();
-        env.MutatorDecorator = _ => new AlwaysAppliedMutator();
+        env.TransitionDecorator = _ => new AlwaysAppliedTransitionClient();
 
         var runs = await Task.WhenAll(Enumerable.Range(0, 6).Select(index =>
             Task.Run(() => env.BootstrapAsync($"race{index}@example.com"))));
 
-        await AssertSingleBootstrapAsync(env);
-        // Authority không được activate thật nên không ai được báo thành công; runtime tiếp tục từ chối.
-        Assert.All(runs, run => Assert.Contains(run.ExitCode, new[] { CliExitCodes.ReconciliationRequired, CliExitCodes.Denied }));
-        Assert.Contains(runs, run => run.ExitCode == CliExitCodes.ReconciliationRequired);
+        Assert.All(runs, run =>
+        {
+            Assert.Equal(CliExitCodes.ReconciliationRequired, run.ExitCode);
+            Assert.Contains("authority_reservation_not_confirmed", run.Output);
+        });
+        Assert.Equal(0, await env.WithDbAsync(db => db.PlatformAdmins.CountAsync()));
+        Assert.Equal(0, await env.WithDbAsync(db => db.PlatformSecurityState.CountAsync()));
         Assert.Equal(ProvisioningAuthorityStatus.Authorized, env.CurrentAuthority()!.Status);
     }
 
+    // Phòng thủ chiều sâu ở tầng SQLite: kể cả khi nhiều process cùng có "reservation" (authority bị thao túng), transaction
+    // BEGIN IMMEDIATE + kiểm tra lại trong transaction + singleton PK chỉ cho đúng một bootstrap commit.
     [Fact]
-    public async Task ConcurrentRecovery_AppliesExactlyOnceAndRevokesTokensOnce()
+    public async Task ConcurrentSqliteBootstrapCommits_WithForgedReservations_CommitExactlyOneAdmin()
     {
         await using var env = await S01CTestEnvironment.CreateAsync();
+        var authorized = env.AuthorizeBootstrap();
+        using var context = PlatformCliContext.Create(null, env.HostOptions());
+        var service = new PlatformBootstrapService(context, new AlwaysAppliedTransitionClient());
+        var passwordHash = new PlatformPasswordHasher().HashPassword(S01CTestEnvironment.AdminPassword);
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(index => Task.Run(() => service.CommitSqliteAsync(
+            new BootstrapInput($"forged{index}@example.com", $"Forged {index}", passwordHash),
+            context.Authority!,
+            authorized with
+            {
+                Status = ProvisioningAuthorityStatus.Reserved,
+                Version = authorized.Version + 1,
+                ReservationId = Guid.NewGuid(),
+                ReservedAdminId = Guid.NewGuid(),
+                ReservedAt = AuthorityTimestamp.Now(),
+            },
+            AuthorityTimestamp.Now(),
+            OperatorIdentity.UnverifiedLocal(),
+            $"forged-{index}"))));
+
+        Assert.Single(results, result => result is null);
+        Assert.All(results.Where(result => result is not null), result => Assert.Equal(OperationOutcome.ReconciliationRequired, result!.Outcome));
+        await AssertSingleBootstrapAsync(env);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConcurrentRecovery_AppliesExactlyOnceAndRevokesTokensOnce(bool useDynamoDb)
+    {
+        await using var env = await S01CTestEnvironment.CreateAsync(useDynamoDb);
         env.AuthorizeBootstrap();
         Assert.Equal(CliExitCodes.Success, (await env.BootstrapAsync()).ExitCode);
         var admin = await env.WithDbAsync(db => db.PlatformAdmins.AsNoTracking().SingleAsync());
@@ -96,11 +133,16 @@ public sealed class S01CConcurrencyTests
         Assert.Equal(admin.Id, state.BootstrapAdminId);
     }
 
-    private sealed class AlwaysAppliedMutator : IProvisioningAuthorityMutator
+    private sealed class AlwaysAppliedTransitionClient : IAuthorityTransitionClient
     {
-        public Task<AuthorityTransitionOutcome> TransitionAsync(ProvisioningAuthorityRecord expected, ProvisioningAuthorityRecord next, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(AuthorityTransitionOutcome.Applied);
-        }
+        private static Task<AuthorityStepResult> Applied() => Task.FromResult(AuthorityStepResult.Applied("forged", OperatorIdentity.UnverifiedLocal()));
+
+        public Task<AuthorityStepResult> ReserveAsync(ProvisioningAuthorityRecord authorized, Guid reservedAdminId, string requestId, CancellationToken cancellationToken = default) => Applied();
+
+        public Task<AuthorityStepResult> ActivateAsync(ProvisioningAuthorityRecord reserved, DateTimeOffset bootstrapCompletedAt, string requestId, CancellationToken cancellationToken = default) => Applied();
+
+        public Task<AuthorityStepResult> ClaimRecoveryAsync(ProvisioningAuthorityRecord pending, string requestId, CancellationToken cancellationToken = default) => Applied();
+
+        public Task<AuthorityStepResult> CompleteRecoveryAsync(ProvisioningAuthorityRecord pending, int stateVersion, DateTimeOffset? bootstrapCompletedAt, string requestId, CancellationToken cancellationToken = default) => Applied();
     }
 }

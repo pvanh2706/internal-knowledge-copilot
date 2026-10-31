@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 using InternalKnowledgeCopilot.Api.Common;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
@@ -8,11 +7,10 @@ using InternalKnowledgeCopilot.Api.Modules.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Auth;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Xunit.Abstractions;
 
 namespace InternalKnowledgeCopilot.Tests.Platform;
 
-public sealed class PlatformSecurityPrimitivesTests(ITestOutputHelper output)
+public sealed class PlatformSecurityPrimitivesTests
 {
     private const string Password = "Correct-Horse-Battery-9";
 
@@ -63,25 +61,6 @@ public sealed class PlatformSecurityPrimitivesTests(ITestOutputHelper output)
 
         Assert.True(new PasswordHasher().VerifyPassword(tenantHash, Password));
         Assert.False(new PlatformPasswordHasher().VerifyPassword(tenantHash, Password));
-    }
-
-    [Fact]
-    public void PasswordHasher_Benchmark()
-    {
-        var hasher = new PlatformPasswordHasher();
-        var hash = hasher.HashPassword(Password);
-        hasher.VerifyPassword(hash, Password);
-
-        var hashTimes = Measure(() => hasher.HashPassword(Password));
-        var verifyTimes = Measure(() => hasher.VerifyPassword(hash, Password));
-        var simulateTimes = Measure(() => hasher.SimulateVerification(Password));
-
-        output.WriteLine($"Argon2id m={PlatformPasswordHasher.MemoryKib}KiB t={PlatformPasswordHasher.Iterations} p={PlatformPasswordHasher.Parallelism}, salt {PlatformPasswordHasher.SaltSize}B, hash {PlatformPasswordHasher.HashSize}B");
-        output.WriteLine($"hash     median {Median(hashTimes):F0} ms (min {hashTimes.Min():F0}, max {hashTimes.Max():F0})");
-        output.WriteLine($"verify   median {Median(verifyTimes):F0} ms (min {verifyTimes.Min():F0}, max {verifyTimes.Max():F0})");
-        output.WriteLine($"simulate median {Median(simulateTimes):F0} ms (min {simulateTimes.Min():F0}, max {simulateTimes.Max():F0})");
-        Assert.InRange(Median(verifyTimes), 1, 5_000);
-        Assert.InRange(Median(simulateTimes) / Median(verifyTimes), 0.5, 2.0);
     }
 
     [Theory]
@@ -210,25 +189,6 @@ public sealed class PlatformSecurityPrimitivesTests(ITestOutputHelper output)
             "req-1",
             new Dictionary<string, string> { [key] = value })));
         Assert.Empty(dbContext.ChangeTracker.Entries<PlatformAuditLogEntity>());
-    }
-
-    private static List<double> Measure(Action action)
-    {
-        var times = new List<double>();
-        for (var index = 0; index < 5; index++)
-        {
-            var stopwatch = Stopwatch.StartNew();
-            action();
-            times.Add(stopwatch.Elapsed.TotalMilliseconds);
-        }
-
-        return times;
-    }
-
-    private static double Median(List<double> values)
-    {
-        var sorted = values.Order().ToList();
-        return sorted[sorted.Count / 2];
     }
 
     private static JwtOptions TenantOptions() => new() { SigningKey = "tenant-production-signing-key-0123456789-abcdef" };

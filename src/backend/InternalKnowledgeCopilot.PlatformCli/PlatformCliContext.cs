@@ -1,5 +1,5 @@
 using Amazon.DynamoDBv2;
-using Amazon.Runtime.CredentialManagement;
+using Amazon.Runtime;
 using InternalKnowledgeCopilot.Api.Infrastructure.Database;
 using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Provisioning;
@@ -11,25 +11,40 @@ using Microsoft.Extensions.Configuration;
 
 namespace InternalKnowledgeCopilot.PlatformCli;
 
-// Điểm mở rộng chỉ dùng được từ code (test harness), không qua tham số dòng lệnh hay cấu hình.
+// Điểm mở rộng chỉ dùng được từ code (test/test harness), không qua tham số dòng lệnh, biến môi trường hay cấu hình.
 public sealed class PlatformCliHostOptions
 {
     public string? EnvironmentName { get; init; }
 
     public IReadOnlyDictionary<string, string?>? Configuration { get; init; }
 
-    // (settings, forMutation) → client. Test dùng client giả; production luôn tạo AmazonDynamoDBClient.
-    public Func<ProvisioningAuthoritySettings, bool, IAmazonDynamoDB>? DynamoDbClientFactory { get; init; }
+    // Client DynamoDB chỉ để ĐỌC authority (đường read-only giống runtime). CLI không có client ghi DynamoDB nào.
+    public Func<ProvisioningAuthoritySettings, IAmazonDynamoDB>? DynamoDbReadClientFactory { get; init; }
 
-    public Func<IProvisioningAuthorityMutator, IProvisioningAuthorityMutator>? MutatorDecorator { get; init; }
+    // Transport tới Authority Service (test thay bằng gateway giả trong tiến trình) và credential operator (test thay cho profile MFA).
+    public HttpMessageHandler? AuthorityServiceHandler { get; init; }
+
+    public Func<AWSCredentials>? OperatorCredentials { get; init; }
+
+    public Func<IAuthorityTransitionClient, IAuthorityTransitionClient>? TransitionClientDecorator { get; init; }
+
+    // C-IR-03: kiểm tra nâng quyền KHÔNG phụ thuộc tên môi trường. Mặc định Environment.IsPrivilegedProcess; chỉ code test mới thay.
+    public Func<bool>? PrivilegeCheck { get; init; }
+
+    // Điểm tiêm lỗi cho test: chạy bên trong transaction SQLite trước commit / ngay sau commit (trước khi activate authority).
+    public Func<AppDbContext, Task>? BeforeSqliteCommit { get; init; }
+
+    public Func<Task>? AfterSqliteCommit { get; init; }
 }
 
 public sealed class CliConfigurationException(string message) : Exception(message);
 
-// Composition root của CLI: chỉ tạo đúng những gì command cần (DbContext, reader, mutator). Không có IHost, Kestrel,
+// Composition root của CLI: chỉ tạo đúng những gì command cần (DbContext, reader, transition client). Không có IHost, Kestrel,
 // middleware, DevelopmentSeeder, migration hay hosted service.
 public sealed class PlatformCliContext : IDisposable
 {
+    private static readonly TimeSpan AuthorityServiceTimeout = TimeSpan.FromSeconds(15);
+
     private readonly PlatformCliHostOptions hostOptions;
     private readonly List<IDisposable> owned = [];
     private IProvisioningAuthorityReader? reader;
@@ -50,6 +65,10 @@ public sealed class PlatformCliContext : IDisposable
     public string DatabasePath { get; }
 
     public ProvisioningAuthoritySettings? Authority { get; }
+
+    public PlatformCliHostOptions HostOptions => hostOptions;
+
+    public bool IsPrivilegedOperator => (hostOptions.PrivilegeCheck ?? (() => Environment.IsPrivilegedProcess))();
 
     public static PlatformCliContext Create(string? appDirectory, PlatformCliHostOptions hostOptions)
     {
@@ -118,25 +137,45 @@ public sealed class PlatformCliContext : IDisposable
         return await PlatformDatabaseInspector.InspectAsync(db, cancellationToken);
     }
 
+    // Đọc authority luôn qua đường read-only của runtime (DynamoDB: default credential chain của host = role runtime chỉ GetItem).
     public IProvisioningAuthorityReader GetReader()
     {
         var settings = Authority ?? throw new CliConfigurationException("provisioning_authority_not_configured");
         return reader ??= settings.Kind switch
         {
             ProvisioningAuthorityKind.LocalSeal => new LocalSealProvisioningAuthorityReader(settings),
-            _ => Own(new DynamoDbProvisioningAuthorityReader(CreateDynamoDbClient(settings, forMutation: false), settings)),
+            _ => Own(new DynamoDbProvisioningAuthorityReader(
+                hostOptions.DynamoDbReadClientFactory?.Invoke(settings) ?? DynamoDbAuthorityClientFactory.CreateRuntimeClient(settings),
+                settings)),
         };
     }
 
-    public IProvisioningAuthorityMutator CreateMutator()
+    // DynamoDb: mọi thay đổi authority đi qua Authority Service (route operation) với credential assume-role có MFA của operator.
+    // Không bao giờ rơi về default credential chain hay ghi DynamoDB trực tiếp. LocalSeal: chỉ Development/Testing.
+    public IAuthorityTransitionClient CreateTransitionClient(IOperatorConsole console)
     {
         var settings = Authority ?? throw new CliConfigurationException("provisioning_authority_not_configured");
-        IProvisioningAuthorityMutator mutator = settings.Kind switch
+        IAuthorityTransitionClient client;
+        if (settings.Kind == ProvisioningAuthorityKind.LocalSeal)
         {
-            ProvisioningAuthorityKind.LocalSeal => new LocalSealProvisioningAuthorityMutator(settings),
-            _ => Own(new DynamoDbProvisioningAuthorityMutator(CreateDynamoDbClient(settings, forMutation: true), settings)),
-        };
-        return hostOptions.MutatorDecorator?.Invoke(mutator) ?? mutator;
+            client = new LocalSealTransitionClient(settings);
+        }
+        else
+        {
+            var endpoint = settings.AuthorityServiceEndpoint
+                ?? throw new CliConfigurationException("ProvisioningAuthority:AuthorityService:Endpoint is required for authority operations.");
+            var credentials = hostOptions.OperatorCredentials?.Invoke()
+                ?? (settings.DynamoDbOperatorProfile is { } profile
+                    ? OperatorCredentialProvider.Create(profile, console)
+                    : throw new CliConfigurationException("ProvisioningAuthority:DynamoDb:OperatorProfile is required for authority operations."));
+            var http = Own(hostOptions.AuthorityServiceHandler is { } handler
+                ? new HttpClient(handler, disposeHandler: false)
+                : new HttpClient());
+            http.Timeout = AuthorityServiceTimeout;
+            client = new AuthorityServiceHttpClient(http, EnsureTrailingSlash(endpoint), credentials, settings.DynamoDbRegion!, TimeProvider.System);
+        }
+
+        return hostOptions.TransitionClientDecorator?.Invoke(client) ?? client;
     }
 
     public void Dispose()
@@ -147,29 +186,9 @@ public sealed class PlatformCliContext : IDisposable
         }
     }
 
-    // Ghi authority luôn dùng OperatorProfile tường minh; không bao giờ rơi về default chain (trên host đó là role
-    // read-only của runtime). Đọc dùng OperatorProfile nếu có, nếu không thì default chain.
-    private IAmazonDynamoDB CreateDynamoDbClient(ProvisioningAuthoritySettings settings, bool forMutation)
+    private static Uri EnsureTrailingSlash(Uri endpoint)
     {
-        if (hostOptions.DynamoDbClientFactory is { } factory)
-        {
-            return factory(settings, forMutation);
-        }
-
-        var config = DynamoDbAuthorityClientFactory.CreateConfig(settings);
-        if (settings.DynamoDbOperatorProfile is null)
-        {
-            return forMutation
-                ? throw new CliConfigurationException("ProvisioningAuthority:DynamoDb:OperatorProfile is required for authority mutations.")
-                : new AmazonDynamoDBClient(config);
-        }
-
-        if (!new CredentialProfileStoreChain().TryGetAWSCredentials(settings.DynamoDbOperatorProfile, out var credentials))
-        {
-            throw new CliConfigurationException("operator_profile_not_found");
-        }
-
-        return new AmazonDynamoDBClient(credentials, config);
+        return endpoint.AbsoluteUri.EndsWith('/') ? endpoint : new Uri(endpoint.AbsoluteUri + "/");
     }
 
     private T Own<T>(T item)

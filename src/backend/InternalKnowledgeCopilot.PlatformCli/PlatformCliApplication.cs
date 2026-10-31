@@ -1,6 +1,5 @@
 using System.Globalization;
 using InternalKnowledgeCopilot.Api.Common;
-using InternalKnowledgeCopilot.Api.Infrastructure.Options;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Auth;
 using InternalKnowledgeCopilot.Api.Modules.Platform.Provisioning;
 using InternalKnowledgeCopilot.PlatformCli.Bootstrap;
@@ -62,7 +61,7 @@ public sealed class PlatformCliApplication(IOperatorConsole console, PlatformCli
         }
     }
 
-    // status/recovery-check: SQLite mở Mode=ReadOnly, authority chỉ đọc, không tạo mutator.
+    // status/recovery-check: SQLite mở Mode=ReadOnly, authority chỉ đọc, không tạo transition client.
     private async Task<int> StatusAsync(PlatformCliContext context, bool detailed, CancellationToken cancellationToken)
     {
         var inspection = await context.InspectAsync(cancellationToken);
@@ -145,7 +144,7 @@ public sealed class PlatformCliApplication(IOperatorConsole console, PlatformCli
             return blocked;
         }
 
-        var service = new PlatformBootstrapService(context, context.CreateMutator());
+        var service = new PlatformBootstrapService(context, context.CreateTransitionClient(console));
         var preflight = await service.PreflightAsync(cancellationToken);
         if (preflight.Result.Outcome != OperationOutcome.Success)
         {
@@ -197,7 +196,7 @@ public sealed class PlatformCliApplication(IOperatorConsole console, PlatformCli
             return blocked;
         }
 
-        var service = new PlatformRecoveryService(context, context.CreateMutator());
+        var service = new PlatformRecoveryService(context, context.CreateTransitionClient(console));
         var preflight = await service.PreflightAsync(cancellationToken);
         if (preflight.Result.Outcome != OperationOutcome.Success)
         {
@@ -207,7 +206,9 @@ public sealed class PlatformCliApplication(IOperatorConsole console, PlatformCli
 
         var plan = preflight.Plan!;
         var target = preflight.Target!;
-        console.WriteLine($"Recovery {preflight.Record!.RecoveryId:D} ({plan.Purpose}) authorized for account {target.Id:D} ({target.Email}).");
+        // C-IR-07: không in email đích. Operator phải gõ email lấy từ yêu cầu recovery đã được phê duyệt (kênh ngoài CLI), nên
+        // bước xác nhận chứng minh hai nguồn độc lập khớp nhau thay vì chép lại giá trị vừa hiển thị.
+        console.WriteLine($"Recovery {preflight.Record!.RecoveryId:D} ({plan.Purpose}) authorized for platform account id {target.Id:D}.");
         if (!console.IsInteractive)
         {
             throw new CliUsageException("interactive_terminal_required");
@@ -229,7 +230,7 @@ public sealed class PlatformCliApplication(IOperatorConsole console, PlatformCli
         if (plan.Purpose == ProvisioningRecoveryPurpose.AdminRecovery)
         {
             // Operator xác nhận độc lập đúng tài khoản mà authority đã chỉ định.
-            var confirmation = PlatformEmailNormalizer.TryNormalize(arguments.Get("email") ?? console.ReadLine("Confirm target account email: "));
+            var confirmation = PlatformEmailNormalizer.TryNormalize(arguments.Get("email") ?? console.ReadLine("Target account email from the approved recovery request: "));
             if (!string.Equals(confirmation, target.Email, StringComparison.Ordinal))
             {
                 await TryAuditDenialAsync(context, preflight.Inspection, PlatformAuditActions.RecoveryDenied, "recovery_target_confirmation_mismatch", requestId);
@@ -267,8 +268,9 @@ public sealed class PlatformCliApplication(IOperatorConsole console, PlatformCli
             return CliExitCodes.Denied;
         }
 
-        // Ngoài Development/Testing, thao tác ghi yêu cầu phiên quản trị nâng quyền trên host triển khai.
-        if (!ProvisioningAuthorityConfigurationValidator.IsLocalSealEnvironment(context.EnvironmentName) && !Environment.IsPrivilegedProcess)
+        // C-IR-03: thao tác ghi luôn yêu cầu phiên quản trị nâng quyền trên host, ở MỌI môi trường; tên môi trường (do biến môi
+        // trường quyết định) không bao giờ miễn kiểm tra này. Ranh giới ủy quyền thật là Authority Service phía server.
+        if (!context.IsPrivilegedOperator)
         {
             console.WriteError("denied: privileged_operator_required (run from an elevated administrator session on the deployment host)");
             return CliExitCodes.Denied;

@@ -10,8 +10,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Cho phép OperatorProfile dạng assume-role (role_arn/source_profile/mfa_serial) của AWS shared config. -->
+    <!-- OperatorProfile dạng assume-role có MFA (role_arn/source_profile/mfa_serial); CLI tự đặt MfaTokenCodeCallback (C-IR-02). -->
     <PackageReference Include="AWSSDK.SecurityToken" Version="4.0.100" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Test gọi trực tiếp bước transaction SQLite để kiểm tra phòng thủ chiều sâu khi authority hoạt động sai. -->
+    <InternalsVisibleTo Include="InternalKnowledgeCopilot.Tests" />
   </ItemGroup>
 
   <ItemGroup>

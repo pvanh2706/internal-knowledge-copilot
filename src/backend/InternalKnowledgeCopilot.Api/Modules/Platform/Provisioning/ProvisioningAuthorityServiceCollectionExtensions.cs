@@ -4,7 +4,8 @@ namespace InternalKnowledgeCopilot.Api.Modules.Platform.Provisioning;
 
 public static class ProvisioningAuthorityServiceCollectionExtensions
 {
-    // API chỉ đăng ký reader (read-only); quyền ghi authority (reserve/activate/recovery) chỉ tồn tại trong CLI.
+    // API chỉ đăng ký reader (read-only). Thay đổi authority chỉ do Authority Service phía server thực hiện (S01-C-REM);
+    // CLI chỉ gửi yêu cầu tới service, API không có cả hai.
     public static IServiceCollection AddPlatformProvisioningVerifier(this IServiceCollection services, ProvisioningAuthoritySettings? settings)
     {
         if (settings is null)
